@@ -1,0 +1,1 @@
+window.LunarWorkshopAssets={"regions":{"work":{"x":0,"y":192,"width":384,"height":320,"columns":4,"rows":["assemble","scan","weld","sensor","inspect"],"cell":[96,64],"foot_anchor":[32,58]},"lander":{"x":0,"y":512,"width":233,"height":245},"hologram":{"x":0,"y":765,"width":225,"height":245},"teststand":{"x":0,"y":1018,"width":285,"height":160}}};

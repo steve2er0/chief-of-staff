@@ -10,6 +10,7 @@ import json
 from .safety import Invalid, bounded_text
 from .store import now, uid
 from .intake import SETUP_INSTRUCTION
+from .progress import apply_progress
 
 
 KINDS = ("decision", "investigation", "discussion", "implementation", "validation", "future")
@@ -230,8 +231,7 @@ class PortfolioMixin:
             def update(changes):
                 with self.store.transaction():
                     current = self.store.get("job", job["id"])
-                    current.update({k: v for k, v in changes.items() if k in ("session_id", "progress", "worker_pid")})
-                    current["updated"] = now()
+                    apply_progress(current, changes, now())
                     self.store.put("job", current)
             instruction = (CONVERSATION_INSTRUCTION if proposal_kind == "conversation" else
                            "Propose a manageable work map for this project's actual vision and agreed brief. Distinguish decisions, discussions, investigations, implementation, validation and future work. Every piece needs an outcome and criteria. Use unique keys and an acyclic dependency graph. Suggest suitable human or agent work, but do not delegate or execute anything.")
@@ -357,6 +357,15 @@ class PortfolioMixin:
             return item
 
     def _validate_linked_plan(self, plan):
+        outstanding = [t for t in self.store.all("task") if t["project_id"] == plan["project_id"] and
+                       t["state"] in ("queued", "running", "stopping", "ready_for_review")]
+        if plan.get("scope") == "project":
+            if len(plan["specs"]) != 1:
+                raise Invalid("A whole-project assignment needs exactly one task")
+            if outstanding:
+                raise Invalid("Review or stop the project's existing assignment before launching another")
+        elif any(t.get("assignment_scope") == "project" for t in outstanding):
+            raise Invalid("Review or stop the whole-project assignment before delegating separate pieces")
         for spec in plan["specs"]:
             if not spec.get("work_item_id"):
                 continue
@@ -488,6 +497,13 @@ class PortfolioMixin:
             target, reason, action = questions[0], "An unanswered question needs your direction.", "decision"
         elif attention:
             target, reason, action = attention[0], "Stopped or blocked work needs a recovery decision.", "review"
+        elif any(t.get("assignment_scope") == "project" for t in active):
+            target = next(t for t in active if t.get("assignment_scope") == "project")
+            reason, action = "One agent is handling this project. Its subtasks stay within the assignment.", "activity"
+        elif any(t.get("assignment_scope") == "project" and t["state"] == "accepted" for t in tasks):
+            latest = next(t for t in reversed(tasks) if t.get("assignment_scope") == "project" and t["state"] == "accepted")
+            title = next(iter(latest.get("result", {}).get("next_steps", [])), "Discuss the next useful change")
+            target, reason, action = {"id": p["id"], "title": title}, "You accepted the agent result. Continue from its recorded next step.", "project"
         elif actionable:
             target = max(actionable, key=lambda x: sum(x["id"] in y["depends_on"] for y in items))
             unlocked = sum(target["id"] in x["depends_on"] for x in items if x["status"] != "done")
@@ -499,10 +515,15 @@ class PortfolioMixin:
             target, reason, action = {"id": p["id"], "title": "Review the work map"}, ("Remaining work is deferred or waiting on dependencies." if unfinished else "All recorded pieces are complete. Decide whether the project needs a next milestone."), "project"
         else:
             target, reason, action = {"id": p["id"], "title": "Consider the next useful step"}, "Build on the project context and consider a small next move.", "project"
+        checkpoint = p.get("checkpoint") or "Your vision is saved. Pick up the conversation when you’re ready."
+        latest = next((t for t in reversed(tasks) if t.get("assignment_scope") == "project" and
+                       t["state"] in ("ready_for_review", "blocked", "failed", "interrupted", "paused", "accepted", "cancelled")), None)
+        if latest and (latest.get("finished_at") or latest["updated"]) > (p.get("checkpoint_at") or ""):
+            checkpoint = ("Agent result ready for review: " if latest["state"] == "ready_for_review" else "Agent task " + latest["state"] + ": ") + latest["title"]
         return {"next": {"title": target.get("title", target.get("text", "Resolve question")), "id": target["id"], "action": action, "reason": reason},
                 "ready": len(ready), "questions": len(questions), "attention": len(attention), "active": len(active),
                 "done": sum(x["status"] == "done" for x in items), "pieces": len(items),
-                "last_left": p.get("checkpoint") or "Your vision is saved. Pick up the conversation when you’re ready.",
+                "last_left": checkpoint,
                 "milestone": p.get("brief", {}).get("milestone") or "First milestone not yet agreed"}
 
     def portfolio_briefing(self):

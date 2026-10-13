@@ -128,6 +128,25 @@ button.dependency.resolved{color:var(--green)}
 .conversation-options label{margin-top:12px}
 .conversation-question{margin-top:12px}
 .delegation-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;font-size:12px}
+.assignment-panel>p{font-size:13px;line-height:1.7}
+.assignment-preview{border-top:1px solid var(--line);padding-top:20px;margin-top:20px}
+.assignment-preview .prose{font-size:13px;line-height:1.7;margin:14px 0}
+.assignment-background{border-top:1px solid var(--line);padding-top:18px;margin-top:26px;font-size:12px;color:var(--muted)}
+.plan-task label[hidden]{display:none}
+.agent-feedback{margin:12px 0;padding:12px 14px;border-left:3px solid var(--green);background:#edf2eb;border-radius:5px;font-size:12px;line-height:1.65}
+.agent-feedback.warning{border-color:var(--gold);background:#fbf3e2}
+.agent-feedback p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.reported-blocker{display:block;font-size:11px;margin-bottom:8px}
+.agent-timing{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:10px}
+.task-card .agent-feedback{padding:10px;font-weight:400;text-align:left}
+.result-handoff{padding:20px 0;border-bottom:1px solid var(--line)}
+.result-handoff h3{margin-top:24px;font:20px/1.4 Georgia,serif}
+.result-handoff .prose{font-size:13px;line-height:1.75}
+.handoff-basis{color:var(--muted);font-size:11px}
+.brief-folder{font-size:12px;overflow-wrap:anywhere}
+.brief-criteria{padding-left:20px;font-size:12px;line-height:1.7}
+.brief-criteria li{margin:7px 0}
+.activity-log{margin-top:20px;font-size:11px}
 .planning-proposals{font-size:12px}
 .planning-proposals .proposal-link small{display:block;margin-top:6px;color:var(--muted);font-size:10px}
 .path-field{margin:18px 0}
@@ -169,3 +188,22 @@ button.dependency.resolved{color:var(--green)}
 @media(max-width:1250px){.project-layout{grid-template-columns:minmax(0,1fr) 270px;gap:16px}.project-brief .panel{padding:18px}.work-map{grid-template-columns:1fr}.briefing-grid{gap:16px}}
 @media(max-width:1050px){.project-layout{grid-template-columns:1fr}.project-brief{order:2}.briefing-grid{grid-template-columns:1fr}.composer-footer{flex-wrap:wrap}}
 @media(max-width:650px){.briefing-toolbar{align-items:flex-start;flex-direction:column}.inline-control{width:100%;justify-content:space-between}.workspace-tabs{margin-bottom:16px}.workspace-tabs button{padding:10px;font-size:11px}.resume-strip{align-items:flex-start}.resume-strip .pill{font-size:9px}.review-row{align-items:flex-start;flex-direction:column;gap:12px}.delegation-tray{flex-direction:column;align-items:stretch}.map-tools{align-items:flex-start;flex-direction:column}.message.user{margin-left:0}.proposal-link{flex-direction:column;align-items:flex-start}.project-layout{gap:8px}.conversation-panel .section-title{align-items:flex-start;gap:12px}.conversation-panel .section-title h2{font-size:22px}.composer-footer{align-items:flex-end}.composer-footer label{min-width:190px}.header-actions button{white-space:nowrap}}
+
+/* Optional isolated visual demo entry. */
+.lunar-demo-entry{display:block;margin:18px 0;color:var(--muted);font-size:12px;text-decoration:none}.lunar-demo-entry:hover{color:var(--ink)}
+@media(max-width:650px){.lunar-demo-entry{margin:10px 0 0}}
+
+.research-permission{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0 20px}.research-permission .checkbox-row{display:flex;align-items:center;gap:10px;margin:0;font-weight:600}.research-permission input[type=checkbox]{width:auto;flex:none}.research-permission .section-note{margin:10px 0 0}
+
+/* One queue for the owner decisions that move work forward. */
+.attention-panel{margin-bottom:24px}
+.attention-row{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:20px 0;border-top:1px solid var(--line)}
+.attention-row>div{min-width:0;flex:1}
+.attention-row>button{flex-shrink:0}
+.attention-row h3{margin:8px 0;font-size:15px;overflow-wrap:anywhere}
+.attention-row p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.attention-filters{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.attention-filters [aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}
+.continuation-context{margin:20px 0;padding:18px;background:#edf1e9;border-radius:8px}
+.continuation-context pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px}
+@media(max-width:650px){.attention-row{flex-direction:column;align-items:flex-start;gap:12px}.attention-row>button{width:100%}.attention-filters button{flex:1}.continuation-context{padding:12px}}

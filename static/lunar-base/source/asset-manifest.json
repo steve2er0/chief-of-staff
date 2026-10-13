@@ -1,0 +1,414 @@
+{
+  "atlas": {
+    "cell": [
+      64,
+      64
+    ],
+    "columns": 6,
+    "rows": [
+      "walking",
+      "idle",
+      "working"
+    ],
+    "foot_anchor": [
+      32,
+      58
+    ]
+  },
+  "frames": [
+    {
+      "row": 0,
+      "column": 0,
+      "source_bounds": [
+        61,
+        82,
+        218,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 1,
+      "source_bounds": [
+        72,
+        78,
+        218,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 2,
+      "source_bounds": [
+        71,
+        76,
+        222,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 3,
+      "source_bounds": [
+        57,
+        80,
+        216,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 4,
+      "source_bounds": [
+        61,
+        79,
+        217,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 5,
+      "source_bounds": [
+        63,
+        81,
+        212,
+        331
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 0,
+      "source_bounds": [
+        65,
+        61,
+        218,
+        317
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 1,
+      "source_bounds": [
+        62,
+        61,
+        212,
+        317
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 2,
+      "source_bounds": [
+        57,
+        60,
+        209,
+        317
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 3,
+      "source_bounds": [
+        50,
+        60,
+        200,
+        316
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 4,
+      "source_bounds": [
+        48,
+        60,
+        198,
+        316
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 5,
+      "source_bounds": [
+        47,
+        60,
+        197,
+        317
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 0,
+      "source_bounds": [
+        62,
+        41,
+        232,
+        284
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 1,
+      "source_bounds": [
+        65,
+        41,
+        238,
+        285
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 2,
+      "source_bounds": [
+        63,
+        41,
+        232,
+        285
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 3,
+      "source_bounds": [
+        58,
+        41,
+        229,
+        285
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 4,
+      "source_bounds": [
+        50,
+        41,
+        223,
+        285
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 5,
+      "source_bounds": [
+        49,
+        41,
+        223,
+        285
+      ],
+      "anchor": [
+        32,
+        58
+      ],
+      "height": 50
+    }
+  ],
+  "files": {
+    "assets/astronaut-amber.png": {
+      "sha256": "02bb9c8aa5239050e69d08b7e371f91db6731f0a23b283fe26b4b6fd9e1e8d6f",
+      "bytes": 148400,
+      "size": [
+        384,
+        512
+      ]
+    },
+    "assets/astronaut-teal.png": {
+      "sha256": "ea9564080619d2364f4616f94a44cfe053515c005d494d2629a40e71675a0dbf",
+      "bytes": 377196,
+      "size": [
+        384,
+        1186
+      ]
+    },
+    "assets/console.png": {
+      "sha256": "76c1c48581600efbabeda9ed19e1052b5774f84cf8487e688fd3ecb4b798b164",
+      "bytes": 13305,
+      "size": [
+        86,
+        95
+      ]
+    },
+    "assets/habitat.png": {
+      "sha256": "4e3591015a3aebbfce7a35dbb5f83459ad423a9f733b2318d6b165c12086e31c",
+      "bytes": 194711,
+      "size": [
+        410,
+        255
+      ]
+    },
+    "assets/terrain.png": {
+      "sha256": "47d0608ae39a4892bdfac9304f333808508ee1523e9e97ca0ecf992641d48282",
+      "bytes": 867903,
+      "size": [
+        768,
+        512
+      ]
+    },
+    "source/astronaut-original.png": {
+      "sha256": "22e5163a78beb15fefcd8972c6806eb6962435086d08346d7d2e04d9110db4b0",
+      "bytes": 1986341,
+      "size": [
+        1536,
+        1024
+      ]
+    },
+    "source/console-original.png": {
+      "sha256": "d9ac50400a5c5940f0e3e5331572e936b1496006fd63cb36b783c52fef66bdd1",
+      "bytes": 886196,
+      "size": [
+        1254,
+        1254
+      ]
+    },
+    "source/habitat-original.png": {
+      "sha256": "86303f6b1c7c7fb9dda045114343b8f84c3466bec99bf1220cac670f2b948601",
+      "bytes": 1869904,
+      "size": [
+        1536,
+        1024
+      ]
+    },
+    "source/terrain-original.png": {
+      "sha256": "232f834df0224f8fd528f42de112af7411e4625308bba86f0a942b29e5e9c6d7",
+      "bytes": 3271512,
+      "size": [
+        1536,
+        1024
+      ]
+    },
+    "assets/astronaut-work-amber.png": {
+      "sha256": "2d91e2d6b19b048352d56c9253aff593435d2c3da3234288736334926badd283",
+      "bytes": 81684,
+      "size": [
+        384,
+        320
+      ]
+    },
+    "assets/astronaut-work-teal.png": {
+      "sha256": "f8cd3f82f27014ff31acce573e7e828966110174dbc66fa72688c57711f207d6",
+      "bytes": 81878,
+      "size": [
+        384,
+        320
+      ]
+    },
+    "assets/hologram.png": {
+      "sha256": "07fa747825a05922c355bf3cd796d7993cde651fd6a389ca4c8e632e38d203bd",
+      "bytes": 81064,
+      "size": [
+        225,
+        245
+      ]
+    },
+    "assets/lander.png": {
+      "sha256": "fafc7bcdfc50f98aa88af1d86670f37059da733d93c18682e0256b38f69b1ea8",
+      "bytes": 110666,
+      "size": [
+        233,
+        245
+      ]
+    },
+    "assets/teststand.png": {
+      "sha256": "2bc5747ecd3a89d639161070e212a583ce515df0b7c57c596a0b7c2c2bc664e2",
+      "bytes": 98603,
+      "size": [
+        285,
+        160
+      ]
+    }
+  },
+  "runtime_extensions": {
+    "manifest": "source/workshop-asset-manifest.json",
+    "original_atlas_region": [
+      0,
+      0,
+      384,
+      192
+    ],
+    "original_manifest": "source/asset-manifest-v1.json"
+  }
+}

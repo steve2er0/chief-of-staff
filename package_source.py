@@ -8,6 +8,10 @@ files = [root / name for name in ("app.py", "README.md", "package_source.py", ".
 for folder, suffixes in (("cos", {".py"}), ("static", {".html", ".css", ".js"}),
                          ("tests", {".py"}), ("docs", {".md"})):
     files += [p for p in (root / folder).rglob("*") if p.is_file() and p.suffix in suffixes and "__pycache__" not in p.parts]
+# Lunar Base owns a small set of local raster assets and rebuild provenance.
+files += [p for p in (root / "static" / "lunar-base").rglob("*")
+          if p.is_file() and p.suffix in {".png", ".json", ".md", ".py", ".cjs"}
+          and "evidence" not in p.parts]
 archive = root.parent / "chief-of-staff-source.zip"
 with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
     for path in sorted(files):

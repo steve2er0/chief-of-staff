@@ -40,12 +40,17 @@ launch URL without opening a browser. Only one service can own a data folder.
    Details such as priority, target date, working folder and references are optional.
 2. **Conversation:** build on your idea with a short **Where we are** note and one
    **Suggested next step**. Detailed planning stays behind **Delegate work**.
-3. **Delegate work:** request a breakdown, review and adopt its work pieces,
-   and select only those you want agents to handle.
-4. **Prepare selected assignments:** review scope, criteria, permissions and
-   expected outputs. Approve the plan, then explicitly launch it. Approval alone
-   starts no delegated worker.
-5. **Review results:** inspect output snapshots, record useful partial findings,
+3. **Delegate work:** prepare one agent task from your vision and conversation.
+   The worker handles its research, implementation and checks inside that task.
+   Use **Detailed planning → Split into separate assignments** when you want
+   independent responsibilities.
+4. **Review the brief:** edit the short goal and completion criteria. Detailed
+   instructions, output paths and captured context are expandable. Review
+   permissions, approve the assignment, then explicitly launch the agent.
+5. **Follow progress and review results:** see the latest meaningful agent update,
+   elapsed time and last activity. Returned work shows changes, reported checks,
+   limits, what needs your judgment and a suggested next step. Inspect output
+   snapshots, record useful partial findings,
    request revisions or accept results. Completing a linked work piece is a
    separate choice. Other pieces can stay with you, wait on dependencies or be deferred.
 
@@ -73,6 +78,22 @@ questions and returned results. Optional Codex focus advice remains a recommenda
 Briefings use the computer's local clock and run only while the service is running.
 There are no email or desktop notifications, missed-slot catch-up, or work while
 closed or asleep.
+
+**Needs you** is the shared attention queue for assignment approvals and launches,
+open questions and proposed decisions, stopped-work handoffs and returned results.
+Filter it by Approvals, Handoffs or Reviews. Your briefing and Agent activity show
+previews of this same queue. Answering a question records project context; it does
+not steer a running agent or clear an external tool permission.
+
+For stopped work, open the handoff, enter what you checked or what should happen
+next, and choose **Resume saved work**. This prepares a continuation brief with the
+previous report and output metadata. Review, approve and launch it. Compatible
+Codex work resumes the exact captured session; a changed folder or CLI/model needs
+a fresh session. Repeated continuations retain the original instructions without
+accumulating retry notes. Interrupted processes still require cleanup confirmation.
+
+Settings supports **1–6 concurrent jobs**, including CoS calls. Folder locks still
+serialize overlapping writers. Independent CLI processes are not managed by CoS.
 
 ## Files and references
 
@@ -123,10 +144,32 @@ A worker's completion is a claim for your review; it cannot accept its own resul
 Output snapshots are checked for integrity before acceptance. Those checks do not
 establish semantic correctness or engineering validity.
 
-The adapter passes argument arrays with `shell=False`, sends prompts through stdin,
-and uses `read-only` or `workspace-write` sandbox options with the user approval
-reviewer. It does not grant extra writable directories, bypass the sandbox or
-broaden access after a failure. Headless CLI builds may reject approval-required
+Each editable assignment includes **Allow public web research & downloads**, off
+by default. Selecting it and approving the brief enables outbound command network
+access for that worker, including an exact-session resume. It does not change
+other assignments or global CLI settings. Downloads stay in the project folder;
+public-source-only use and no private uploads are worker instructions, not a domain
+allowlist. Read-only calls keep command networking disabled. Browser tools retain
+separate permission checks; CoS cannot grant their origin access or relay an
+interactive CLI approval. To resume a research-blocked task, draft a revision,
+select research access, approve the new brief, then launch.
+
+The assignment brief also has a **Time limit** choice: the workspace default or
+**No time limit**. This choice is captured in approval and retained on revisions.
+No time limit disables the elapsed-time cutoff for that worker; pause/cancel,
+process cleanup, sandbox permissions, output bounds and final-result checks still
+apply. Other assignments and read-only coordinator calls use the workspace default.
+
+The adapter passes argument arrays with `shell=False` and sends prompts through stdin.
+Assignments default to sandboxed `read-only` or `workspace-write` execution with the
+user approval reviewer. Editable assignments also offer **YOLO · --yolo**: the CLI's
+`--dangerously-bypass-approvals-and-sandbox` flag removes command approval prompts
+and CLI sandboxing, including its file/network restrictions. It is assignment-scoped,
+included in approval, capability-checked for new/resumed calls, and retained on
+continuations. Read-only assignments cannot select it. Browser permissions remain
+separate, and the assigned scope still applies. Existing tasks stay unchanged;
+switching a draft's policy requires approval again. No automatic reviewer or
+arbitrary flags are enabled. Sandboxed headless CLI builds may reject approval-required
 operations; this app does not provide an interactive approval relay. The installed
 CLI, trusted configuration, plugins and platform policy remain part of the boundary.
 Read-only limits writes, not necessarily which files a model can read.

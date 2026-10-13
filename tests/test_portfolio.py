@@ -215,6 +215,158 @@ class PortfolioTests(unittest.TestCase):
         self.s.launch(plan['id'])
         self.assertEqual(len(self.s.store.all('task')), 1)
 
+    def assignment_result(self, count=1):
+        return {'status':'completed', 'summary':'One task covering the owner project.', 'suggestions':[],
+                'tasks':[{'title':'Build the interactive tool', 'purpose':'Implement the owner vision, including all adjustable controls and comparisons.',
+                          'criteria':['The controls update the predictions.', 'Report verification and model limitations.'],
+                          'access':'workspace-write', 'expected_outputs':['viewer.html']} for _ in range(count)]}
+
+    def test_whole_project_assignment_keeps_subtasks_inside_one_draft(self):
+        items = self.work_map()
+        self.s.discuss(self.p['id'], 'Include adjustable controls and water comparisons.')
+        plan = self.s.prepare_project_assignment(self.p['id'])
+        self.assertEqual(plan['scope'], 'project')
+        self.assertEqual(len(plan['specs']), 1)
+        self.assertNotIn('work_item_id', plan['specs'][0])
+        self.assertIn('water comparisons', json.dumps(plan['context']['conversation']))
+        self.assertEqual(self.s.store.all('work_item'), items)
+        self.assertFalse(self.s.store.all('task'))
+        self.assertEqual(self.s.prepare_project_assignment(self.p['id'])['id'], plan['id'])
+        self.s.approve(plan['id'], plan['revision'])
+        self.assertFalse(self.s.store.all('task'))
+        launched = self.s.launch(plan['id'])
+        self.s.launch(plan['id'])
+        self.assertEqual(len(self.s.store.all('task')), 1)
+        task = self.s.store.get('task', launched['task_ids'][0])
+        self.assertEqual(task['assignment_scope'], 'project')
+        self.assertIn('Do not spawn or delegate', self.s._prompt(task))
+        next_move = self.s.portfolio_briefing()['landscape'][0]['next']
+        self.assertEqual(next_move['action'], 'activity')
+        self.assertEqual(next_move['id'], task['id'])
+        self.assertEqual(self.s.store.all('work_item'), items)
+        with self.assertRaises(Invalid): self.s.prepare_project_assignment(self.p['id'])
+        with self.assertRaises(Invalid): self.s.prepare_delegation(self.p['id'], [items[0]['id']])
+
+    def test_existing_draft_cannot_launch_over_another_assignment(self):
+        items = self.work_map()
+        whole = self.s.prepare_project_assignment(self.p['id'])
+        self.s.approve(whole['id'], whole['revision'])
+        piece = self.s.prepare_delegation(self.p['id'], [items[0]['id']])
+        self.s.approve(piece['id'], piece['revision'])
+        self.s.launch(piece['id'])
+        refreshed = self.s.approve(whole['id'], whole['revision'])
+        self.assertTrue(refreshed['refreshed'])
+        with self.assertRaises(Invalid): self.s.approve(whole['id'], refreshed['plan']['revision'])
+        self.assertEqual(len(self.s.store.all('task')), 1)
+
+    def test_whole_project_task_cannot_expand_to_multiple_specs(self):
+        plan = self.s.prepare_project_assignment(self.p['id'])
+        with self.assertRaises(Invalid): self.s.edit_plan(plan['id'], plan['revision'], plan['specs'] * 2)
+        self.assertEqual(len(self.s.store.get('plan', plan['id'])['specs']), 1)
+
+    def test_short_goal_is_approved_and_captured_separately_from_details(self):
+        plan=self.s.prepare_project_assignment(self.p['id'])
+        specs=copy.deepcopy(plan['specs']);specs[0]['goal']='A small interactive viewer.'
+        edited=self.s.edit_plan(plan['id'],plan['revision'],specs)
+        self.s.approve(edited['id'],edited['revision'])
+        task=self.s.store.get('task',self.s.launch(edited['id'])['task_ids'][0])
+        self.assertEqual(task['goal'],'A small interactive viewer.')
+        self.assertEqual(json.loads(self.s._prompt(task).split('\n')[-1])['assignment']['goal'],task['goal'])
+        self.assertNotEqual(task['goal'],task['purpose'])
+
+    def test_unadopted_worker_items_migrate_as_suggestions_and_keep_owner_answers(self):
+        worker=self.s.record(self.p['id'],'An agent observation.','question','Worker task example / session example')
+        owner=self.s.record(self.p['id'],'An actual owner question?','question','User entry')
+        answered=self.s.record(self.p['id'],'A resolved question?','question','Worker task example / session example')
+        self.s.resolve_batch([{'project_id':self.p['id'],'record_id':answered['id'],'action':'answer','answer':'Owner answer'}])
+        self.s.close();self.s=Service(self.root/'data',start=False)
+        records={r['id']:r for r in self.s.store.get('project',self.p['id'])['records']}
+        self.assertEqual(records[worker['id']]['category'],'suggestion')
+        self.assertEqual(records[owner['id']]['status'],'open')
+        self.assertEqual(records[answered['id']]['answer'],'Owner answer')
+        self.assertEqual(records[answered['id']]['status'],'answered')
+
+    def test_accepted_whole_project_outcome_leads_over_background_work_map(self):
+        items=self.work_map()
+        plan=self.s.prepare_project_assignment(self.p['id'])
+        self.s.approve(plan['id'],plan['revision'])
+        task_id=self.s.launch(plan['id'])['task_ids'][0]
+        self.drain();self.s.action(task_id,'accept','Reviewed the synthetic result.')
+        task=self.s.store.get('task',task_id)
+        next_move=self.s.portfolio_briefing()['landscape'][0]['next']
+        self.assertEqual(next_move['action'],'project')
+        self.assertEqual(next_move['title'],task['result']['next_steps'][0])
+        self.assertEqual(self.s.store.all('work_item'),items)
+        self.assertIn('Accepted:',self.s.store.get('project',self.p['id'])['checkpoint'])
+
+    def test_assignment_approval_refresh_preserves_owner_conversation(self):
+        plan = self.s.prepare_project_assignment(self.p['id'])
+        self.s.discuss(self.p['id'], 'The deliverable must work offline.')
+        result = self.s.approve(plan['id'], plan['revision'])
+        self.assertTrue(result['refreshed'])
+        refreshed = result['plan']
+        self.assertIn('must work offline', json.dumps(refreshed['context']['conversation']))
+        self.s.approve(plan['id'], refreshed['revision'])
+        launched = self.s.launch(plan['id'])
+        self.s.discuss(self.p['id'], 'A later idea is not part of that approved assignment.')
+        task = self.s.store.get('task', launched['task_ids'][0])
+        self.assertNotIn('A later idea', json.dumps(task['context']))
+        revised = self.s.action(task['id'], 'pause')
+        revised = self.s.action(task['id'], 'revise', 'Keep this with one agent.')
+        self.assertEqual(revised['scope'], 'project')
+
+    def test_model_prepares_exactly_one_task_without_adopting_a_work_map(self):
+        folder = self.root / 'project'
+        folder.mkdir()
+        self.s.project({'cwd':str(folder)}, self.p['id'])
+        self.s.discuss(self.p['id'], 'Include water and deflector controls.')
+        self.s.adapter = FakeAdapter(self.assignment_result())
+        self.s.settings({'mode':'codex'})
+        job = self.s.prepare_project_assignment(self.p['id'], 'codex')
+        self.drain()
+        self.assertEqual(self.s.store.get('job', job['id'])['state'], 'completed')
+        plan = self.s.store.all('plan')[0]
+        self.assertEqual(plan['scope'], 'project')
+        self.assertEqual(len(plan['specs']), 1)
+        self.assertEqual(plan['specs'][0]['access'], 'workspace-write')
+        self.assertIn('deflector controls', json.dumps(plan['context']['conversation']))
+        call = self.s.adapter.calls[0]
+        self.assertEqual(call['sandbox'], 'read-only')
+        self.assertIn('exactly ONE agent task', call['prompt'])
+        self.assertIn('deflector controls', call['prompt'])
+        self.assertFalse(self.s.store.all('work_item'))
+        self.assertFalse(self.s.store.all('task'))
+        self.assertEqual(self.s.prepare_project_assignment(self.p['id'], 'codex')['id'], plan['id'])
+        self.assertEqual(len(self.s.adapter.calls), 1)
+
+    def test_model_cannot_return_multiple_whole_project_assignments(self):
+        folder = self.root / 'project'
+        folder.mkdir()
+        self.s.project({'cwd':str(folder)}, self.p['id'])
+        self.s.adapter = FakeAdapter(self.assignment_result(2))
+        self.s.settings({'mode':'codex'})
+        job = self.s.prepare_project_assignment(self.p['id'], 'codex')
+        self.drain()
+        failed = self.s.store.get('job', job['id'])
+        self.assertEqual(failed['state'], 'failed')
+        self.assertIn('exactly one', failed['progress'])
+        self.assertFalse(self.s.store.all('plan'))
+        self.assertFalse(self.s.store.all('task'))
+
+    def test_project_change_during_task_preparation_requires_fresh_brief(self):
+        folder = self.root / 'project'
+        folder.mkdir()
+        self.s.project({'cwd':str(folder)}, self.p['id'])
+        self.s.adapter = FakeAdapter(self.assignment_result(), hold=True)
+        self.s.settings({'mode':'codex'})
+        job = self.s.prepare_project_assignment(self.p['id'], 'codex')
+        with self.assertRaises(Invalid): self.s.prepare_project_assignment(self.p['id'], 'codex')
+        self.s.discuss(self.p['id'], 'A meaningful change to the task.')
+        self.s.adapter.release.set()
+        self.drain()
+        self.assertEqual(self.s.store.get('job', job['id'])['state'], 'failed')
+        self.assertFalse(self.s.store.all('plan'))
+
     def test_dependencies_and_deferred_pieces_cannot_delegate(self):
         items = self.work_map()
         for kind in ('implementation', 'future'):

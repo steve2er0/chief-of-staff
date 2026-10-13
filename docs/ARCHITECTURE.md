@@ -9,6 +9,7 @@ The server and UI use no third-party runtime libraries.
 | `cos/store.py` | SQLite WAL, durable JSON records, atomic read/modify/write lock, audit history and exclusive service-instance lock |
 | `cos/service.py` | Projects/context, proposals, approval digest, task lifecycle, scheduling, directory locks, artifact validation, simulation and coordinator requests |
 | `cos/portfolio.py` | Vision/history, discussion proposals, work maps and dependencies, selective delegation, partial findings, continuity and portfolio advice |
+| `cos/attention.py` | Read-only attention queue derived from plans, tasks, project records and the latest coordinator jobs |
 | `cos/adapter.py` | Capability help preflight, fixed argv, bounded JSONL event parsing, exact session routing and process-tree cleanup |
 | `cos/safety.py` | Text/path bounds, relative file containment and read-only DOCX parsing |
 | `cos/filesystem.py` | Authenticated picker directory metadata, bounded name search and root-limited reference navigation |
@@ -16,6 +17,7 @@ The server and UI use no third-party runtime libraries.
 | `cos/references.py` | Browser-selected input copies, portable metadata, integrity checks and project binding |
 | `static/` | Escaped DOM rendering, polling board, forms, result review and batch decision resolution |
 | `static/workspace.js` | Briefing home, project conversation/brief, editable decomposition, work-map selection, review inbox and focus choices |
+| `static/attention.js` | Shared attention queue, direct question resolution and reviewed continuation handoffs |
 | `static/path-picker.js` | Working-folder selection, multiple file/folder references and cancellation without changing the project draft |
 | `static/conversation-feedback.js` | Confirmed message receipts, persistent agent status, safe send retries and draft-preserving reply updates |
 | `static/reference-files.js` | Native multiple-file selection, draft state, save-time copies and cleanup of unsaved uploads |
@@ -43,9 +45,54 @@ revisable state -> superseded + new draft plan -> approval -> explicit launch
 
 Only the service scheduler starts queued workers. It counts coordinator calls against concurrency and refuses overlapping read/write folder access. A persistent interrupted-work lock covers the uncertain state after a crash. An exclusive OS file lock prevents two app instances from opening the same data folder.
 
+Concurrency supports 1–6 jobs. Attention is a projection, not a second lifecycle:
+approving, launching, answering, accepting or preparing a continuation removes or
+replaces the corresponding item. Superseded tasks and older retried coordinator
+failures do not duplicate attention. Dismissing a finished CoS failure retains its
+history. Cancelled assignments can be continued from task details but do not demand
+attention automatically.
+
+Resume and revision both create a new draft with immutable `resume_context` from
+the predecessor and editable `continuation_note`. The original purpose stays
+stable. Approval includes these fields. The worker receives them only after explicit
+launch. Captured session identity remains code-owned; folder/CLI changes require a
+fresh session. A failed recovery request does not remove the process cleanup lock.
+
+The per-assignment `execution_policy` defaults to `sandboxed`. `yolo` requires
+workspace-write and an explicit brief approval. The adapter uses the CLI's advertised
+`--dangerously-bypass-approvals-and-sandbox` flag on exec or exec resume, without
+contradictory sandbox/approval/network overrides. CLI file/network restrictions are
+removed; browser tool permissions and CoS scheduling, lifecycle and artifact checks
+remain independent. Coordinator calls always use sandboxed read-only execution.
+
 Codex prompts are stdin data. CLI options come from a fixed code-owned list; no free-form command or flag field exists. Each real call uses its approved cwd/model/sandbox. A worker cannot mark itself accepted. A completed response must have a valid final contract, successful turn and exact captured session. Write task expected artifacts must exist within cwd, be bounded in size and contain a changed expected output. Snapshots, not active project files, are downloaded and accepted. Hash checks detect snapshot tampering; acceptance criteria still need human judgment.
 
-Headless approval semantics depend on the installed CLI. Current inspected exec source denies approval-required operations for the user reviewer; the adapter never enables automatic review. Windows cancellation uses a Job Object; POSIX uses a separate process group. A crash on POSIX may leave children alive, so recovery asks the user to confirm cleanup instead of blindly killing a stored PID.
+`research_access` is a strictly boolean, per-spec field defaulting to false. It is
+included in the exact approval payload and copied to the task. Only an approved
+workspace-write worker can enable `sandbox_workspace_write.network_access` for
+its invocation; exact-session resumes receive the same override. No configuration
+file is changed. Read-only coordinators remain offline for command networking.
+The network grant is not a domain allowlist; public-source/no-upload limits are
+prompt instructions. Browser tools and other connectors retain independent
+permission enforcement. A denial remains blocked; no automatic reviewer is enabled.
+
+An approved spec's `time_limit` is `default` or `none`, defaulting to `default`.
+The choice participates in the frozen approval digest. At launch, `none` maps to
+`timeout_seconds=0` in that task's config snapshot, which disables only the
+adapter's wall-clock deadline. Workspace settings retain their bounded default;
+coordinator calls do not inherit the choice. Revisions keep it and require fresh
+approval. Cancellation, event limits, session checks and completion validation
+remain active without a deadline.
+
+The JSONL reader accepts up to 1 MiB per record, 16 MiB across stdout/stderr
+per run, and 20,000 stdout events. Eight queued records bound buffering; records
+are read with a capped allocation and measured as UTF-8 bytes. Large valid tool
+responses within these bounds are parsed without relaxing the final completion,
+error or session contracts. Limit errors identify the channel and whether the
+single-record or total-run limit was exceeded. Process-tree cleanup still runs,
+and project edits remain on disk for reviewed recovery.
+
+Sandboxed headless approval semantics depend on the installed CLI. Current inspected exec source denies approval-required operations for the user reviewer; the adapter never enables automatic review. Windows cancellation uses a Job Object; POSIX uses a separate process group. A crash on POSIX may leave children alive, so recovery asks the user to confirm cleanup instead of blindly killing a stored PID.
 
 The scheduler checks the system-local date/time every 0.4 seconds while running. It persists a `local:YYYY-MM-DD:HH:MM` key for each scheduled snapshot. This gives once-per-wall-time-slot behavior across restarts and repeated DST times. Historical snapshots are read-only; decisions resolve against current project records.
 

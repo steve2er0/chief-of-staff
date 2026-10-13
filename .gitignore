@@ -24,3 +24,4 @@ auth.json
 *.p12
 *.zip
 *.zip.sha256
+*.delivery.json

@@ -1,0 +1,4 @@
+.masthead{flex-wrap:wrap;gap:8px 12px}
+body[data-lunar-mode=placement] .details{min-height:135px}
+body[data-lunar-mode=placement] .detail-note{max-width:250px}
+body[data-lunar-mode=placement] #world{touch-action:manipulation}

@@ -1,0 +1,534 @@
+{
+  "generation": "Built-in image_gen",
+  "processing": "Binary alpha edges; nearest-neighbour resize; helmet/boot registration; restrained amber trim palette; lossless atlas packing",
+  "regions": {
+    "work": {
+      "x": 0,
+      "y": 192,
+      "width": 384,
+      "height": 320,
+      "columns": 4,
+      "rows": [
+        "assemble",
+        "scan",
+        "weld",
+        "sensor",
+        "inspect"
+      ],
+      "cell": [
+        96,
+        64
+      ],
+      "foot_anchor": [
+        32,
+        58
+      ]
+    },
+    "lander": {
+      "x": 0,
+      "y": 512,
+      "width": 233,
+      "height": 245
+    },
+    "hologram": {
+      "x": 0,
+      "y": 765,
+      "width": 225,
+      "height": 245
+    },
+    "teststand": {
+      "x": 0,
+      "y": 1018,
+      "width": 285,
+      "height": 160
+    }
+  },
+  "frames": [
+    {
+      "row": 0,
+      "column": 0,
+      "source_bounds": [
+        65,
+        40,
+        247,
+        281
+      ],
+      "body_bounds": [
+        65,
+        40,
+        247,
+        281
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 1,
+      "source_bounds": [
+        336,
+        39,
+        529,
+        281
+      ],
+      "body_bounds": [
+        336,
+        39,
+        518,
+        281
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 2,
+      "source_bounds": [
+        612,
+        39,
+        800,
+        281
+      ],
+      "body_bounds": [
+        612,
+        39,
+        794,
+        281
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 0,
+      "column": 3,
+      "source_bounds": [
+        888,
+        39,
+        1064,
+        281
+      ],
+      "body_bounds": [
+        888,
+        39,
+        1064,
+        281
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 0,
+      "source_bounds": [
+        65,
+        318,
+        232,
+        560
+      ],
+      "body_bounds": [
+        65,
+        318,
+        232,
+        560
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 1,
+      "source_bounds": [
+        337,
+        318,
+        563,
+        560
+      ],
+      "body_bounds": [
+        337,
+        318,
+        539,
+        560
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 2,
+      "source_bounds": [
+        612,
+        318,
+        837,
+        560
+      ],
+      "body_bounds": [
+        612,
+        318,
+        837,
+        560
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 1,
+      "column": 3,
+      "source_bounds": [
+        888,
+        318,
+        1046,
+        560
+      ],
+      "body_bounds": [
+        888,
+        318,
+        1046,
+        560
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 0,
+      "source_bounds": [
+        65,
+        597,
+        246,
+        838
+      ],
+      "body_bounds": [
+        65,
+        597,
+        246,
+        838
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 1,
+      "source_bounds": [
+        337,
+        597,
+        549,
+        838
+      ],
+      "body_bounds": [
+        337,
+        597,
+        528,
+        838
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 2,
+      "source_bounds": [
+        613,
+        597,
+        823,
+        838
+      ],
+      "body_bounds": [
+        613,
+        597,
+        801,
+        838
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 2,
+      "column": 3,
+      "source_bounds": [
+        889,
+        597,
+        1068,
+        838
+      ],
+      "body_bounds": [
+        889,
+        597,
+        1068,
+        838
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 3,
+      "column": 0,
+      "source_bounds": [
+        67,
+        873,
+        255,
+        1113
+      ],
+      "body_bounds": [
+        67,
+        873,
+        255,
+        1113
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 3,
+      "column": 1,
+      "source_bounds": [
+        337,
+        873,
+        518,
+        1113
+      ],
+      "body_bounds": [
+        337,
+        873,
+        518,
+        1113
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 3,
+      "column": 2,
+      "source_bounds": [
+        613,
+        873,
+        795,
+        1113
+      ],
+      "body_bounds": [
+        613,
+        873,
+        795,
+        1113
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 3,
+      "column": 3,
+      "source_bounds": [
+        891,
+        873,
+        1043,
+        1113
+      ],
+      "body_bounds": [
+        891,
+        873,
+        1043,
+        1113
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 4,
+      "column": 0,
+      "source_bounds": [
+        66,
+        1148,
+        247,
+        1389
+      ],
+      "body_bounds": [
+        66,
+        1148,
+        247,
+        1389
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 4,
+      "column": 1,
+      "source_bounds": [
+        336,
+        1148,
+        528,
+        1389
+      ],
+      "body_bounds": [
+        336,
+        1148,
+        528,
+        1389
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 4,
+      "column": 2,
+      "source_bounds": [
+        614,
+        1147,
+        798,
+        1389
+      ],
+      "body_bounds": [
+        614,
+        1147,
+        798,
+        1389
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "row": 4,
+      "column": 3,
+      "source_bounds": [
+        889,
+        1147,
+        1079,
+        1389
+      ],
+      "body_bounds": [
+        889,
+        1147,
+        1079,
+        1389
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    }
+  ],
+  "files": {
+    "assets/astronaut-amber.png": {
+      "sha256": "02bb9c8aa5239050e69d08b7e371f91db6731f0a23b283fe26b4b6fd9e1e8d6f",
+      "bytes": 148400,
+      "size": [
+        384,
+        512
+      ]
+    },
+    "assets/astronaut-teal.png": {
+      "sha256": "ea9564080619d2364f4616f94a44cfe053515c005d494d2629a40e71675a0dbf",
+      "bytes": 377196,
+      "size": [
+        384,
+        1186
+      ]
+    },
+    "assets/astronaut-work-amber.png": {
+      "sha256": "2d91e2d6b19b048352d56c9253aff593435d2c3da3234288736334926badd283",
+      "bytes": 81684,
+      "size": [
+        384,
+        320
+      ]
+    },
+    "assets/astronaut-work-teal.png": {
+      "sha256": "f8cd3f82f27014ff31acce573e7e828966110174dbc66fa72688c57711f207d6",
+      "bytes": 81878,
+      "size": [
+        384,
+        320
+      ]
+    },
+    "assets/hologram.png": {
+      "sha256": "07fa747825a05922c355bf3cd796d7993cde651fd6a389ca4c8e632e38d203bd",
+      "bytes": 81064,
+      "size": [
+        225,
+        245
+      ]
+    },
+    "assets/lander.png": {
+      "sha256": "fafc7bcdfc50f98aa88af1d86670f37059da733d93c18682e0256b38f69b1ea8",
+      "bytes": 110666,
+      "size": [
+        233,
+        245
+      ]
+    },
+    "assets/teststand.png": {
+      "sha256": "2bc5747ecd3a89d639161070e212a583ce515df0b7c57c596a0b7c2c2bc664e2",
+      "bytes": 98603,
+      "size": [
+        285,
+        160
+      ]
+    },
+    "source/workshop-actions-original.png": {
+      "sha256": "598078ca400d88b1bdad990be8c66afb4470ba17b43ec4d922430aefb8bcf642",
+      "bytes": 1539577,
+      "size": [
+        1122,
+        1402
+      ]
+    },
+    "source/workshop-amber-base.png": {
+      "sha256": "60ef3072ceb66f03fcba8d5e77903579a8f58a501525aec3c9635476d9c5d68a",
+      "bytes": 66838,
+      "size": [
+        384,
+        192
+      ]
+    },
+    "source/workshop-hologram-original.png": {
+      "sha256": "9bc7e6319b83ad408dedbd5e9f665a4fce674ec1084a1959cfd4c07bb7485549",
+      "bytes": 1118217,
+      "size": [
+        1320,
+        1192
+      ]
+    },
+    "source/workshop-lander-original.png": {
+      "sha256": "95d5f77b659eb138ff319bc107ee2951cd66a9ec326b1fcada4d5674223d3ab3",
+      "bytes": 1482982,
+      "size": [
+        1536,
+        1024
+      ]
+    },
+    "source/workshop-teal-base.png": {
+      "sha256": "a75b3456d0b8104bfe7612f472633deac96c9ef7c01a6e88782480d83b167ac2",
+      "bytes": 66898,
+      "size": [
+        384,
+        192
+      ]
+    },
+    "source/workshop-teststand-original.png": {
+      "sha256": "fc7828ac6ffe57fc107ac930875cdeac0e01db4778bff833ecd9305a73615c7a",
+      "bytes": 1858179,
+      "size": [
+        1536,
+        1024
+      ]
+    }
+  }
+}

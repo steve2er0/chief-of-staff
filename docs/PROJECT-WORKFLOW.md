@@ -41,11 +41,44 @@ again. This follows the initiative and clarification guidance in the
 adapted to this app's explicit delegation boundary. The configured model is
 unchanged; behavior is checked with the existing live CLI connection.
 
-**Delegate work** reveals the work map, assignment selection, full brief,
-background proposals, results and evidence. Opening it does not call a model,
-create pieces or launch workers. The owner requests a breakdown, adopts pieces,
-selects assignments, approves and launches through the existing separate steps.
+**Delegate work** opens **Agent task**. **Prepare one agent task** uses the vision,
+captured conversation and agreed context to draft exactly one assignment. Research,
+implementation and checks are subtasks inside the brief. A read-only Codex call
+prepares the brief; the owner reviews its scope, permissions and output files before
+separately approving and launching one worker. The worker is instructed to perform
+the subtasks itself. Local mode provides an editable non-AI draft. Completed model
+responses containing multiple tasks are rejected, and project changes during
+preparation require a fresh brief. Captured conversation survives approval refresh.
+
+The work map remains available as a secondary planning view for projects needing
+separate assignments. Opening delegation does not call a model or launch workers.
+The owner can still request a breakdown, adopt pieces and select specific pieces.
+The whole-project path preserves existing work pieces without automatically marking
+their dependencies or completion; result acceptance remains an owner decision.
+The brief leads with an editable goal, outcome-based completion criteria and the
+permissions. Detailed instructions, expected output files and captured context
+are expandable. CoS is instructed to keep the brief concise and use three to five
+criteria; existing reviewed briefs remain intact. The normal delegation view shows
+one task and its results. Splitting is an explicit choice under detailed planning.
 Unsent conversation text survives switching between these views within the page.
+
+Public web research is a separate checkbox in the assignment brief, off by default.
+It requires workspace-write so retrieved sources can be saved locally. The choice
+is part of the frozen approval digest; changing it requires approval again. A
+revision preserves the previous choice and captured session, but always needs new
+approval and launch. The adapter applies the approved command network setting on
+fresh and resumed runs. This is outbound network permission, not a domain
+allowlist or a grant of separate browser/tool permissions. Public-source-only
+research and no private uploads are instructions to the worker. CoS conversation,
+setup review and planning do not inherit a worker's research permission.
+
+The owner can approve **No time limit** for an individual assignment. This is part
+of the exact brief, survives revisions, and only changes that worker's effective
+timeout. The workspace default stays in effect for other work. Manual pause and
+cancel remain available; a disabled deadline does not authorize extra access or
+accept the eventual result.
+
+
 
 Earlier conversation records are preserved and shown in collapsed history.
 New conversational replies have a presentation style distinct from planning
@@ -70,6 +103,35 @@ ownership, focus selection and partial findings do not authorize workers.
 Dependency changes invalidate prepared approvals. Completed/deferred pieces and
 pieces with outstanding dependencies or active/unreviewed assignments cannot be
 delegated. Revisions preserve the work-item link and require new approval.
+
+## Progress and returned work
+
+The latest meaningful agent message is retained separately from tool activity.
+Structured progress messages display their summary, rather than raw JSON. Tool
+events refresh last-activity time and stay in a collapsed activity log; they do not
+replace the agent's explanation. Elapsed time is measured from worker start and
+stops at its recorded end. It is not a completion percentage or an ETA. Legacy
+histories are formatted on read without changing approved assignment snapshots.
+
+A reported blocker is visible while the process is still running. Only the verified
+terminal completion protocol changes task state. A tool command finishing or an
+intermediate agent message never completes or accepts the assignment.
+
+Returned work leads with changes, checks reported by the agent, limits, what needs
+owner judgment and the suggested next step. Future workers are asked to structure
+their final summary using Changes, Checks and Limits; legacy reports remain
+available in full. Artifact hashes establish file integrity, not scientific
+correctness or test success. Blocked workers can return partial snapshots without
+being eligible for acceptance. Failed snapshot capture is shown separately from
+the worker's original blocker. Existing unsnapshotted results remain labeled as
+reported files; they are not retroactively represented as verified output snapshots.
+
+Worker-raised items remain suggestions until adopted. Earlier unadopted worker
+items that were automatically stored as questions are reclassified as suggestions;
+owner questions, answers and approved records stay intact. Review notes and
+revision drafts survive progress refreshes and in-page reopen. Accepted results
+and their next steps become the project checkpoint; unfinished background work
+pieces do not automatically supersede the accepted whole-project outcome.
 
 ## Guidance and model behavior
 
@@ -105,3 +167,26 @@ Browser checks use separate synthetic data. Read-only conversation and setup rev
 have also been exercised with an existing local Codex configuration. Write workers,
 organization-specific policy, native Windows integration and engineering validity
 remain separate validation boundaries. See [VALIDATION.md](VALIDATION.md).
+
+## Command-center attention and continuation
+
+Needs you combines pending assignment approvals/launches, owner questions and
+proposed decisions, stopped assignments, returned results and current coordinator
+failures. Home and activity previews use the same read-only projection. Resolving
+an item updates its source record; no duplicate notification record can become stale.
+A question answer becomes future project context, not live agent steering or tool
+permission approval.
+
+Resume saved work captures the owner's handoff note and the predecessor's report
+and output metadata in a draft. Original instructions remain stable over retries.
+Review the continuation, approve its scope and execution policy, then explicitly
+launch. Continue the exact captured session when folder and CLI/model match; otherwise
+choose a fresh session. Scope revision uses the same reviewed path. Neither choice
+accepts partial work or marks a work item complete.
+
+Settings permits six concurrent jobs, including coordinator calls; writer folder
+locks remain in force. Sandboxed execution remains the default. Editable assignments
+can explicitly select YOLO (--yolo), which removes CLI sandboxing and command prompts.
+The choice is frozen in approval and checked against the installed CLI for new and
+resumed calls. Browser permissions remain external; denied browser actions are not
+retried through another surface. Existing assignments are never upgraded implicitly.

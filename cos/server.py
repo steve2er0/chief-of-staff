@@ -73,9 +73,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(401, {"error": "Open the private launch URL printed by the service."})
             if u.path == "/":
                 return self.send(200, (self.server.static / "index.html").read_bytes(), "text/html; charset=utf-8")
-            if u.path in ("/app.js", "/workspace.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
+            if u.path in ("/app.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
                 path = self.server.static / u.path[1:]
                 return self.send(200, path.read_bytes(), "text/javascript; charset=utf-8" if path.suffix == ".js" else "text/css; charset=utf-8")
+            # Optional visual demo: exact private static allowlist, no service calls.
+            lunar_files = {
+                "/lunar-base/": ("index.html", "text/html; charset=utf-8"),
+                "/lunar-base/lunar.css": ("lunar.css", "text/css; charset=utf-8"),
+                "/lunar-base/simulation.js": ("simulation.js", "text/javascript; charset=utf-8"),
+                "/lunar-base/scene.js": ("scene.js", "text/javascript; charset=utf-8"),
+            }
+            for name in ("terrain", "habitat", "console", "astronaut-teal", "astronaut-amber"):
+                lunar_files["/lunar-base/assets/" + name + ".png"] = ("assets/" + name + ".png", "image/png")
+            if u.path in lunar_files:
+                name, content_type = lunar_files[u.path]
+                return self.send(200, (self.server.static / "lunar-base" / name).read_bytes(), content_type)
             if u.path == "/api/state":
                 return self.send(200, dict(self.server.service.snapshot(), csrf=self.server.csrf))
             parts = u.path.strip("/").split("/")
@@ -147,6 +159,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = s.work_item(raw["project_id"], raw, raw.get("id"))
             elif path == "/api/delegate":
                 result = s.prepare_delegation(raw["project_id"], raw["item_ids"])
+            elif path == "/api/project-assignment":
+                result = s.prepare_project_assignment(raw["project_id"], raw.get("method", "local"))
             elif path == "/api/partial":
                 result = s.partial_result(raw["id"], raw["note"])
             elif path == "/api/portfolio":

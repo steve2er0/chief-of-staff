@@ -1,4 +1,4 @@
-"""Codex exec adapter. No shell, login changes, arbitrary flags, or escalation."""
+"""Codex exec adapter with explicit, assignment-approved execution policies."""
 import json
 import os
 from pathlib import Path
@@ -12,6 +12,14 @@ import time
 import uuid
 
 from .safety import Invalid, bounded_text
+from .progress import message_details
+
+
+# Browser/MCP documentation can exceed 128 KiB in one valid JSONL record.
+# Bound individual records, total output, event count and queued records separately.
+MAX_EVENT_BYTES = 1024 * 1024
+MAX_STREAM_BYTES = 16 * 1024 * 1024
+MAX_EVENTS = 20000
 
 
 COMPLETION_SCHEMA = {
@@ -155,32 +163,42 @@ class CodexAdapter:
                 "resume_schema": "--output-schema" in output["resume"],
                 "skip_git": "--skip-git-repo-check" in output["exec"],
                 "resume_skip_git": "--skip-git-repo-check" in output["resume"],
+                "yolo": "--dangerously-bypass-approvals-and-sandbox" in output["exec"],
+                "resume_yolo": "--dangerously-bypass-approvals-and-sandbox" in output["resume"],
                 "model_verified": False, "note": "Help-only check. Authentication, model routing and sandbox enforcement have not been exercised. Headless exec may reject approval-required operations; no automatic approval review is enabled.",
                 "help": output}
         self.capabilities = caps
         return caps
 
-    def argv(self, config, cwd, sandbox, schema_path, session=None):
+    def argv(self, config, cwd, sandbox, schema_path, session=None, research_access=False, execution_policy="sandboxed"):
         caps = self.capabilities
         if not caps or not caps["ok"] or caps["prefix"] != command_prefix(config):
             raise Invalid("Run a successful CLI preflight before real work")
         if sandbox not in ("read-only", "workspace-write"):
             raise Invalid("Unsupported sandbox")
+        if type(research_access) is not bool or (research_access and sandbox != "workspace-write"):
+            raise Invalid("Research access requires an approved workspace-write assignment")
+        if execution_policy not in ("sandboxed", "yolo") or (execution_policy == "yolo" and sandbox != "workspace-write"):
+            raise Invalid("YOLO requires an explicitly approved editable assignment")
         # Use config overrides for approval policy: the root TUI -a flag does
         # not propagate into exec in 0.149.0. Exec further restricts user-mode
         # headless approvals to Never (deny escalation), per its source.
-        args = caps["prefix"] + ["--config", 'approval_policy="on-request"',
+        args = caps["prefix"] + (["exec"] if execution_policy == "yolo" else ["--config", 'approval_policy="on-request"',
                                  "--config", 'approvals_reviewer="user"',
                                  "--config", "sandbox_workspace_write.writable_roots=[]",
-                                 "--config", "sandbox_workspace_write.network_access=false",
+                                 "--config", "sandbox_workspace_write.network_access=" + ("true" if research_access else "false"),
                                  "--config", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-                                 "--config", "sandbox_workspace_write.exclude_slash_tmp=true", "exec", "--sandbox", sandbox]
+                                 "--config", "sandbox_workspace_write.exclude_slash_tmp=true", "exec", "--sandbox", sandbox])
         if session:
             if not caps["resume"]:
                 raise Invalid("Installed CLI cannot resume this task. Revise using a fresh session.")
             # Only exact session IDs captured for this task, never --last.
             session_id(session)
             args += ["resume"]
+        if execution_policy == "yolo":
+            if not caps.get("resume_yolo" if session else "yolo"):
+                raise Invalid("Installed CLI does not advertise YOLO for this invocation. Recheck CLI capabilities or select sandboxed execution.")
+            args += ["--dangerously-bypass-approvals-and-sandbox"]
         args += ["--json", "--model", bounded_text(config["model"], "model", 150)]
         if caps["resume_skip_git" if session else "skip_git"]:
             args += ["--skip-git-repo-check"]
@@ -190,8 +208,11 @@ class CodexAdapter:
             args += [session]
         return args + ["-"]
 
-    def run(self, config, cwd, sandbox, prompt, schema_path, cancel, update, session=None, validator=completion):
-        args = self.argv(config, cwd, sandbox, schema_path, session)
+    def run(self, config, cwd, sandbox, prompt, schema_path, cancel, update, session=None, validator=completion, research_access=False, execution_policy="sandboxed"):
+        time_limit = config["timeout_seconds"]
+        if type(time_limit) is not int or not 0 <= time_limit <= 14400:
+            raise Invalid("Invalid worker time limit")
+        args = self.argv(config, cwd, sandbox, schema_path, session, research_access=research_access, execution_policy=execution_policy)
         kwargs = dict(cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                       text=True, encoding="utf-8", errors="replace", shell=False, bufsize=1)
         if os.name == "nt":
@@ -200,13 +221,13 @@ class CodexAdapter:
             kwargs["start_new_session"] = True
         process = self.popen(args, **kwargs)
         job = None
-        stream = queue.Queue(maxsize=256)
+        stream = queue.Queue(maxsize=8)
         readers = []
         done = threading.Event()
         def read(pipe, channel):
             try:
                 while not done.is_set():
-                    line = pipe.readline(131073)
+                    line = pipe.readline(MAX_EVENT_BYTES + 1)
                     if not line:
                         break
                     while not done.is_set():
@@ -239,8 +260,8 @@ class CodexAdapter:
             while len(ended) < 2:
                 if cancel.is_set():
                     return {"status": "cancelled", "summary": "Stopped by user", "session_id": captured}
-                if time.monotonic() - started > config["timeout_seconds"]:
-                    return {"status": "blocked", "summary": "Time limit reached; an approval or tool may be waiting. No escalation attempted.", "session_id": captured}
+                if time_limit and time.monotonic() - started > time_limit:
+                    return {"status": "blocked", "summary": "Approved assignment time limit reached (" + str(time_limit) + " seconds). Partial edits remain on disk; revise to resume.", "session_id": captured}
                 try:
                     channel, line = stream.get(timeout=0.1)
                 except queue.Empty:
@@ -248,15 +269,22 @@ class CodexAdapter:
                 if line is None:
                     ended.add(channel)
                     continue
-                total_bytes += len(line.encode("utf-8"))
-                if len(line) > 131072 or total_bytes > 16 * 1024 * 1024:
-                    raise Invalid("Worker event stream exceeded safety limit")
+                event_bytes = len(line.encode("utf-8"))
+                total_bytes += event_bytes
+                if event_bytes > MAX_EVENT_BYTES:
+                    raise Invalid("Worker " + channel + " event exceeded the " + str(MAX_EVENT_BYTES) +
+                                  "-byte record limit (read at least " + str(event_bytes) +
+                                  " bytes). Partial project files remain on disk; revise to resume.")
+                if total_bytes > MAX_STREAM_BYTES:
+                    raise Invalid("Worker total event output exceeded the " + str(MAX_STREAM_BYTES) +
+                                  "-byte run limit (read " + str(total_bytes) +
+                                  " bytes). Partial project files remain on disk; revise to resume.")
                 if channel == "stderr":
                     if len(errors) < 30:
                         errors.append(line.strip()[:1000])
                     continue
                 count += 1
-                if count > 20000:
+                if count > MAX_EVENTS:
                     raise Invalid("Too many worker events")
                 try:
                     e = json.loads(line)
@@ -287,7 +315,11 @@ class CodexAdapter:
                     if typ == "item.completed" and item.get("type") == "agent_message":
                         final = item.get("text", "")
                     if item.get("type") in ("command_execution", "file_change", "plan_update", "agent_message"):
-                        update({"progress": str(item.get("text") or (item.get("type", "Working") + ": " + item.get("status", "updated")))[:500], "event": typ})
+                        raw = str(item.get("text") or (item.get("type", "Working") + ": " + item.get("status", "updated")))
+                        details = message_details(raw) if item.get("type") == "agent_message" else None
+                        update({"progress": details["text"] if details else raw[:2000],
+                                "reported_status": details["reported_status"] if details else None,
+                                "progress_kind": "message" if details else "activity", "event": typ})
             code = process.wait(timeout=5)
             fatal = event_errors + [x for x in errors if x and not x.startswith("WARNING:")]
             if code or not completed or malformed or not captured or event_errors:

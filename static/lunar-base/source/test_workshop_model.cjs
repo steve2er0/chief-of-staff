@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict');
+const m=require('./live-model.js'),sim=require('../simulation.js');
+const stamp='2026-10-13T14:00:00Z',now=Date.parse(stamp);
+for(const [title,type] of [['Flight data ingestion','flight'],['Analyse flight data','flight'],['Rocket model analysis','analysis'],['Engine test data','test'],['Bench test qualification','test'],['General notes','miscellaneous'],['Rename README','miscellaneous']])assert.equal(m.workType({title}).type,type,title);
+assert.equal(m.workType({title:'anything',expected_outputs:'not-an-array'}).type,'miscellaneous');
+const real=(id,pid='p',extra={})=>({id,project_id:pid,title:'Generic work',state:'running',config:{mode:'codex'},session_id:'fixture-'+id,last_activity_at:stamp,updated:stamp,...extra});
+const registry=m.cleanRegistry(null);
+const input={projects:[{id:'p',name:'Flight data'},{id:'misc',name:'General notes'}],tasks:[...Array.from({length:5},(_,i)=>real('a'+i)),real('m0','misc'),real('m1','misc')],jobs:[]};
+const original=structuredClone(input),first=m.build(input,registry,{now,connected:true});
+const flight=first.projects.find(p=>p.id==='p'),misc=first.projects.find(p=>p.id==='misc');
+assert.deepEqual(input,original);assert.equal(flight.infrastructure.type,'flight');
+const crew=flight.workers;assert.equal(new Set(crew.map(w=>w.visual.sharedProject)).size,1);
+assert.equal(new Set(crew.map(w=>w.visual.key)).size,5);assert.equal(new Set(crew.map(w=>JSON.stringify(w.position.work))).size,5);
+assert.equal(misc.infrastructure.asset,'habitat');
+assert.deepEqual(misc.workers.map(w=>w.visual.key),['console','assemble']);
+const initialLocations=first.projects.map(p=>[p.id,p.x,p.y]),initialWorkers=crew.map(w=>[w.key,w.slot,w.visual.key,JSON.stringify(w.position)]);
+const reordered=structuredClone(input);reordered.projects.reverse();reordered.tasks.reverse();reordered.tasks.push(real('newer'));reordered.projects.push({id:'later',name:'Test data'});
+m.build(reordered,registry,{now,connected:true});const again=m.build(input,m.cleanRegistry(JSON.parse(JSON.stringify(registry))),{now,connected:true});
+assert.deepEqual(again.projects.map(p=>[p.id,p.x,p.y]),initialLocations);assert.deepEqual(again.projects.find(p=>p.id==='p').workers.map(w=>[w.key,w.slot,w.visual.key,JSON.stringify(w.position)]),initialWorkers);
+for(const [title,key] of [['Weld a fixture','weld'],['Attach a sensor','sensor'],['Laser scan','scan'],['Assemble bracket','assemble'],['Inspect the tablet','inspect']])assert.equal(m.roleFor({title},flight.infrastructure,0).key,key);
+assert.notEqual(m.roleFor({title:'Unknown',demo_role:'weld'},flight.infrastructure,0).key,'weld','live must ignore demo role fields');
+const malicious={projects:[{id:'p',name:'Test data'}],tasks:[real('fake','p',{config:{mode:'simulated'},demo_role:'weld'})],jobs:[],lunar_demo:true};
+assert.equal(m.build(malicious,m.cleanRegistry(null),{now,connected:true}).workers.length,0,'snapshot demo flag never enables synthetic live workers');
+assert.equal(m.build(malicious,m.cleanRegistry(null),{now,connected:true,illustrative:true}).workers.length,1,'only explicitly mounted demo accepts scripted workers');
+const transition=real('t');
+for(const [patch,category,animate] of [[{activity:'file_change: completed'},'active',true],[{activity:'command_execution: started'},'active',true],[{reported_status:'blocked'},'blocked',false],[{reported_status:null,state:'ready_for_review'},'needs_input',false],[{state:'running'},'active',true],[{last_activity_at:'2026-10-13T13:57:00Z'},'stale',false]]){
+ Object.assign(transition,patch);const result=m.classify(transition,{kind:'task',now,connected:true});assert.equal(result.category,category);assert.equal(result.animate,animate);
+}
+const many={projects:[{id:'p',name:'General notes'}],tasks:Array.from({length:25},(_,i)=>real('w'+i)),jobs:[]};
+const workers=m.build(many,m.cleanRegistry(null),{now,connected:true}).workers;
+for(let page=0;page<3;page++)for(const a of workers.filter(w=>w.position.page===page))for(const b of workers.filter(w=>w.position.page===page))if(a.key!==b.key)assert(Math.hypot(a.position.work.x-b.position.work.x,a.position.work.y-b.position.work.y)>=70);
+const p=m.pose(sim.bound.push+sim.bound.flight/2,{x:270,y:525},{x:312,y:553},sim.bound);assert.equal(p.height,12);
+console.log('PASS: infrastructure cue mapping, shared project roles, habitat fallback, stable slots/roles, live/demo isolation, repeated state transitions and lunar motion.');

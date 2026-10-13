@@ -68,7 +68,7 @@ class FakeAdapter:
     def run(self, config, cwd, sandbox, prompt, schema, cancel, update, session=None, **kwargs):
         index = len(self.calls)
         sid = session or str(__import__('uuid').UUID(int=index + 1))
-        self.calls.append({"cwd":cwd,"sandbox":sandbox,"prompt":prompt,"session":session})
+        self.calls.append({"cwd":cwd,"sandbox":sandbox,"prompt":prompt,"session":session,"research_access":kwargs.get("research_access",False),"timeout_seconds":config["timeout_seconds"]})
         update({"session_id":sid,"progress":"Synthetic mock event"})
         if self.hold:
             while not self.release.wait(.005):
@@ -379,6 +379,24 @@ class RealIntegrationMocks(ServiceTests):
         plan=self.launch(access='workspace-write');self.drain();t=self.s.store.get('task',plan['task_ids'][0])
         self.assertEqual(t['state'],'ready_for_review');self.assertEqual(len(t['output_links']),2)
         self.assertEqual(self.s.output(t['id'],'artifact-00.txt').read_text(),'Synthetic new evidence')
+    def test_blocked_partial_files_are_reviewable_but_cannot_be_accepted(self):
+        self.adapter.writer=lambda p:(p/'partial.txt').write_text('Partial research only')
+        self.adapter.result=dict(GOOD,status='blocked',artifacts=['partial.txt'],decisions=['A source needs owner review.'])
+        plan=self.launch(access='workspace-write');self.drain();t=self.s.store.get('task',plan['task_ids'][0])
+        self.assertEqual(t['state'],'blocked')
+        self.assertTrue(t['output_links'][0]['partial'])
+        self.assertEqual(self.s.output(t['id'],'artifact-00.txt').read_text(),'Partial research only')
+        with self.assertRaises(Invalid):self.s.action(t['id'],'accept')
+        self.assertFalse(self.s.store.get('project',self.p['id'])['accepted_results'])
+        self.assertTrue(all(r['category']=='suggestion' for r in self.s.store.get('project',self.p['id'])['records']))
+        self.assertTrue(t['finished_at'])
+    def test_invalid_partial_path_does_not_hide_original_blocker(self):
+        self.adapter.result=dict(GOOD,status='blocked',artifacts=['../escape.txt'],summary='Source unavailable')
+        plan=self.launch(access='workspace-write');self.drain();t=self.s.store.get('task',plan['task_ids'][0])
+        self.assertEqual(t['state'],'blocked')
+        self.assertEqual(t['progress'],'Source unavailable')
+        self.assertTrue(t['snapshot_limits'])
+        self.assertEqual(len(t['output_links']),1) # Only the structured report.
     def test_unexpected_old_artifact_cannot_hide_unchanged_expected(self):
         (self.work/'result.txt').write_text('Old');(self.work/'other.txt').write_text('Other old')
         self.adapter.result=dict(GOOD,artifacts=['other.txt']);self.launch(access='workspace-write');self.drain()
@@ -474,6 +492,19 @@ class HTTPTests(unittest.TestCase):
     def test_host_and_origin_protection(self):
         self.assertEqual(self.request('/api/state',host='evil.invalid')[0],403)
         self.assertEqual(self.request('/api/briefing',{},origin=False)[0],403)
+    def test_project_assignment_requires_private_session_and_reuses_single_draft(self):
+        p=json.loads(self.request('/api/project',{'vision':'Build an interactive synthetic viewer'})[1])
+        body={'project_id':p['id']}
+        self.assertEqual(self.request('/api/project-assignment',body,auth=False)[0],401)
+        self.assertEqual(self.request('/api/project-assignment',body,origin=False)[0],403)
+        rid=uid()
+        first=self.request('/api/project-assignment',body,reqid=rid)
+        self.assertEqual(first[0],200)
+        self.assertEqual(first[1],self.request('/api/project-assignment',body,reqid=rid)[1])
+        plan=json.loads(first[1])
+        self.assertEqual(plan['scope'],'project')
+        self.assertEqual(len(plan['specs']),1)
+        self.assertFalse(self.s.store.all('task'))
     def test_path_picker_requires_private_origin_and_does_not_save_listings(self):
         body={'mode':'directory','path':self.tmp.name}
         self.assertEqual(self.request('/api/browse',body,auth=False)[0],401)

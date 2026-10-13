@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Lunar Base · Visual demo</title>
+  <link rel="stylesheet" href="./lunar.css">
+  <script src="./simulation.js" defer></script>
+  <script src="./scene.js" defer></script>
+</head>
+<body>
+  <main class="base">
+    <header class="masthead">
+      <a class="back" href="/">← Chief of Staff</a>
+      <a class="back" href="?mode=placement">All infrastructure ↗</a>
+      <a class="back" href="?mode=live">Read-only CoS view ↗</a><span class="demo-label"><span></span> SYNTHETIC DEMO</span>
+    </header>
+    <section class="viewport" aria-label="Lunar Base scene">
+      <canvas id="world" width="768" height="512" tabindex="0" aria-label="Animated lunar base with two astronauts, a habitat and an outdoor console. Select an astronaut or building by clicking, or use the buttons below. Space pauses movement.">
+        A lunar habitat with warm windows, a cyan console and two miniature astronauts.
+      </canvas>
+      <div class="scene-title"><p>OUTPOST 01 · TRANQUILITY</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
+      <div id="loading" role="status">Preparing the outpost…</div>
+      <div class="scene-caption">ONE HABITAT · TWO ASTRONAUTS</div>
+    </section>
+    <div class="controls">
+      <div class="motion"><button id="pause" type="button" aria-pressed="false">Pause motion</button><span id="motion-state" role="status">Bounding & working</span></div>
+      <span class="control-hint">SELECT A CREW MEMBER OR WORK AREA</span>
+    </div>
+    <nav class="entities" aria-label="Scene selections">
+      <button data-entity="teal" aria-pressed="false"><i class="teal"></i> Astra <small>01</small></button>
+      <button data-entity="amber" aria-pressed="false"><i class="amber"></i> Sol <small>02</small></button>
+      <button data-entity="habitat" aria-pressed="false">Habitat <small>A-01</small></button>
+      <button data-entity="console" aria-pressed="false">Research console <small>C-01</small></button>
+    </nav>
+    <section class="details" aria-labelledby="detail-title">
+      <div><p class="eyebrow" id="detail-kicker">VISUAL SLICE / 01</p><h2 id="detail-title">A little place to work.</h2><p id="detail-body">Watch Astra and Sol take turns at the research console. Select them or the habitat to look closer.</p></div>
+      <div class="detail-note"><span id="detail-status">Synthetic activity</span><p>This scene uses a scripted demo cycle.<br>No live jobs or usage data.</p></div>
+    </section>
+    <footer>LOCAL VISUAL DEMO <span>Canvas · separated pixel-art assets · Space to pause</span></footer>
+  </main>
+</body>
+</html>

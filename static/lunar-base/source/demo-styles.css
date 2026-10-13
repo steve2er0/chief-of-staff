@@ -1,0 +1,39 @@
+:root{color-scheme:dark;--ink:#e8e5e8;--muted:#949bab;--edge:#2c3444;--teal:#57d4df;--amber:#ffb948}
+*{box-sizing:border-box}
+body{margin:0;background:#080e1b;color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.base{max-width:1180px;margin:auto;padding:22px 30px 26px}
+.masthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;font-size:12px}
+.back{color:#bbc2d1;text-decoration:none}.back:hover{color:white}
+.demo-label{display:flex;align-items:center;gap:8px;letter-spacing:1.8px;font:10px ui-monospace,SFMono-Regular,monospace;color:#bac2d0}
+.demo-label span{width:6px;height:6px;background:var(--teal)}
+.viewport{position:relative;overflow:hidden;border:1px solid #384358;box-shadow:0 20px 80px #0005;background:#111d31}
+canvas{display:block;width:100%;height:auto;aspect-ratio:3/2;image-rendering:pixelated;cursor:pointer;touch-action:manipulation}
+canvas:focus-visible{outline:2px solid var(--teal);outline-offset:-3px}
+.scene-title{position:absolute;top:4.2%;left:4%;pointer-events:none;text-shadow:2px 2px #091020}
+.scene-title p{margin:0 0 9px;font:9px ui-monospace,SFMono-Regular,monospace;letter-spacing:2px;color:#b9c3d8}
+h1{font:700 clamp(18px,3.5vw,38px) ui-monospace,SFMono-Regular,monospace;letter-spacing:6px;margin:0;color:#e7e1ea}
+.title-rule{height:3px;background:#b1acbd;width:75%;margin-top:14px}
+.scene-caption{position:absolute;bottom:20px;left:24px;font:9px ui-monospace,SFMono-Regular,monospace;letter-spacing:2px;color:#ddd5e9;text-shadow:1px 1px #000;pointer-events:none}
+#loading{position:absolute;inset:0;background:#0b152bd9;display:grid;place-items:center;font-size:13px;z-index:2}
+#loading[hidden]{display:none}
+.controls{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 0;border-bottom:1px solid var(--edge)}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:1px solid var(--edge);border-radius:4px;padding:8px 12px}
+button:hover{background:#192337;border-color:#69758b}button:focus-visible,a:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
+.motion{display:flex;align-items:center;gap:12px;font-size:12px}.motion button{background:#182234;min-width:112px}
+#motion-state{color:var(--muted);font-size:11px}.control-hint{font:9px ui-monospace,SFMono-Regular,monospace;letter-spacing:1.1px;color:var(--muted)}
+.entities{display:flex;gap:8px;flex-wrap:wrap;padding:16px 0}
+.entities button{display:flex;align-items:center;gap:8px;font-size:12px;padding:9px 13px}
+.entities small{font:9px ui-monospace,SFMono-Regular,monospace;color:var(--muted);margin-left:8px}
+.entities button[aria-pressed=true]{border-color:#68c4cf;background:#16303b}
+i{width:7px;height:7px;display:inline-block}.teal{background:var(--teal)}.amber{background:var(--amber)}
+.details{display:flex;justify-content:space-between;gap:32px;padding:6px 0 22px;min-height:116px}
+.eyebrow{font:9px ui-monospace,SFMono-Regular,monospace;letter-spacing:1.6px;color:var(--teal);margin:0 0 8px}
+h2{margin:0 0 8px;font-size:20px;font-weight:550;letter-spacing:-.4px}
+#detail-body{color:#b3bbca;font-size:13px;margin:0;line-height:1.65;max-width:670px}
+.detail-note{text-align:right;min-width:194px;padding-top:18px}
+.detail-note>span{color:#e4c690;font:10px ui-monospace,SFMono-Regular,monospace}
+.detail-note p{font-size:11px;line-height:1.65;color:var(--muted);margin:7px 0 0}
+footer{border-top:1px solid var(--edge);padding-top:16px;display:flex;justify-content:space-between;color:#68778e;font:9px ui-monospace,SFMono-Regular,monospace;letter-spacing:1px}
+footer span{letter-spacing:0}
+@media(min-width:1600px){.base{max-width:1320px}}
+@media(max-width:650px){.base{padding:15px 12px}.masthead{margin-bottom:14px}.scene-title p{font-size:6px;letter-spacing:1px;margin-bottom:5px}h1{letter-spacing:3px}.title-rule{height:2px;margin-top:7px}.scene-caption{font-size:6px;left:12px;bottom:10px;letter-spacing:1px}.control-hint{display:none}.details{display:block;min-height:180px}.detail-note{text-align:left;padding-top:12px}.detail-note p br{display:none}.entities{gap:6px}.entities button{font-size:11px;padding:9px 10px}.entities small{margin-left:0}footer span{display:none}h2{font-size:18px}}
