@@ -67,6 +67,49 @@ class DiscussionHandoffTests(unittest.TestCase):
 
 class AgentPanelPresentationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
+    def test_results_keep_saved_outcomes_and_extract_only_explicit_safe_previews(self):
+        root = Path(__file__).resolve().parents[1]
+        script = r'''
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const model=require(process.argv[1]),c={AgentModel:model,URL,document:{addEventListener(){}},setInterval(){},planModal(){},
+ boardFilter:'',currentModal:null,state:{tasks:[],projects:[]},projectName:()=> 'Fixture',date:x=>x,stateName:x=>x,
+ esc:x=>String(x??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]))};
+vm.createContext(c);for(const path of process.argv.slice(2))vm.runInContext(fs.readFileSync(path,'utf8'),c);
+const a={id:'a',agent_id:'crew',state:'superseded',prior_state:'ready_for_review',finished_at:'2026-10-14T01:00:00Z',title:'Restyle the engine visualization',config:{mode:'codex'},
+ result:{status:'completed',summary:'Engine view compacted.\n\nAll **165 tests pass**.\n\nThe [updated preview](http://localhost:4178/view) is ready.',artifacts:['docs/view.jpg']},output_links:[{name:'image',source_path:'docs/view.jpg',sha256:'secret-hash-for-integrity'}]};
+const b={...a,id:'b',state:'running',parent_task_id:'a',result:null,output_links:[]};c.state.tasks=[a,b];c.task=a;
+assert.equal(model.resultStatus(a).label,'Completed');assert.equal(model.resultStatus({...a,result:{status:'cancelled'}}).label,'Stopped');
+assert.equal(model.resultStatus({...a,handoff_issues:['Missing file']}).label,'Completed · issues');
+assert.equal(model.resultStatus({...a,state:'accepted',prior_state:null}).label,'Accepted');
+assert.equal(vm.runInContext('resultSections(task.result.summary).checks',c),'All 165 tests pass');
+assert.equal(vm.runInContext('resultPreviewLink(task).url',c),'http://localhost:4178/view');
+c.introTask={result:{summary:'Implemented locally:\n\n- Added a swept-sine workflow.\n- Preserved the monitoring tools.'}};
+assert.equal(vm.runInContext('resultOutcome(introTask)',c),'Added a swept-sine workflow.');
+const before=JSON.stringify(a),rows=vm.runInContext('renderResults()',c);
+assert.ok(rows.includes('1 latest result'));assert.ok(rows.includes('Open preview'));assert.ok(rows.includes('Files (1)'));
+assert.ok(rows.includes('data-result-tone="finished">Completed'));assert.ok(!rows.includes('No checks reported'));
+assert.ok(rows.includes('view.jpg'));assert.ok(rows.includes('Technical details'));assert.equal(JSON.stringify(a),before);
+const signature=vm.runInContext('resultsSignature()',c);b.latest_update='More progress';b.updated='2026-10-14T01:02:00Z';
+assert.equal(vm.runInContext('resultsSignature()',c),signature);
+a.handoff_issues=['Could not capture missing.svg'];assert.notEqual(vm.runInContext('resultsSignature()',c),signature);
+assert.ok(vm.runInContext('agentResultRows([task])',c).includes('Could not capture missing.svg'));
+c.firstDisclosure={dataset:{panelDetail:'more'},closest:()=>({dataset:{savedResult:'first'}})};
+c.nextDisclosure={dataset:{panelDetail:'more'},closest:()=>({dataset:{savedResult:'next'}})};
+assert.notEqual(vm.runInContext('detailKey(firstDisclosure)',c),vm.runInContext('detailKey(nextDisclosure)',c));
+for(const summary of ['[Preview](javascript:alert)', '![Preview](https://example.com/image)', '`[Preview](https://example.com/app)`', '[Preview](https://user:password@example.com/app)', '[Documentation](https://example.com/docs)']){
+ c.task={result:{summary}};assert.equal(vm.runInContext('resultPreviewLink(task)',c),null);
+}
+c.summary='Changes: Viewer saved.\nChecks: Unit tests fail; browser checks not run.\nLimits: Measurement comparison pending.';
+assert.ok(vm.runInContext('resultSections(summary).checks',c).includes('fail'));
+c.summary='Viewer saved.\n\nNo tests were run.\n\nPrint checks not run.';
+assert.ok(vm.runInContext('resultSections(summary).limits',c).includes('not run'));
+'''
+        result = subprocess.run([shutil.which('node'), '-e', script, str(root/'static/agent-model.js'),
+                                 str(root/'static/task-feedback.js'), str(root/'static/agents.js')],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
     def test_run_ownership_full_history_and_discussion_result_are_preserved(self):
         root = Path(__file__).resolve().parents[1]
         script = r'''
@@ -93,7 +136,7 @@ assert.equal(vm.runInContext("agentReplyHelp({state:'running',interactive:true})
 const legacy='No project files could be captured for this editable assignment. Supply the deliverables or correct their paths before review.';
 c.task={state:'ready_for_review',config:{mode:'codex'},expected_outputs:[],output_links:[],handoff_issues:[legacy],result:{status:'completed',summary:'A discussion reply.',artifacts:[],handoff_issues:[legacy]}};
 const original=JSON.stringify(c.task),reply=vm.runInContext('resultHandoffHTML(task)',c);
-assert.ok(reply.includes('Discussion reply · no files expected'));assert.ok(reply.includes('<h3>Reply</h3>'));
+assert.ok(reply.includes('Discussion reply · no files expected'));assert.ok(reply.includes('>Reply</span>'));
 assert.ok(!reply.includes(legacy));assert.equal(JSON.stringify(c.task),original);
 assert.equal(model.resultView(c.task).delivery_status,'complete');
 c.task.result.artifacts=['missing.svg'];c.task.handoff_issues=['Could not capture missing.svg'];

@@ -78,3 +78,24 @@ state updated from Working to Finished when the CLI result arrived. The overview
 fit the complete scenery. No additional project agents or model calls were started
 for this visual change, and the running service was not restarted. This verifies
 the live map integration, not the engineering claims in that agent's report.
+
+## Results drawer (2026-10-14)
+
+The full suite passed **344 tests**, source syntax checks passed, and the generated
+scene/styles rebuilt deterministically. Regression checks cover saved outcomes
+after continuation, positive and negative prose checks, explicit safe preview
+links, retained missing-file warnings, history grouping, and distinct disclosure
+keys for each saved run.
+
+An isolated read-only browser fixture verified filename-first Files controls,
+collapsed technical metadata, visible blockers, discussion replies, and the
+return path from a saved result. Adding a result retained open sections, focus,
+and the reading anchor within one pixel. Back to Results retained expanded
+history and the selected project filter. At 390 by 844, document and drawer widths
+were both 390 pixels. The temporary viewport was reset. The fixture used no
+provider calls or operational records; its store remained unchanged.
+
+The live Results drawer was also checked against saved operational reports.
+Preview links remain agent-supplied links, reported checks remain agent claims,
+and captured files retain their existing integrity checks. No result was accepted,
+no real agent was launched or stopped, and no service restart was needed.

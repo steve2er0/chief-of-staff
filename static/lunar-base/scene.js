@@ -31,6 +31,12 @@
   function results(tasks,projectId=''){
     return tasks.filter(t=>t.result&&(!projectId||t.project_id===projectId)).sort((a,b)=>(Date.parse(b.finished_at||b.updated)||0)-(Date.parse(a.finished_at||a.updated)||0));
   }
+  function resultStatus(task){
+    const state=task.prior_state||task.state,status=task.result?.status||(['ready_for_review','accepted','completed'].includes(state)?'completed':state);
+    const issues=[...(task.handoff_issues||[]),...(task.snapshot_limits||[]),...(task.result?.handoff_issues||[])];
+    if(status==='completed')return {label:issues.length?'Completed · issues':state==='accepted'?'Accepted':task.result?.delivery_kind==='reply'?'Reply':'Completed',tone:issues.length?'attention':'finished'};
+    return {label:({cancelled:'Stopped',paused:'Stopped',blocked:'Blocked',failed:'Failed',interrupted:'Interrupted'})[status]||'Incomplete',tone:status==='failed'?'error':'attention'};
+  }
   function turns(tasks,task){return tasks.filter(t=>identity(t)===identity(task));}
   function conversationRuns(tasks,task){
     const runs=turns(tasks,task).filter(t=>(Date.parse(t.created)||0)<=(Date.parse(task.created)||Infinity))
@@ -63,7 +69,7 @@
     if(!view.handoff_issues.length&&!view.snapshot_limits.length&&!view.result.handoff_issues.length)view.delivery_status='complete';
     return view;
   }
-  const api={identity,title,pending,current,status,results,turns,conversationRuns,resultView};root.AgentModel=api;
+  const api={identity,title,pending,current,status,results,resultStatus,turns,conversationRuns,resultView};root.AgentModel=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
 

@@ -53,12 +53,14 @@ function render() {
   const titles={review:'Needs you',results:'Results',briefings:'Decisions & history',projects:'Projects',project:projectName(selectedProject),settings:'Settings'};
   const renders={review:renderReview,results:renderResults,briefings:renderBriefings,projects:renderProjects,project:renderProject,settings:renderSettings};
   if(!renders[view])return;
+  if(view==='results'&&typeof rememberResultsOverview==='function')rememberResultsOverview();
   const expanded=new Set([...document.querySelectorAll('#modal-content details[data-preserve-open][open]')].map(el=>el.dataset.preserveOpen));
   const transcript=$('.conversation'),scroll=transcript?.scrollTop,atEnd=!transcript||transcript.scrollHeight-transcript.scrollTop-transcript.clientHeight<30;
-  const signature=JSON.stringify([view,selectedProject,selectedBriefing,boardFilter,attentionFilter,state.projects,state.tasks,state.jobs,state.attention,state.briefings]);
+  const signature=view==='results'&&typeof resultsSignature==='function'?resultsSignature():JSON.stringify([view,selectedProject,selectedBriefing,boardFilter,attentionFilter,state.projects,state.tasks,state.jobs,state.attention,state.briefings]);
   if(currentModal?.type==='workspace-panel'&&currentModal.id===view&&currentModal.signature===signature)return;
   modal(titles[view],'',renders[view](),'workspace-panel',view);currentModal.signature=signature;
-  document.querySelectorAll('#modal-content details[data-preserve-open]').forEach(el=>{el.open=expanded.has(el.dataset.preserveOpen);});
+  if(view==='results'&&typeof restoreResultsOverview==='function')restoreResultsOverview();
+  else document.querySelectorAll('#modal-content details[data-preserve-open]').forEach(el=>{el.open=expanded.has(el.dataset.preserveOpen);});
   const next=$('.conversation');if(next)next.scrollTop=atEnd?next.scrollHeight:scroll||0;
   syncConversationFeedback();
 }

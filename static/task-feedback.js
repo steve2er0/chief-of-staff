@@ -111,29 +111,62 @@ function resultSections(summary) {
     if(match){key=match[1].toLowerCase().startsWith('next')?'next':match[1].toLowerCase();found=true;sections[key]+=match[2]+'\n';}
     else if(key)sections[key]+=line+'\n';
   }
-  const text=String(summary||''), paragraphs=text.split(/\n\s*\n/), statements=text.split(/\n+|[.!?]\s+/);
+  const text=String(summary||''), paragraphs=text.split(/\n\s*\n/), statements=text.replace(/\*\*/g,'').split(/\n+|[.!?]\s+/);
   return found?Object.fromEntries(Object.entries(sections).map(([k,v])=>[k,v.trim()])):{changes:paragraphs[0]||text,
-    checks:statements.filter(x=>/\b(tests?|checks?|validation|verification)\b/i.test(x)&&/\b(passed|failed|not run|untested|blocked)\b/i.test(x)).join('\n'),
-    limits:paragraphs.slice(1).filter(x=>/\b(blocked|failed|denied|rejected|limits?|unverified|untested)\b/i.test(x)).join('\n\n')};
+    checks:statements.filter(x=>/\b(tests?|checks?|validation|verification|benchmarks?)\b/i.test(x)&&/\b(pass(?:ed|ing)?|fail(?:ed|ing)?|not (?:yet )?run|untested|blocked)\b|\bno (?:tests?|checks?).{0,30}\brun\b/i.test(x)).join('\n'),
+    limits:paragraphs.filter(x=>/\b(blocked|failed|denied|rejected|limits?|unverified|untested|preliminary|not (?:yet )?run|not verified|remain(?:s)? open)\b|\bno (?:tests?|checks?).{0,30}\brun\b/i.test(x)).join('\n\n')};
+}
+
+function resultPlain(value){return String(value||'').replace(/!?\[([^\]]+)\]\([^\s)]+\)/g,'$1').replace(/[*`#]/g,'').replace(/\s+/g,' ').trim();}
+function resultOutcome(t){
+  const summary=String(t.result?.summary||'');let body=resultSections(summary).changes||summary;
+  const intro=text=>/^(?:implemented|updated|completed|done|changes|summary|results?|what changed)(?: locally)?\s*[:.!]?$/i.test(text)||text.endsWith(':')&&text.split(/\s+/).length<=5;
+  if(intro(resultPlain(body)))body=summary.split('\n').map(resultPlain).find(line=>line&&!intro(line)&&!line.startsWith('```'))||body;
+  const text=resultPlain(body).replace(/^[-–]\s*/,'');
+  return shortTaskText(text.split(/(?<=[.!?])\s+/)[0],160);
+}
+function resultPreviewLink(t){
+  // Use an explicitly supplied preview link. Never guess an address or open it automatically.
+  const text=String(t.result?.summary||'').replace(/```[\s\S]*?(?:```|$)/g,'').replace(/`[^`\n]*`/g,'');
+  for(const match of text.matchAll(/(?<!!)\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi)){
+    try{
+      const url=new URL(match[2]),local=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
+      if(!url.username&&!url.password&&(/\b(preview|viewer|demo)\b/i.test(match[1])||local&&/\b(tool|app|visualization|dashboard)\b/i.test(match[1])))return {url:url.href,label:match[1]};
+    }catch{/* Invalid links stay in the preserved report. */}
+  }
+  return null;
+}
+function resultLimits(t){
+  const report=resultSections(t.result?.summary),negativeChecks=report.checks.split('\n').filter(x=>/\b(fail(?:ed|ing)?|not (?:yet )?run|untested|blocked)\b|\bno (?:tests?|checks?).{0,30}\b(?:run|pass(?:ed)?)\b/i.test(x));
+  return [...new Set([...(t.handoff_issues||[]),...(t.result?.handoff_issues||[]),...(t.snapshot_limits||[]),...(t.validation_checks||[]).filter(c=>['failed','pending','blocked'].includes(c.status)).map(c=>c.label+': '+c.details),...negativeChecks.map(x=>'Agent-reported checks: '+x),report.limits].filter(Boolean))];
+}
+function resultAlertsHTML(t){
+  const limits=resultLimits(t),decisions=t.result?.decisions||[];
+  return `${limits.length?`<p class="result-alert"><strong>Limitations:</strong> ${reportPreview(limits[0],150)}${limits.length>1?` <span>+${limits.length-1} more in More</span>`:''}</p>`:''}${decisions.length?`<p class="result-alert"><strong>Needs your decision:</strong> ${reportPreview(decisions[0],150)}${decisions.length>1?` · ${decisions.length} decisions`:''}</p>`:''}${t.worktree?'<p class="result-location">Run used separate checkout</p>':''}${t.config?.mode==='simulated'?'<p class="result-location">Simulated result</p>':''}`;
+}
+function resultFilesHTML(t){
+  const files=(t.output_links||[]).filter(x=>x.source_path);if(!files.length)return '';
+  const basename=x=>String(x.source_path||x.label).split(/[\\/]/).at(-1);
+  return `<details class="result-files" data-preserve-open="${esc(t.id)}:files" data-panel-detail="files"><summary data-result-focus="${esc(t.id)}:files">Files (${files.length})</summary><div class="result-file-list">${files.map(f=>`<a class="result-file-link" href="/api/output/${encodeURIComponent(t.id)}/${encodeURIComponent(f.name)}" title="${esc(f.source_path)}" download><span>${esc(basename(f))}</span>${files.filter(x=>basename(x)===basename(f)).length>1?`<small>${esc(f.source_path)}</small>`:''}${f.partial?'<small>Partial snapshot</small>':''}</a>`).join('')}</div></details>`;
+}
+function resultMoreHTML(t,{review=false}={}){
+  const report=resultSections(t.result.summary),limits=resultLimits(t),links=t.output_links||[],raw=t.result.agent_report||JSON.stringify(t.result,null,2);
+  return `<details class="result-more" data-preserve-open="${esc(t.id)}:more" data-panel-detail="more"><summary data-result-focus="${esc(t.id)}:more">More</summary><div class="result-more-body">${report.checks?`<h4>Agent-reported checks</h4>${reportHTML(report.checks)}`:''}${limits.length?`<h4>Limitations & delivery issues</h4><ul>${limits.map(x=>`<li>${reportInline(x)}</li>`).join('')}</ul>`:''}${t.result.decisions?.length?`<h4>Decisions</h4>${t.result.decisions.map(reportHTML).join('')}`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(reportHTML).join('')}${(t.result.status||t.prior_state||t.state)==='failed'&&t.latest_update?`<h4>Last agent update before the stop</h4><p class="section-note">Progress report · verification was interrupted.</p>${reportHTML(t.latest_update)}`:''}${report.next||t.result.next_steps?.length?`<h4>Next step</h4>${reportHTML(report.next||t.result.next_steps.join('\n'))}`:''}<details data-preserve-open="${esc(t.id)}:report" data-panel-detail="report"><summary data-result-focus="${esc(t.id)}:report">Full report${t.result.report_truncated?' · preview':''}</summary>${reportHTML(agentMessage(t.result.agent_report)?.text||t.result.summary)}${links.filter(x=>!x.source_path).map(f=>`<a class="output-link" href="/api/output/${encodeURIComponent(t.id)}/${encodeURIComponent(f.name)}" download>${esc(f.label)}</a>`).join('')}</details>${t.review_note?`<h4>Your review</h4>${reportHTML(t.review_note)}`:''}${review?`<details data-preserve-open="${esc(t.id)}:review" data-panel-detail="acceptance"><summary>Record your review · optional</summary><label>Review note<textarea id="review-note"></textarea></label><button data-task-action="accept">Accept result</button></details>`:''}<details data-preserve-open="${esc(t.id)}:technical" data-panel-detail="technical"><summary data-result-focus="${esc(t.id)}:technical">Technical details</summary><p class="section-note">Hashes identify captured files. Reported tests and your review assess the work.</p>${links.map(f=>`<div class="result-file-metadata"><span>${esc(f.source_path||f.label)}</span><code>${esc(f.sha256||'Hash not recorded')}</code>${f.bytes!==undefined?`<small>${esc(f.bytes)} bytes</small>`:''}</div>`).join('')}<h4>Raw report</h4><pre>${esc(raw)}</pre></details></div></details>`;
 }
 function validationChecksHTML(t) {
   const checks=t.validation_checks||[];if(!checks.length)return '';
   return `<section class="continuation-context"><h3>Follow-up validation</h3><p class="section-note">These observations update the handoff below. The original agent report is preserved.</p>${checks.map(c=>`<div class="record"><strong>${esc(c.label)} · ${esc(c.status)}</strong><p>${esc(c.details)}</p><small class="muted">${esc(c.source)} · ${esc(date(c.at))}</small></div>`).join('')}</section>`;
 }
 
-function resultHandoffHTML(t) {
+function resultHandoffHTML(t,options={}) {
   if(typeof AgentModel!=='undefined')t=AgentModel.resultView(t);
   if(!t.result)return '';
-  const report=resultSections(t.result.summary),links=t.output_links||[],files=links.filter(x=>x.source_path),fullReport=links.find(x=>x.name==='agent-report.txt');
-  const ready=['ready_for_review','accepted'].includes(t.prior_state||t.state),issues=t.handoff_issues||t.result.handoff_issues||t.snapshot_limits||[];
-  const limits=[report.limits,...issues].filter(Boolean),heading=ready?(t.result.delivery_kind==='reply'?'Reply':'Returned work'):'Result · INCOMPLETE';
-  return `<section class="result-handoff"><h3>${heading}</h3><p>${reportPreview(report.changes||t.result.summary,360)}</p>${t.result.report_truncated&&fullReport?`<p class="section-note">Preview · <a href="/api/output/${encodeURIComponent(t.id)}/agent-report.txt" download>Full report</a></p>`:''}${limits.length?`<p class="section-note"><strong>Limitations:</strong> ${reportPreview(limits[0],240)}</p>`:''}<p class="muted">${files.length?files.length+' file'+(files.length===1?'':'s'):(t.result.delivery_kind==='reply'?'Discussion reply · no files expected':'No validated file snapshots are available')} · ${t.config.mode==='simulated'?'simulated result':'agent report'}</p>${t.result.decisions?.length?`<h3>Needs your decision</h3>${t.result.decisions.map(d=>reportHTML(d)).join('')}`:''}<details class="assignment-background"><summary>Report & validation</summary><p class="handoff-basis">${t.result.recovery_source?'Recovered agent report':'Reported checks · agent report'}</p>${reportHTML(report.checks||'No checks reported.')}<p class="section-note">File integrity and reported testing are separate evidence.</p>${limits.length?`<h4>Limitations & delivery issues</h4><ul>${limits.map(x=>`<li>${reportInline(x)}</li>`).join('')}</ul>`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(x=>reportHTML(x)).join('')}${t.state==='failed'&&t.latest_update?`<h4>Last agent update before the stop</h4><p class="section-note">Progress report · verification was interrupted</p>${reportHTML(t.latest_update)}`:''}${report.next||t.result.next_steps?.length?`<h4>Next step</h4>${reportHTML(report.next||t.result.next_steps.join('\n'))}`:''}<h4>Original report</h4>${reportHTML(typeof t.result.agent_report==='string'?t.result.agent_report:t.result.summary)}<details><summary>Raw report</summary><pre>${esc(t.result.agent_report||JSON.stringify(t.result,null,2))}</pre></details></details></section>`;
+  const preview=resultPreviewLink(t),status=typeof AgentModel!=='undefined'?AgentModel.resultStatus(t):{label:t.result.status==='completed'?'Completed':'Incomplete',tone:t.result.status==='completed'?'finished':'attention'};
+  return `<section class="result-handoff result-compact"><div class="result-outcome-status"><span class="badge" data-result-tone="${status.tone}">${esc(status.label)}</span>${!['Completed','Accepted','Reply','Completed · issues'].includes(status.label)?'<span class="sr-only">Result · INCOMPLETE</span>':''}</div><p class="result-outcome">${esc(resultOutcome(t))}</p>${resultAlertsHTML(t)}${t.result.delivery_kind==='reply'?'<p class="result-location">Discussion reply · no files expected</p>':''}${preview?`<a class="result-primary-action primary" href="${esc(preview.url)}" target="_blank" rel="noreferrer">Open preview</a>`:''}${resultFilesHTML(t)}${resultMoreHTML(t,options)}</section>`;
 }
 
 function outputSnapshotsHTML(t) {
-  const links=t.output_links||[];if(!links.length)return '';
-  const link=o=>`<a class="output-link" href="/api/output/${t.id}/${encodeURIComponent(o.name)}">↗ ${esc(o.label)} <span class="muted">· ${esc(o.sha256.slice(0,12))}</span></a>`;
-  return `<details class="assignment-background"><summary>Files & reports · ${links.filter(x=>x.source_path).length} files</summary>${links.map(link).join('')}</details>`;
+  return resultFilesHTML(t);
 }
 
 function researchPermissionHTML(s,launched=false) {

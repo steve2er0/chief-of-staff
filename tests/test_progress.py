@@ -92,7 +92,7 @@ context.t.config={mode:'codex'};context.t.output_links=[];
 context.t.result={summary:'Changes: Added a viewer.\nChecks: Unit tests passed; browser checks not run.\nLimits: No measured correlation.',decisions:[],next_steps:['Review the curve comparison.']};
 html=vm.runInContext('resultHandoffHTML(t)',context);
 assert.ok(html.includes('INCOMPLETE'));assert.ok(html.includes('Unit tests passed; browser checks not run.'));
-assert.ok(html.includes('Reported checks'));assert.ok(html.includes('No validated file snapshots'));
+assert.ok(html.includes('Agent-reported checks'));assert.ok(!html.includes('Files (0)'));
 assert.ok(!html.includes('Accept result'));assert.ok(html.includes('Review the curve comparison.'));
 context.t.state='failed';context.t.latest_update='Core saved; <browser checks> pending.';
 context.t.result={summary:'Event stream limit exceeded'};

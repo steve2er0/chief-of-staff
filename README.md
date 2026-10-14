@@ -74,10 +74,14 @@ working folder, model and execution permissions. Tool permissions are handled
 in the same conversation when the CLI requests them. A saved result does not
 need to be accepted before you start another agent or send a follow-up.
 
-**Results** opens a drawer over the same map and collects every returned report and captured file, including partial
-work and earlier turns. Changes, reported checks and limitations are shown
-up front; raw reports, files and detailed activity are expandable. Acceptance
-is an optional way to record your judgment, not an execution gate.
+**Results** shows the latest returned outcome for each agent, with earlier runs
+under a separate disclosure. Short summaries lead to **Open preview** when the
+report supplies a preview link, or **View result**. **Files** lists captured
+filenames; **More** holds reported checks, full reports, hashes, and optional
+review. Blockers and separate-checkout notices stay visible. Saved outcomes keep
+their status when an agent resumes, and updates preserve expanded sections and
+reading position. **Back to Results** restores the overview. Acceptance records
+your judgment and does not gate further work.
 
 Discussion replies do not require files merely because the agent has edit access.
 Explicitly expected or reported file paths still require capture. Older false

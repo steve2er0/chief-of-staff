@@ -70,7 +70,7 @@ assert.ok(vm.runInContext('AgentModel.title(task)',c).length<=56);
 assert.equal(JSON.stringify(c.task),before);
 const task=(id,agent,created,summary)=>({id,agent_id:agent,project_id:'p',created,finished_at:created,state:'ready_for_review',title:'Display check',result:{summary},output_links:[]});
 c.state={projects:[{id:'p'}],tasks:[task('old','a','2026-10-12','Earlier outcome'),task('new','a','2026-10-13','Latest outcome'),task('other','b','2026-10-13','Other outcome')]};
-const results=vm.runInContext('renderResults()',c),fold=results.indexOf('<details class="previous-results">');
+const results=vm.runInContext('renderResults()',c),fold=results.indexOf('<details class="previous-results"');
 assert.ok(fold>0);
 assert.ok(results.indexOf('Latest outcome')<fold);
 assert.ok(results.indexOf('Other outcome')<fold);

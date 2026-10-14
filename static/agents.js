@@ -5,6 +5,7 @@ const agentReplyDrafts=new Map();
 const agentReplyRequests=new Map();
 const liveRequestDrafts=new Map();
 let startAgentRequest=null;
+const resultsReadingState=new Map();
 
 function currentAgents(projectId=boardFilter) {
   return AgentModel.current(state.tasks,projectId);
@@ -30,15 +31,30 @@ renderBoard=function() {
 };
 function agentResultRows(tasks) {
   return tasks.map(raw=>{
-    const t=AgentModel.resultView(raw);
-    const sections=resultSections(t.result.summary),files=(t.output_links||[]).filter(x=>x.source_path);
-    return `<article class="agent-result"><div class="row"><div><div class="eyebrow">${esc(projectName(t.project_id))} · ${esc(date(t.finished_at||t.updated))}</div><h3>${esc(AgentModel.title(t))}</h3></div><span class="badge">${esc(agentStatus(t))}</span></div><p>${reportPreview(sections.changes||t.result.summary)}</p>${sections.limits?`<p class="section-note"><strong>Limitations:</strong> ${reportPreview(sections.limits,160)}</p>`:''}<div class="actions"><button data-agent-result="${esc(t.id)}" class="mini-button">Open result</button><span class="muted">${files.length} file${files.length===1?'':'s'}</span></div><details class="result-details"><summary>Checks & files</summary>${sections.checks?`<p class="handoff-basis">Reported by the agent</p>${reportHTML(sections.checks)}`:'<p class="muted">No checks reported.</p>'}${sections.next||t.result.next_steps?.[0]?`<h4>Next step</h4>${reportHTML(sections.next||t.result.next_steps[0])}`:''}${files.map(f=>`<a href="/api/output/${encodeURIComponent(t.id)}/${encodeURIComponent(f.name)}" class="output-link">${esc(f.label)}</a>`).join('')}</details></article>`;
+    const t=AgentModel.resultView(raw),status=AgentModel.resultStatus(t),preview=resultPreviewLink(t);
+    return `<article class="agent-result result-compact" data-result-row="${esc(t.id)}"><div class="result-card-heading"><div><p class="result-meta">${esc(projectName(t.project_id))} · ${esc(date(t.finished_at||t.updated))}</p><h3 title="${esc(t.title)}">${esc(AgentModel.title(t,42))}</h3></div><span class="badge" data-result-tone="${status.tone}">${esc(status.label)}</span></div><p class="result-outcome">${esc(resultOutcome(t))}</p>${resultAlertsHTML(t)}<div class="result-tools"><div class="result-actions">${preview?`<a href="${esc(preview.url)}" class="result-primary-action primary" target="_blank" rel="noreferrer" data-result-focus="${esc(t.id)}:preview">Open preview</a>`:''}<button data-agent-result="${esc(t.id)}" data-result-focus="${esc(t.id)}:view" class="${preview?'mini-button':'primary'}">View result</button></div>${resultFilesHTML(t)}${resultMoreHTML(t)}</div></article>`;
   }).join('')||'<p class="muted">No results yet.</p>';
 }
 function renderResults() {
   const tasks=collectedResults(),seen=new Set(),latest=[],earlier=[];
   for(const task of tasks){const id=AgentModel.identity(task);if(seen.has(id))earlier.push(task);else{seen.add(id);latest.push(task);}}
-  return `<div class="board-top"><p class="muted">${tasks.length} saved result${tasks.length===1?'':'s'}</p>${state.projects.length>1?projectFilterHTML():''}</div><section class="panel">${agentResultRows(latest)}</section>${earlier.length?`<details class="previous-results"><summary>Earlier results · ${earlier.length}</summary><section class="panel">${agentResultRows(earlier)}</section></details>`:''}`;
+  return `<div id="results-overview" data-project-filter="${esc(boardFilter)}"><div class="results-toolbar"><p class="result-meta">${latest.length} latest result${latest.length===1?'':'s'}${earlier.length?' · '+earlier.length+' earlier run'+(earlier.length===1?'':'s'):''}</p>${state.projects.length>1?projectFilterHTML():''}</div><section class="results-list" aria-label="Latest results">${agentResultRows(latest)}</section>${earlier.length?`<details class="previous-results" data-preserve-open="results-history"><summary data-result-focus="results-history">Earlier runs (${earlier.length})</summary><section class="results-list">${agentResultRows(earlier)}</section></details>`:''}</div>`;
+}
+function resultsSignature(){
+  return JSON.stringify([boardFilter,state.projects.map(p=>[p.id,p.name]),collectedResults().map(t=>[t.id,t.project_id,t.title,t.state==='accepted',t.prior_state==='accepted',t.finished_at,t.result,t.output_links,t.worktree,t.config?.mode,t.handoff_issues,t.snapshot_limits,t.delivery_notes,t.validation_checks,t.review_note,t.accepted_at])]);
+}
+function rememberResultsOverview(){
+  const node=$('#results-overview');if(!node)return;
+  const drawer=$('#modal'),bounds=drawer.getBoundingClientRect(),header=drawer.querySelector('.modal-top').getBoundingClientRect();
+  const anchor=[...node.querySelectorAll('[data-result-row]')].find(el=>{const r=el.getBoundingClientRect();return r.height&&r.bottom>header.bottom&&r.top<bounds.bottom;});
+  resultsReadingState.set(node.dataset.projectFilter,{scroll:drawer.scrollTop,open:[...node.querySelectorAll('details[data-preserve-open][open]')].map(el=>el.dataset.preserveOpen),anchor:anchor?.dataset.resultRow,top:anchor?.getBoundingClientRect().top-bounds.top,focus:document.activeElement.dataset.resultFocus});
+}
+function restoreResultsOverview(){
+  const node=$('#results-overview'),saved=resultsReadingState.get(boardFilter);if(!node||!saved)return;
+  node.querySelectorAll('details[data-preserve-open]').forEach(el=>{el.open=saved.open.includes(el.dataset.preserveOpen);});
+  const drawer=$('#modal'),anchor=[...node.querySelectorAll('[data-result-row]')].find(el=>el.dataset.resultRow===saved.anchor);
+  drawer.scrollTop=anchor?drawer.scrollTop+anchor.getBoundingClientRect().top-drawer.getBoundingClientRect().top-saved.top:saved.scroll;
+  if(saved.focus)[...node.querySelectorAll('[data-result-focus]')].find(el=>el.dataset.resultFocus===saved.focus)?.focus({preventScroll:true});
 }
 
 function newAgentFields() {
@@ -103,14 +119,18 @@ function replyComposerHTML(t){
 function agentResultsHTML(t){
   const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t],returned=AgentModel.results(AgentModel.turns(tasks,t));
   const selected=t.result?t:returned[0],older=returned.filter(r=>r.id!==selected?.id);
-  const result=raw=>{const r=AgentModel.resultView(raw);return `<article data-saved-result="${esc(r.id)}"><div class="run-separator">${r.id===t.id?'This run':'Saved run'} · ${esc(date(r.finished_at||r.updated))}</div>${resultHandoffHTML(r)}${outputSnapshotsHTML(r)}</article>`;};
-  return `${selected?result(selected):'<p class="agent-empty">Replies and returned work will appear here.</p>'}${t.state==='ready_for_review'?`<details data-panel-detail="acceptance"><summary>Record your review · optional</summary><label>Review note<textarea id="review-note"></textarea></label><button data-task-action="accept">Accept result</button></details>`:''}${older.length?`<details data-panel-detail="older-results"><summary>Other saved results · ${older.length}</summary>${older.map(result).join('')}</details>`:''}`;
+  const historyLabel=selected?.id===returned[0]?.id?'Earlier runs':'Other runs';
+  const result=raw=>{const r=AgentModel.resultView(raw);return `<article data-saved-result="${esc(r.id)}"><p class="result-meta">${r.id===t.id?'This run':'Saved run'} · ${esc(date(r.finished_at||r.updated))}</p>${resultHandoffHTML(r,{review:r.id===t.id&&t.state==='ready_for_review'})}</article>`;};
+  return `${currentModal?.returnToResults?'<button type="button" data-results-overview class="text-button result-back">← Back to Results</button>':''}${selected?result(selected):'<p class="agent-empty">Replies and returned work will appear here.</p>'}${older.length?`<details data-panel-detail="older-results"><summary>${historyLabel} (${older.length})</summary>${agentResultRows(older)}</details>`:''}`;
 }
 function agentDetailsHTML(t){
   const active=['running','queued'].includes(t.state);
   return `<section><h3>Instructions</h3>${reportHTML(t.purpose||t.goal||'No instructions recorded.')}<h3>Working folder</h3><p class="prose">${esc(t.context?.cwd||'Not recorded')}</p>${t.worktree?`<p class="section-note">Separate checkout · ${esc(t.worktree.branch)}. Edits stay here until applied to the original project.</p>`:''}<h3>Execution</h3><p>${esc(t.config?.model||'Not recorded')} · ${esc(t.access||'Not recorded')} · ${t.execution_policy==='yolo'?'Full access · YOLO':'Sandboxed'}</p><p class="section-note">${t.config?.timeout_seconds===0?'Until finished or stopped':esc(t.config?.timeout_seconds||'')+' seconds'}</p><h3>Session</h3><p class="prose">${esc(t.session_id||'Not started')}</p><label class="checkbox-label"><input type="checkbox" name="fresh" form="agent-reply-form" ${!t.session_id&&!active?'checked':''} ${active?'disabled':''}>Start a new session for the next run</label><p class="section-note">Available after this run ends. A continuation keeps its captured execution permissions.</p><details data-panel-detail="activity"><summary>Activity log</summary>${(t.history||[]).map(h=>`<div class="record"><small>${esc(date(h.at))}</small><p>${esc(h.text)}</p></div>`).join('')||'<p class="muted">No activity recorded.</p>'}</details></section>`;
 }
-function detailKey(el){return el.dataset.panelDetail||((el.closest('[data-saved-result]')?.dataset.savedResult||'panel')+':'+el.querySelector('summary')?.textContent);}
+function detailKey(el){
+  const owner=el.closest('[data-saved-result]')?.dataset.savedResult||el.closest('[data-result-row]')?.dataset.resultRow||'panel';
+  return owner+':'+(el.dataset.panelDetail||el.dataset.preserveOpen||el.querySelector('summary')?.textContent);
+}
 function replaceAgentSection(node,html,signature){
   if(!node||node.dataset.signature===signature)return false;
   const open=new Set([...node.querySelectorAll('details[open]')].map(detailKey));
@@ -183,12 +203,12 @@ function syncAgentSession(){
   composer.elements.fresh.disabled=active||t.state==='stopping';
   composer.querySelector('.agent-recovery').hidden=!t.recovery_lock;composer.elements.confirmed_stopped.required=Boolean(t.recovery_lock);
 }
-taskModal=function(id,tab='conversation'){
+taskModal=function(id,tab='conversation',returnToResults=false){
   const raw=state.tasks.find(t=>t.id===id);if(!raw)return;
   const t=AgentModel.resultView(raw);rememberLiveRequestDrafts();
   selectedProject=t.project_id;lunarScene?.selectAgent(AgentModel.identity(t));
   modal(AgentModel.title(t),projectName(t.project_id),`<div id="agent-panel" data-tab="${tab}" data-follow-latest="true"><div id="agent-status">${agentStatusHTML(t)}</div><div class="agent-panel-tabs" role="tablist" aria-label="Agent panel">${[['conversation','Conversation'],['results','Results'],['details','Details']].map(([key,label])=>`<button type="button" role="tab" id="agent-tab-${key}" aria-controls="agent-${key}-panel" aria-selected="${key===tab}" tabindex="${key===tab?0:-1}" data-agent-tab="${key}">${label}</button>`).join('')}</div><section id="agent-conversation-panel" class="agent-tab-panel" data-agent-tab-panel="conversation" role="tabpanel" aria-labelledby="agent-tab-conversation" ${tab!=='conversation'?'hidden':''}><div id="agent-conversation-scroll" class="agent-tab-scroll">${agentConversationHTML(t)}<div id="agent-current-requests"></div></div><button id="agent-new-messages" type="button" class="mini-button" hidden>New messages ↓</button>${replyComposerHTML(t)}</section><section id="agent-results-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="results" role="tabpanel" aria-labelledby="agent-tab-results" ${tab!=='results'?'hidden':''}><div id="agent-returned-work"></div></section><section id="agent-details-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="details" role="tabpanel" aria-labelledby="agent-tab-details" ${tab!=='details'?'hidden':''}><div id="agent-details-content"></div></section></div>`,'task',id);
-  currentModal.followAgent=t.state!=='superseded';currentModal.tab=tab;
+  currentModal.followAgent=t.state!=='superseded';currentModal.tab=tab;currentModal.returnToResults=returnToResults;
   $('[data-agent-transcript]').dataset.signature=JSON.stringify([t.id,t.conversation]);
   $('#agent-conversation-scroll').addEventListener('scroll',()=>{const scroll=$('#agent-conversation-scroll');if(!scroll||scroll.clientHeight===0)return;$('#agent-panel').dataset.followLatest=String(scroll.scrollHeight-scroll.scrollTop-scroll.clientHeight<48);if($('#agent-panel').dataset.followLatest==='true')clearNewMessages();});
   $('#agent-new-messages').addEventListener('click',jumpToLatest);
@@ -215,8 +235,9 @@ function openCoordinatorPanel(id){
 
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button');if(!button)return;
+  if(button.hasAttribute('data-results-overview')){setView('results');return;}
   if(button.dataset.agentTab){selectAgentTab(button.dataset.agentTab);return;}
-  if(button.dataset.agentResult){taskModal(button.dataset.agentResult,'results');return;}
+  if(button.dataset.agentResult){const fromResults=Boolean($('#results-overview'));rememberResultsOverview();taskModal(button.dataset.agentResult,'results',fromResults);return;}
   if(button.hasAttribute('data-start-agent')){startAgentModal(button.dataset.startAgent);return;}
   if(button.hasAttribute('data-add-agent')){$('#new-agent-rows').insertAdjacentHTML('beforeend',newAgentFields());return;}
   if(button.hasAttribute('data-remove-agent')){if(document.querySelectorAll('.new-agent-row').length>1)button.closest('.new-agent-row').remove();return;}
