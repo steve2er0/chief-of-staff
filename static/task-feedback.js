@@ -56,6 +56,7 @@ function agentMessage(text) {
   return value?{text:value,reported}:null;
 }
 function taskFeedback(t) {
+  if(typeof AgentModel!=='undefined')t=AgentModel.resultView(t);
   const running=['running','stopping'].includes(t.state), terminal=!['queued','running','stopping'].includes(t.state);
   let latest=t.latest_update?{text:t.latest_update,reported:t.reported_status,at:t.latest_update_at}:null;
   if(!latest)for(const event of [...(t.history||[])].reverse()){
@@ -84,6 +85,7 @@ function activityAge(at) {
   return seconds<15?'Activity just now':seconds<60?`Activity ${seconds}s ago`:`Activity ${Math.floor(seconds/60)}m ago`;
 }
 function taskFeedbackHTML(t,compact=false) {
+  if(typeof AgentModel!=='undefined')t=AgentModel.resultView(t);
   const f=taskFeedback(t), warning=['blocked','failed','interrupted'].includes(t.state);
   const elapsed=elapsedLabel(f.start,f.end);
   const signature=JSON.stringify([t.state,f.text,f.reported,f.at,f.start,f.end,t.handoff_issues]);
@@ -120,11 +122,12 @@ function validationChecksHTML(t) {
 }
 
 function resultHandoffHTML(t) {
+  if(typeof AgentModel!=='undefined')t=AgentModel.resultView(t);
   if(!t.result)return '';
   const report=resultSections(t.result.summary),links=t.output_links||[],files=links.filter(x=>x.source_path),fullReport=links.find(x=>x.name==='agent-report.txt');
   const ready=['ready_for_review','accepted'].includes(t.prior_state||t.state),issues=t.handoff_issues||t.result.handoff_issues||t.snapshot_limits||[];
-  const limits=[report.limits,...issues].filter(Boolean),heading=ready?'Result':'Result · INCOMPLETE';
-  return `<section class="result-handoff"><h3>${heading}</h3><p>${reportPreview(report.changes||t.result.summary,360)}</p>${t.result.report_truncated&&fullReport?`<p class="section-note">Preview · <a href="/api/output/${encodeURIComponent(t.id)}/agent-report.txt" download>Full report</a></p>`:''}${limits.length?`<p class="section-note"><strong>Limitations:</strong> ${reportPreview(limits[0],240)}</p>`:''}<p class="muted">${files.length?files.length+' file'+(files.length===1?'':'s'):'No validated file snapshots are available'} · ${t.config.mode==='simulated'?'simulated result':'agent report'}</p>${t.result.decisions?.length?`<h3>Needs your decision</h3>${t.result.decisions.map(d=>reportHTML(d)).join('')}`:''}<details class="assignment-background"><summary>Report & validation</summary><p class="handoff-basis">${t.result.recovery_source?'Recovered agent report':'Reported checks · agent report'}</p>${reportHTML(report.checks||'No checks reported.')}<p class="section-note">File integrity and reported testing are separate evidence.</p>${limits.length?`<h4>Limitations & delivery issues</h4><ul>${limits.map(x=>`<li>${reportInline(x)}</li>`).join('')}</ul>`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(x=>reportHTML(x)).join('')}${t.state==='failed'&&t.latest_update?`<h4>Last agent update before the stop</h4><p class="section-note">Progress report · verification was interrupted</p>${reportHTML(t.latest_update)}`:''}${report.next||t.result.next_steps?.length?`<h4>Next step</h4>${reportHTML(report.next||t.result.next_steps.join('\n'))}`:''}<h4>Original report</h4>${reportHTML(typeof t.result.agent_report==='string'?t.result.agent_report:t.result.summary)}<details><summary>Raw report</summary><pre>${esc(t.result.agent_report||JSON.stringify(t.result,null,2))}</pre></details></details></section>`;
+  const limits=[report.limits,...issues].filter(Boolean),heading=ready?(t.result.delivery_kind==='reply'?'Reply':'Returned work'):'Result · INCOMPLETE';
+  return `<section class="result-handoff"><h3>${heading}</h3><p>${reportPreview(report.changes||t.result.summary,360)}</p>${t.result.report_truncated&&fullReport?`<p class="section-note">Preview · <a href="/api/output/${encodeURIComponent(t.id)}/agent-report.txt" download>Full report</a></p>`:''}${limits.length?`<p class="section-note"><strong>Limitations:</strong> ${reportPreview(limits[0],240)}</p>`:''}<p class="muted">${files.length?files.length+' file'+(files.length===1?'':'s'):(t.result.delivery_kind==='reply'?'Discussion reply · no files expected':'No validated file snapshots are available')} · ${t.config.mode==='simulated'?'simulated result':'agent report'}</p>${t.result.decisions?.length?`<h3>Needs your decision</h3>${t.result.decisions.map(d=>reportHTML(d)).join('')}`:''}<details class="assignment-background"><summary>Report & validation</summary><p class="handoff-basis">${t.result.recovery_source?'Recovered agent report':'Reported checks · agent report'}</p>${reportHTML(report.checks||'No checks reported.')}<p class="section-note">File integrity and reported testing are separate evidence.</p>${limits.length?`<h4>Limitations & delivery issues</h4><ul>${limits.map(x=>`<li>${reportInline(x)}</li>`).join('')}</ul>`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(x=>reportHTML(x)).join('')}${t.state==='failed'&&t.latest_update?`<h4>Last agent update before the stop</h4><p class="section-note">Progress report · verification was interrupted</p>${reportHTML(t.latest_update)}`:''}${report.next||t.result.next_steps?.length?`<h4>Next step</h4>${reportHTML(report.next||t.result.next_steps.join('\n'))}`:''}<h4>Original report</h4>${reportHTML(typeof t.result.agent_report==='string'?t.result.agent_report:t.result.summary)}<details><summary>Raw report</summary><pre>${esc(t.result.agent_report||JSON.stringify(t.result,null,2))}</pre></details></details></section>`;
 }
 
 function outputSnapshotsHTML(t) {

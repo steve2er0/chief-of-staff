@@ -6,6 +6,24 @@ import shutil
 
 from .safety import Invalid, local_file
 
+MISSING_FILES_ISSUE = "No project files could be captured for this editable assignment. Supply the deliverables or correct their paths before review."
+
+
+def result_presentation(record):
+    """Correct legacy discussion warnings in a read-only view, not saved reports."""
+    result = record.get("result") or {}
+    files = record.get("expected_outputs") or result.get("artifacts") or any(
+        link.get("source_path") for link in record.get("output_links", []))
+    if files or result.get("status") != "completed":
+        return record
+    view = dict(record, result=dict(result, delivery_kind="reply"))
+    for key in ("handoff_issues", "snapshot_limits"):
+        view[key] = [issue for issue in record.get(key, []) if issue != MISSING_FILES_ISSUE]
+    view["result"]["handoff_issues"] = [issue for issue in result.get("handoff_issues", []) if issue != MISSING_FILES_ISSUE]
+    if not view["handoff_issues"] and not view["snapshot_limits"] and not view["result"]["handoff_issues"]:
+        view["delivery_status"] = "complete"
+    return view
+
 
 def file_digest(path):
     sha = hashlib.sha256()
@@ -100,9 +118,12 @@ def capture_result(folder, cwd, result, expected_outputs, baseline, write_task, 
             else:
                 message += ". Correct this entry or recapture the file; other valid snapshots are retained."
             issues.append(message)
-    if complete and write_task and not any(link.get("source_path") for link in links):
-        issues.append("No project files could be captured for this editable assignment. Supply the deliverables or correct their paths before review.")
+    # File access is a permission, not a promised deliverable. Explicit file
+    # references still require capture, even when the rest of the reply is prose.
+    if complete and write_task and refs and not any(link.get("source_path") for link in links):
+        issues.append(MISSING_FILES_ISSUE)
     notes = []
     if expected_outputs and complete and write_task and not changed and any(link.get("source_path") for link in links):
         notes.append("The expected files were unchanged during this run. Existing files were captured; assess the reported checks and assignment criteria during review.")
+    result["delivery_kind"] = "files" if refs else "reply"
     return links + ([report_link] if report_link else []), issues, notes

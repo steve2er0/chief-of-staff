@@ -29,7 +29,7 @@ async function refresh(renderPage=true) {
   syncTaskFeedback();
   if(typeof syncAgentSession==='function')syncAgentSession();
   if(renderPage&&currentModal?.type==='workspace-panel'&&view!=='settings'&&!$('#modal-content').dataset.dirty&&!document.activeElement.matches('textarea,input,select')){render();}
-  if(renderPage && currentModal?.type==='task' && $('#modal').open && !$('#modal-content').dataset.dirty && !document.activeElement.matches('textarea,input,select')) {
+  if(renderPage && currentModal?.type==='task' && !$('#agent-panel') && $('#modal').open && !$('#modal-content').dataset.dirty && !document.activeElement.matches('textarea,input,select')) {
     const t=state.tasks.find(x=>x.id===currentModal.id),old=previous?.tasks.find(x=>x.id===currentModal.id);
     if(t&&t.updated!==old?.updated)taskModal(t.id);
   }

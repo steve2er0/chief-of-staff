@@ -64,9 +64,12 @@ agent row for each separate responsibility, then click **Start agents** once.
 No framing proposal, work map, acceptance criteria form, or separate approval
 step is required. Starting records your instructions and execution choices.
 
-Select an astronaut to open its side panel with the latest update, elapsed time
-and status. Use its conversation to send instructions while it runs, answer a question,
-or **Reply & continue** after it finishes. Follow-ups keep the exact session,
+Select an astronaut to open **Conversation**, **Results**, and **Details**. Conversation
+opens at the latest message with a compact reply box. Earlier runs are expandable;
+reading older messages keeps your position and shows **New messages** when updates
+arrive. Results holds returned work; Details holds instructions, folders, execution
+settings and activity. Send instructions while it runs, answer a question, or
+**Continue agent** after it finishes. Follow-ups keep the exact session,
 working folder, model and execution permissions. Tool permissions are handled
 in the same conversation when the CLI requests them. A saved result does not
 need to be accepted before you start another agent or send a follow-up.
@@ -75,6 +78,10 @@ need to be accepted before you start another agent or send a follow-up.
 work and earlier turns. Changes, reported checks and limitations are shown
 up front; raw reports, files and detailed activity are expandable. Acceptance
 is an optional way to record your judgment, not an execution gate.
+
+Discussion replies do not require files merely because the agent has edit access.
+Explicitly expected or reported file paths still require capture. Older false
+missing-file warnings are corrected in the display without rewriting saved reports.
 
 Codex agents use the CLI's local **app-server** protocol for two-way communication.
 On older CLIs without app-server, replies queue for the next exact-session turn;

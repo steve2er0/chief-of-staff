@@ -252,5 +252,5 @@ function initializeWorkspace(){return refresh(false).then(()=>{
   else setView(['live','home','projects','review','board','results','briefings','settings'].includes(route[0])?route[0]:'live');
   if(typeof openOwnerRequestRoute==='function')openOwnerRequestRoute();
 }).catch(error=>{$('#notice').textContent=error.message;$('#notice').hidden=false;});}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initializeWorkspace,{once:true});else initializeWorkspace();
+if(document.readyState!=='complete')document.addEventListener('DOMContentLoaded',initializeWorkspace,{once:true});else initializeWorkspace();
 setInterval(async()=>{try{await refresh();$('#notice').hidden=true;}catch(error){if(lunarScene)lunarScene.disconnect(error.message);$('#notice').textContent=error.message;$('#notice').hidden=false;}},2500);

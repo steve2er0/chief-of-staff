@@ -32,7 +32,38 @@
     return tasks.filter(t=>t.result&&(!projectId||t.project_id===projectId)).sort((a,b)=>(Date.parse(b.finished_at||b.updated)||0)-(Date.parse(a.finished_at||a.updated)||0));
   }
   function turns(tasks,task){return tasks.filter(t=>identity(t)===identity(task));}
-  const api={identity,title,pending,current,status,results,turns};root.AgentModel=api;
+  function conversationRuns(tasks,task){
+    const runs=turns(tasks,task).filter(t=>(Date.parse(t.created)||0)<=(Date.parse(task.created)||Infinity))
+      .sort((a,b)=>(Date.parse(a.created)||0)-(Date.parse(b.created)||0));
+    if(!runs.some(t=>t.id===task.id))runs.push(task);
+    const groups=new Map(runs.map(t=>[t.id,{task:t,messages:[]}]));
+    for(const message of task.conversation||[]){
+      let owner=groups.has(message.task_id)?message.task_id:null;
+      if(!owner){
+        const at=Date.parse(message.at)||0;
+        owner=(runs.filter(t=>(Date.parse(t.created)||0)<=at).at(-1)||runs[0]).id;
+        // A queued follow-up may be recorded just before its new run is created.
+        if(message.role==='user')for(const run of runs){
+          const parent=tasks.find(t=>t.id===run.parent_task_id),finished=Date.parse(parent?.finished_at);
+          if(run.continuation_note&&message.text&&run.continuation_note.includes(message.text)&&at>=finished&&at<=(Date.parse(run.created)||0))owner=run.id;
+        }
+      }
+      groups.get(owner).messages.push(message);
+    }
+    return [...groups.values()];
+  }
+  function resultView(task){
+    if(!task.result)return task;
+    const result=task.result,files=task.expected_outputs?.length||result.artifacts?.length||(task.output_links||[]).some(x=>x.source_path);
+    const ready=result.status==='completed'||['ready_for_review','accepted'].includes(task.prior_state||task.state);
+    if(files||!ready)return task;
+    const legacy='No project files could be captured for this editable assignment. Supply the deliverables or correct their paths before review.';
+    const clean=issues=>(issues||[]).filter(x=>x!==legacy);
+    const view={...task,result:{...result,delivery_kind:'reply',handoff_issues:clean(result.handoff_issues)},handoff_issues:clean(task.handoff_issues),snapshot_limits:clean(task.snapshot_limits)};
+    if(!view.handoff_issues.length&&!view.snapshot_limits.length&&!view.result.handoff_issues.length)view.delivery_status='complete';
+    return view;
+  }
+  const api={identity,title,pending,current,status,results,turns,conversationRuns,resultView};root.AgentModel=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
 

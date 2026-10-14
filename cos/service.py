@@ -14,7 +14,7 @@ from .references import ReferenceMixin
 from .intake import SetupReviewMixin
 from .progress import apply_progress, activity_snapshot
 from .attention import attention_queue
-from .results import capture_result, file_digest
+from .results import capture_result, file_digest, result_presentation
 from .owner_requests import apply_request_update, sync_request_records, owner_snapshot
 from .agents import AgentMixin, git
 from .live_agent import AgentControl
@@ -1050,7 +1050,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
     def snapshot(self):
         with self.store.transaction():
             caps = self.store.all("capabilities")
-            return {"projects": self.store.all("project"), "plans": self.store.all("plan"), "tasks": [owner_snapshot(activity_snapshot(t),self.store.get("project",t["project_id"])) for t in self.store.all("task")],
+            return {"projects": self.store.all("project"), "plans": self.store.all("plan"), "tasks": [owner_snapshot(result_presentation(activity_snapshot(t)),self.store.get("project",t["project_id"])) for t in self.store.all("task")],
                     "jobs": [activity_snapshot(j) for j in self.store.all("job")], "briefings": self.store.all("briefing")[-50:], "config": self.config(),
                     "capabilities": {k: v for k, v in caps[-1].items() if k != "help"} if caps else None,
                     "preflight_required": self.adapter.capabilities is None, "audit": self.store.events(),
