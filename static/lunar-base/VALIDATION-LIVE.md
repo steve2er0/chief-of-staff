@@ -99,3 +99,26 @@ The live Results drawer was also checked against saved operational reports.
 Preview links remain agent-supplied links, reported checks remain agent claims,
 and captured files retain their existing integrity checks. No result was accepted,
 no real agent was launched or stopped, and no service restart was needed.
+
+## Compact Details panel (2026-10-14)
+
+The full suite passed **345 tests**. Presentation regressions cover current-run
+request ownership, saved-run cutoffs, exact preserved instructions, captured
+permissions, Windows folder labels, meaningful activity and fresh-session choices.
+All Python and JavaScript sources passed syntax checks, and generated assets
+rebuilt with unchanged hashes.
+
+An isolated read-only browser fixture checked completed, active and no-session
+runs. Current request, workspace and access stay visible; instructions, paths,
+run settings, session metadata and activity start collapsed. Session copying
+worked and the clipboard was restored. Selecting a fresh session retained its
+indicator with Continue options collapsed. No-session runs clearly require a
+fresh session; active runs do not offer that option. Incoming requests retained
+expanded sections, focus and the reading anchor within one pixel, including
+after switching tabs. At 390 by 844, the drawer and document were 390 pixels
+wide and the panel had no horizontal overflow. The temporary viewport was reset.
+
+Reloading the existing operational browser tab was blocked by Chrome with
+ERR_BLOCKED_BY_CLIENT, so this change has isolated browser verification rather
+than a completed live-service browser check. No operational records, worker
+sessions, execution permissions or running service were changed.

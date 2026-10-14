@@ -67,6 +67,64 @@ class DiscussionHandoffTests(unittest.TestCase):
 
 class AgentPanelPresentationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
+    def test_details_preserve_run_scope_permissions_and_session_choices(self):
+        root = Path(__file__).resolve().parents[1]
+        script = r'''
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const model=require(process.argv[1]),c={AgentModel:model,document:{addEventListener(){}},setInterval(){},planModal(){},
+ state:{tasks:[]},esc:x=>String(x??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),date:x=>x,stateName:x=>x};
+vm.createContext(c);for(const path of process.argv.slice(2))vm.runInContext(fs.readFileSync(path,'utf8'),c);
+const t={id:'current',agent_id:'crew',created:'2026-10-14T10:00:00Z',state:'ready_for_review',
+ purpose:'Original assignment with <exact> instructions.',continuation_note:'Follow-up for this run.',
+ context:{cwd:'/captured/checkout'},worktree:{source_cwd:'/project/OriginalProject',branch:'codex/captured'},
+ config:{mode:'codex',model:'captured-model',timeout_seconds:0},access:'workspace-write',execution_policy:'yolo',
+ session_id:'saved-session',conversation:[{role:'user',text:'Latest request <keep exact>.',at:'2026-10-14T10:01:00Z',status:'queued_next'}],
+ history:[...Array.from({length:14},(_,i)=>({at:String(i),text:'Meaningful activity '+i})),
+ {at:'15',text:'commandExecution: completed'},{at:'16',text:'commandExecution: failed'}]};
+c.task=t;c.state.tasks=[t];const before=JSON.stringify(t),html=vm.runInContext('agentDetailsHTML(task)',c);
+assert.equal(vm.runInContext('agentCurrentRequest(task).text',c),'Latest request <keep exact>.');
+assert.equal(vm.runInContext('agentCurrentRequest(task).status',c),'queued_next');
+const visible=html.split('<div class="agent-details-extra">')[0];
+assert.ok(visible.includes('Latest request &lt;keep exact&gt;.'));assert.ok(visible.includes('Queued for next run'));
+assert.ok(visible.includes('OriginalProject'));assert.ok(visible.includes('Run used a separate checkout'));
+assert.ok(visible.includes('Full access (YOLO)'));
+for(const value of ['saved-session','captured-model','/captured/checkout','codex/captured','Original assignment'])assert.ok(!visible.includes(value));
+assert.ok(html.includes('Original assignment with &lt;exact&gt; instructions.'));
+assert.ok(html.includes('Follow-up for this run.'));assert.ok(html.includes('/captured/checkout'));
+assert.ok(html.includes('Copy session ID'));assert.ok(!html.includes('name="fresh"'));assert.ok(!/<details[^>]*\sopen[\s>]/.test(html));
+const recent=vm.runInContext('agentRecentActivity(task)',c);assert.equal(recent.length,8);
+assert.equal(recent.at(-1).text,'Command failed');assert.ok(!recent.some(x=>x.text==='commandExecution: completed'));
+assert.ok(html.includes('commandExecution: completed'));assert.equal(JSON.stringify(t),before);
+const signature=vm.runInContext('agentDetailsSignature(task)',c);
+t.conversation.push({role:'agent',text:'Unrelated progress',at:'2026-10-14T10:02:00Z'});
+assert.equal(vm.runInContext('agentDetailsSignature(task)',c),signature);
+t.research_access=true;assert.notEqual(vm.runInContext('agentDetailsSignature(task)',c),signature);
+assert.equal(vm.runInContext('agentFreshSession(task)',c),false);
+vm.runInContext('agentSessionChoices.set(task.id,true)',c);
+assert.equal(vm.runInContext('agentFreshSession(task)',c),true);
+assert.ok(vm.runInContext('replyComposerHTML(task)',c).includes('Continue options · New session'));
+assert.ok(vm.runInContext('agentReplyHelp(task)',c).includes('New session next run'));
+vm.runInContext('agentSessionChoices.set(task.id,false)',c);
+assert.equal(vm.runInContext('agentFreshSession(task)',c),false);
+t.session_id=null;assert.equal(vm.runInContext('agentFreshSession(task)',c),true);
+assert.ok(vm.runInContext('replyComposerHTML(task)',c).includes('No saved session is available'));
+t.state='stopping';assert.equal(vm.runInContext('agentFreshSession(task)',c),false);
+assert.ok(vm.runInContext('replyComposerHTML(task)',c).includes('class="agent-continue-options" hidden'));
+t.state='running';assert.equal(vm.runInContext('agentFreshSession(task)',c),false);
+t.execution_policy='sandboxed';t.access='read-only';assert.equal(vm.runInContext('agentAccess(task)',c),'Read-only');
+t.access='workspace-write';assert.equal(vm.runInContext('agentAccess(task)',c),'Edit project files · Sandboxed');
+t.state='superseded';t.finished_at='2026-10-14T10:01:30Z';
+t.conversation.push({role:'user',text:'Belongs to a later run',at:'2026-10-14T10:02:00Z',status:'delivered'});
+assert.equal(vm.runInContext('agentCurrentRequest(task).text',c),'Latest request <keep exact>.');
+c.task={...t,id:'windows',state:'paused',context:{cwd:'C:\\Projects\\Lunar'},worktree:null,conversation:[],continuation_note:''};
+assert.ok(vm.runInContext('agentDetailsHTML(task)',c).split('<div class="agent-details-extra">')[0].includes('Lunar'));
+'''
+        result = subprocess.run([shutil.which('node'), '-e', script, str(root/'static/agent-model.js'),
+                                 str(root/'static/task-feedback.js'), str(root/'static/agents.js')],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
     def test_results_keep_saved_outcomes_and_extract_only_explicit_safe_previews(self):
         root = Path(__file__).resolve().parents[1]
         script = r'''

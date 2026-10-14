@@ -3,6 +3,7 @@
 let agentFilter='all';
 const agentReplyDrafts=new Map();
 const agentReplyRequests=new Map();
+const agentSessionChoices=new Map();
 const liveRequestDrafts=new Map();
 let startAgentRequest=null;
 const resultsReadingState=new Map();
@@ -106,15 +107,19 @@ function agentConversationHTML(t,wrap=true){
   const messages=`${earlier.length?`<details class="earlier-runs" data-panel-detail="earlier-runs"><summary>Earlier runs · ${earlier.length}</summary>${earlier.map(run=>`<section><div class="run-separator">Saved run · ${esc(date(run.task.started_at||run.task.created))}</div>${run.messages.map(m=>message(m,run.task)).join('')}</section>`).join('')}</details>`:''}<div class="run-separator">${t.state==='superseded'?'Saved':'Current'} run · ${esc(date(t.started_at||t.created))}</div>${(current?.messages||[]).map(m=>message(m,t)).join('')||'<p class="muted">Waiting for the first message.</p>'}`;
   return wrap?`<div class="agent-transcript" data-agent-transcript="${esc(t.id)}">${messages}</div>`:messages;
 }
+function agentFreshSession(t){
+  if(['running','queued','stopping','superseded'].includes(t.state))return false;
+  return !t.session_id||agentSessionChoices.get(t.id)===true;
+}
 function agentReplyHelp(t){
   if(t.state==='stopping')return 'Waiting for the agent and its tools to stop';
   if(t.state==='queued')return 'Queued until this agent starts';
   if(t.state==='running')return t.interactive?'Sent to the live session':'Queued for the next run';
-  return 'Continues with the same folder and permissions';
+  return agentFreshSession(t)?'New session next run · same folder and permissions':'Continues with the same folder and permissions';
 }
 function replyComposerHTML(t){
-  const draft=agentReplyDrafts.get(t.id)||'',active=['running','queued'].includes(t.state);
-  return `<form id="agent-reply-form" data-task-id="${esc(t.id)}" ${t.state==='superseded'?'hidden':''}><label class="composer-label"><span class="sr-only" data-agent-reply-label>Message to this agent</span><textarea name="text" rows="2" placeholder="${active?'Send a message or change direction…':'What should the agent do next?'}">${esc(draft)}</textarea></label><label class="checkbox-label agent-recovery" ${!t.recovery_lock?'hidden':''}><input type="checkbox" name="confirmed_stopped" ${t.recovery_lock?'required':''}>The previous worker and its tools have stopped.</label><div class="agent-composer-actions"><p data-agent-reply-help class="section-note">${agentReplyHelp(t)}</p><button type="submit" class="primary" ${t.state==='stopping'?'disabled':''}>${t.state==='stopping'?'Stopping…':active?'Send message':'Continue agent'}</button></div><p id="agent-reply-status" role="status" aria-live="polite"></p></form>`;
+  const draft=agentReplyDrafts.get(t.id)||'',active=['running','queued'].includes(t.state),fresh=agentFreshSession(t);
+  return `<form id="agent-reply-form" data-task-id="${esc(t.id)}" ${t.state==='superseded'?'hidden':''}><label class="composer-label"><span class="sr-only" data-agent-reply-label>Message to this agent</span><textarea name="text" rows="2" placeholder="${active?'Send a message or change direction…':'What should the agent do next?'}">${esc(draft)}</textarea></label><label class="checkbox-label agent-recovery" ${!t.recovery_lock?'hidden':''}><input type="checkbox" name="confirmed_stopped" ${t.recovery_lock?'required':''}>The previous worker and its tools have stopped.</label><details class="agent-continue-options" ${active||t.state==='stopping'?'hidden':''}><summary>Continue options${fresh?' · New session':''}</summary><label class="checkbox-label"><input type="checkbox" name="fresh" ${fresh?'checked':''} ${active||t.state==='stopping'||!t.session_id?'disabled':''}>Start a new session for the next run</label><p class="section-note" data-session-option-note>${t.session_id?'Starts a new CLI session with the same files and permissions.':'No saved session is available. The next run starts a new session with the same files and permissions.'}</p></details><div class="agent-composer-actions"><p data-agent-reply-help class="section-note">${agentReplyHelp(t)}</p><button type="submit" class="primary" ${t.state==='stopping'?'disabled':''}>${t.state==='stopping'?'Stopping…':active?'Send message':'Continue agent'}</button></div><p id="agent-reply-status" role="status" aria-live="polite"></p></form>`;
 }
 function agentResultsHTML(t){
   const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t],returned=AgentModel.results(AgentModel.turns(tasks,t));
@@ -123,9 +128,49 @@ function agentResultsHTML(t){
   const result=raw=>{const r=AgentModel.resultView(raw);return `<article data-saved-result="${esc(r.id)}"><p class="result-meta">${r.id===t.id?'This run':'Saved run'} · ${esc(date(r.finished_at||r.updated))}</p>${resultHandoffHTML(r,{review:r.id===t.id&&t.state==='ready_for_review'})}</article>`;};
   return `${currentModal?.returnToResults?'<button type="button" data-results-overview class="text-button result-back">← Back to Results</button>':''}${selected?result(selected):'<p class="agent-empty">Replies and returned work will appear here.</p>'}${older.length?`<details data-panel-detail="older-results"><summary>${historyLabel} (${older.length})</summary>${agentResultRows(older)}</details>`:''}`;
 }
+function agentCurrentRequest(t){
+  const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t];
+  const messages=AgentModel.conversationRuns(tasks,t).find(run=>run.task.id===t.id)?.messages||[];
+  const request=messages.filter(m=>m.role==='user'&&m.text?.trim()&&(t.state!=='superseded'||!t.finished_at||(Date.parse(m.at)||0)<=(Date.parse(t.finished_at)||0))).at(-1);
+  return {text:request?.text||t.continuation_note||t.purpose||t.goal||'No instructions recorded.',status:request?.status||''};
+}
+function agentFolders(t){
+  return {working:t.context?.cwd||t.worktree?.cwd||t.worktree?.path||'',project:t.worktree?.source_cwd||t.worktree?.source||t.context?.cwd||''};
+}
+function agentAccess(t){
+  return t.execution_policy==='yolo'?'Full access (YOLO)':t.access==='read-only'?'Read-only':t.access==='workspace-write'?'Edit project files · Sandboxed':'Not recorded';
+}
+function agentRecentActivity(t){
+  const names={command_execution:'Command',commandExecution:'Command',file_change:'File change',fileChange:'File change',plan_update:'Plan',planUpdate:'Plan',mcpToolCall:'Tool call',webSearch:'Web search'};
+  return (t.history||[]).flatMap((h,index)=>{
+    const raw=String(h.text||'').match(/^(command_execution|file_change|plan_update|commandExecution|fileChange|planUpdate|mcpToolCall|webSearch):\s*(\w+)$/);
+    if(raw&&!/failed|error|denied|rejected/i.test(raw[2]))return [];
+    return [{...h,event_index:index,text:raw?names[raw[1]]+' '+raw[2]:h.text}];
+  }).slice(-8);
+}
+function agentDetailsSignature(t){
+  return JSON.stringify([t.id,agentCurrentRequest(t),t.purpose,t.goal,t.continuation_note,agentFolders(t),t.config,t.access,t.execution_policy,t.research_access,t.worktree,t.session_id,t.state,t.history]);
+}
 function agentDetailsHTML(t){
-  const active=['running','queued'].includes(t.state);
-  return `<section><h3>Instructions</h3>${reportHTML(t.purpose||t.goal||'No instructions recorded.')}<h3>Working folder</h3><p class="prose">${esc(t.context?.cwd||'Not recorded')}</p>${t.worktree?`<p class="section-note">Separate checkout · ${esc(t.worktree.branch)}. Edits stay here until applied to the original project.</p>`:''}<h3>Execution</h3><p>${esc(t.config?.model||'Not recorded')} · ${esc(t.access||'Not recorded')} · ${t.execution_policy==='yolo'?'Full access · YOLO':'Sandboxed'}</p><p class="section-note">${t.config?.timeout_seconds===0?'Until finished or stopped':esc(t.config?.timeout_seconds||'')+' seconds'}</p><h3>Session</h3><p class="prose">${esc(t.session_id||'Not started')}</p><label class="checkbox-label"><input type="checkbox" name="fresh" form="agent-reply-form" ${!t.session_id&&!active?'checked':''} ${active?'disabled':''}>Start a new session for the next run</label><p class="section-note">Available after this run ends. A continuation keeps its captured execution permissions.</p><details data-panel-detail="activity"><summary>Activity log</summary>${(t.history||[]).map(h=>`<div class="record"><small>${esc(date(h.at))}</small><p>${esc(h.text)}</p></div>`).join('')||'<p class="muted">No activity recorded.</p>'}</details></section>`;
+  const request=agentCurrentRequest(t),folders=agentFolders(t),active=['running','queued','stopping'].includes(t.state);
+  const folderName=folders.project.replace(/[\\/]+$/,'').split(/[\\/]/).at(-1)||folders.project||'Not recorded';
+  const receipt=({pending:'Waiting for delivery',queued:'Sending to agent',queued_next:'Queued for next run',uncertain:'Delivery uncertain',failed:'Could not deliver'})[request.status];
+  const original=t.purpose||t.goal,history=t.history||[],recent=agentRecentActivity(t);
+  const summary=(key,label)=>`<summary data-details-anchor="${key}" data-details-focus="${key}">${label}</summary>`;
+  const path=(label,value,key)=>`<div class="agent-detail-path"><h4>${label}</h4><p>${esc(value||'Not recorded')}</p>${value?`<button type="button" class="mini-button" data-agent-copy="${key}" data-details-focus="copy-${key}">Copy ${label.toLowerCase()}</button>`:''}</div>`;
+  const events=(items,group)=>items.map((h,index)=>`<div class="record" data-details-anchor="${group}:${h.event_index??index}:${esc(h.at+':'+h.text)}"><small>${esc(date(h.at))}</small><p>${esc(h.text)}</p></div>`).join('');
+  return `<div class="agent-details-summary"><section data-details-anchor="request"><h3>Current request</h3><p class="agent-request-summary">${esc(shortTaskText(resultPlain(request.text),180))}</p>${receipt?`<p class="agent-details-note">${esc(receipt)}</p>`:''}</section><section data-details-anchor="workspace"><h3>Workspace</h3><p>${esc(folderName)}</p><p class="agent-details-note">${t.worktree?(active?'Separate checkout':'Run used a separate checkout'):(active?'Project folder':'Run used project folder')}</p></section><section data-details-anchor="access"><h3>Access</h3><p>${esc(agentAccess(t))}</p>${t.config?.mode==='simulated'?'<p class="agent-details-note">Simulated run</p>':''}</section></div><div class="agent-details-extra"><details data-panel-detail="instructions">${summary('instructions','Full instructions')}<h4>Current request</h4>${reportHTML(request.text)}${original&&original!==request.text?`<h4>Original assignment</h4>${reportHTML(original)}`:''}${t.continuation_note&&t.continuation_note!==request.text&&t.continuation_note!==original?`<h4>Run follow-up</h4>${reportHTML(t.continuation_note)}`:''}</details><details data-panel-detail="folders">${summary('folders','Folder details')}${path('Project folder',folders.project,'project-folder')}${folders.working!==folders.project?path('Working folder',folders.working,'working-folder'):''}${t.worktree?.branch?`<h4>Branch</h4><p class="agent-detail-code">${esc(t.worktree.branch)}</p>`:''}</details><details data-panel-detail="settings">${summary('settings','Run settings')}<dl class="agent-run-settings"><dt>Model</dt><dd>${esc(t.config?.model||'Not recorded')}</dd><dt>Command network</dt><dd>${t.execution_policy==='yolo'?'Available in full access mode':t.research_access?'Approved':'Not approved'}</dd><dt>Time limit</dt><dd>${t.config?.timeout_seconds===0?'Until finished or stopped':t.config?.timeout_seconds!==undefined?esc(t.config.timeout_seconds)+' seconds':'Not recorded'}</dd></dl></details><details data-panel-detail="technical">${summary('technical','Technical details')}<h4>Session ID</h4><p class="agent-detail-code">${esc(t.session_id||'No saved session')}</p>${t.session_id?'<button type="button" class="mini-button" data-agent-copy="session" data-details-focus="copy-session">Copy session ID</button>':''}</details><details data-panel-detail="activity">${summary('activity','Activity log')}<h4>Recent activity</h4>${events(recent,'recent')||'<p class="muted">No recent activity recorded.</p>'}${history.length?`<details data-panel-detail="all-events">${summary('all-events','All events ('+history.length+')')}${events(history,'all')}</details>`:''}</details></div>`;
+}
+function replaceAgentDetails(node,t,signature){
+  if(node.dataset.signature===signature)return;
+  const scroll=$('#agent-details-panel'),bounds=scroll.getBoundingClientRect(),oldScroll=scroll.scrollTop;
+  const anchor=[...node.querySelectorAll('[data-details-anchor]')].find(el=>{const r=el.getBoundingClientRect();return r.height&&r.bottom>bounds.top&&r.top<bounds.bottom;});
+  const key=anchor?.dataset.detailsAnchor,top=anchor?.getBoundingClientRect().top;
+  const focus=node.contains(document.activeElement)?document.activeElement.dataset.detailsFocus:null;
+  replaceAgentSection(node,agentDetailsHTML(t),signature);
+  const next=[...node.querySelectorAll('[data-details-anchor]')].find(el=>el.dataset.detailsAnchor===key);
+  scroll.scrollTop=next?oldScroll+next.getBoundingClientRect().top-top:oldScroll;
+  if(focus)[...node.querySelectorAll('[data-details-focus]')].find(el=>el.dataset.detailsFocus===focus)?.focus({preventScroll:true});
 }
 function detailKey(el){
   const owner=el.closest('[data-saved-result]')?.dataset.savedResult||el.closest('[data-result-row]')?.dataset.resultRow||'panel';
@@ -187,20 +232,18 @@ function syncAgentSession(){
   const results=$('#agent-returned-work'),resultSignature=JSON.stringify(AgentModel.turns(state.tasks,t).map(r=>[r.id,r.state,r.result,r.output_links,r.handoff_issues,r.validation_checks]));
   if(results.dataset.signature!==resultSignature&&!results.contains(document.activeElement)){replaceAgentSection(results,agentResultsHTML(t),resultSignature);restoreTaskReviewDraft(t.id);}
   $('[data-agent-tab=results]').textContent='Results'+(AgentModel.results(AgentModel.turns(state.tasks,t)).length?' · '+AgentModel.results(AgentModel.turns(state.tasks,t)).length:'');
-  const details=$('#agent-details-content'),detailSignature=JSON.stringify([t.id,t.purpose,t.context?.cwd,t.config,t.access,t.worktree,t.session_id,t.state,t.history]);
-  if(details.dataset.signature!==detailSignature&&!details.contains(document.activeElement)){
-    const fresh=$('#agent-panel [name=fresh]')?.checked,wasActive=details.dataset.wasActive==='true',nowActive=['running','queued'].includes(t.state);
-    replaceAgentSection(details,agentDetailsHTML(t),detailSignature);
-    if(fresh!==undefined&&!(wasActive&&!nowActive&&!t.session_id))$('#agent-panel [name=fresh]').checked=fresh;
-    details.dataset.wasActive=String(nowActive);
-  }
+  replaceAgentDetails($('#agent-details-content'),t,agentDetailsSignature(t));
   const composer=$('#agent-reply-form'),active=['running','queued'].includes(t.state);
   composer.dataset.taskId=t.id;composer.hidden=t.state==='superseded';
   composer.querySelector('button[type=submit]').textContent=t.state==='stopping'?'Stopping…':active?'Send message':'Continue agent';
   composer.querySelector('button[type=submit]').disabled=t.state==='stopping'||composer.dataset.sending==='true';
   composer.querySelector('textarea').placeholder=active?'Send a message or change direction…':'What should the agent do next?';
   composer.querySelector('[data-agent-reply-help]').textContent=agentReplyHelp(t);
-  composer.elements.fresh.disabled=active||t.state==='stopping';
+  composer.elements.fresh.checked=agentFreshSession(t);
+  composer.elements.fresh.disabled=active||t.state==='stopping'||!t.session_id;
+  composer.querySelector('.agent-continue-options').hidden=active||t.state==='stopping';
+  composer.querySelector('.agent-continue-options summary').textContent='Continue options'+(agentFreshSession(t)?' · New session':'');
+  composer.querySelector('[data-session-option-note]').textContent=t.session_id?'Starts a new CLI session with the same files and permissions.':'No saved session is available. The next run starts a new session with the same files and permissions.';
   composer.querySelector('.agent-recovery').hidden=!t.recovery_lock;composer.elements.confirmed_stopped.required=Boolean(t.recovery_lock);
 }
 taskModal=function(id,tab='conversation',returnToResults=false){
@@ -235,6 +278,11 @@ function openCoordinatorPanel(id){
 
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button');if(!button)return;
+  if(button.dataset.agentCopy){
+    const task=state.tasks.find(t=>t.id===currentModal?.id);if(!task)return;
+    const folders=agentFolders(task),value=({'session':task.session_id,'project-folder':folders.project,'working-folder':folders.working})[button.dataset.agentCopy];
+    if(value)try{await navigator.clipboard.writeText(value);toast('Copied.');}catch{toast('Could not copy. Select and copy the value above.',true);}return;
+  }
   if(button.hasAttribute('data-results-overview')){setView('results');return;}
   if(button.dataset.agentTab){selectAgentTab(button.dataset.agentTab);return;}
   if(button.dataset.agentResult){const fromResults=Boolean($('#results-overview'));rememberResultsOverview();taskModal(button.dataset.agentResult,'results',fromResults);return;}
@@ -247,6 +295,7 @@ document.addEventListener('click',async event=>{
 });
 document.addEventListener('change',event=>{
   const field=event.target;
+  if(field.name==='fresh'&&field.closest('#agent-reply-form')){agentSessionChoices.set(field.form.dataset.taskId,field.checked);syncAgentSession();}
   if(field.id==='agent-project'){
     $('#agent-new-project').hidden=!!field.value;
     $('#start-agent-form').elements.cwd.required=!field.value&&state.config.mode==='codex';

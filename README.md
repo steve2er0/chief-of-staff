@@ -67,9 +67,13 @@ step is required. Starting records your instructions and execution choices.
 Select an astronaut to open **Conversation**, **Results**, and **Details**. Conversation
 opens at the latest message with a compact reply box. Earlier runs are expandable;
 reading older messages keeps your position and shows **New messages** when updates
-arrive. Results holds returned work; Details holds instructions, folders, execution
-settings and activity. Send instructions while it runs, answer a question, or
-**Continue agent** after it finishes. Follow-ups keep the exact session,
+arrive. Results holds returned work. Details shows the current request, project
+folder and access; full instructions, folder paths, run settings, session ID and
+activity are expandable. Follow-ups are distinguished from the original
+assignment, and updates preserve open sections and reading position. **Continue
+options** beside the reply box lets you choose a new session for the next run,
+with a visible indicator when selected. Send instructions while it runs, answer
+a question, or **Continue agent** after it finishes. By default, follow-ups keep the exact session,
 working folder, model and execution permissions. Tool permissions are handled
 in the same conversation when the CLI requests them. A saved result does not
 need to be accepted before you start another agent or send a follow-up.
