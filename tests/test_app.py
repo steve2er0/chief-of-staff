@@ -359,7 +359,7 @@ class ServiceTests(unittest.TestCase):
     def test_file_reference_validation(self):
         with self.assertRaises(Invalid):self.s.project({'name':'X','goal':'X','cwd':str(self.root),'file_refs':['../escape']})
     def test_schedule_configuration_validation(self):
-        for raw in [{'concurrency':-1},{'concurrency':True},{'briefing_times':['25:00']},{'timeout_seconds':0},{'schedule_enabled':'true'}]:
+        for raw in [{'concurrency':-1},{'concurrency':True},{'briefing_times':['25:00']},{'timeout_seconds':0},{'schedule_enabled':'true'},{'default_isolate':'false'},{'default_isolate':0}]:
             with self.subTest(raw=raw),self.assertRaises(Invalid):self.s.settings(raw)
 
 

@@ -87,15 +87,19 @@ policy is shown before start and remains fixed for follow-ups. Changing workspac
 defaults affects new starts. Live tool permission requests require your actual
 response; ordinary replies do not broaden execution permissions.
 
-For Git projects, editable agents use separate worktrees by default, including
-current tracked changes, untracked inputs and explicitly selected ignored references.
-Preparation runs in the background with a visible Preparing status; replies and
-Stop remain available. Other ignored files are excluded. Each agent's edits stay in its own
-checkout; the original folder is untouched and no merge or commit is automatic.
-The result shows the checkout and branch. Worktrees and their edits are retained.
-Repositories without commits use their shared folder, where writers run one at
-a time. Submodule repositories can use shared-folder execution. Independent CLI
-processes and editors are outside the app's directory locks.
+Editable agents work directly in the chosen project folder by default, so the
+app or standalone file you open there contains their changes. Agents writing
+overlapping folders run one at a time; agents in different projects can run concurrently.
+Settings can change this default, and each direct start can select separate
+checkouts for Git projects when parallel edits in the same project are useful.
+Those worktrees include current tracked changes, untracked inputs and explicitly
+selected ignored references. Preparation runs in the background with a visible
+Preparing status; replies and Stop remain available. Other ignored files are excluded.
+Worktree edits stay in that checkout until applied to the original; no merge or
+commit is automatic. Results show the checkout and branch, and worktrees are retained.
+Existing agents continue in their captured folder when defaults change.
+Repositories without commits and submodule repositories can use the project folder.
+Independent CLI processes and editors are outside the app's directory locks.
 
 Projects retain vision, context, conversation and continuity. Briefings, work maps
 and detailed planning remain available when useful. Dependencies are advisory;

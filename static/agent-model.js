@@ -2,6 +2,14 @@
 (function(root){
   'use strict';
   const identity=task=>task.agent_id||task.id;
+  // Display labels never change the saved title or the agent's instructions.
+  function title(task,limit=56){
+    const value=String(task.title||task.name||'Agent').replace(/\s+/g,' ').trim()
+      .split(/\.\s+/)[0].replace(/^(?:please\s+|check that (?:the\s+)?|I want you to\s+)/i,'');
+    if(value.length<=limit)return value;
+    const clipped=value.slice(0,limit-1).replace(/\s+\S*$/,'').trimEnd();
+    return (clipped||value.slice(0,limit-1))+'…';
+  }
   const pending=task=>task.state==='running'?(task.live_requests||[]).filter(r=>['pending','sending'].includes(r.status)):[];
   function current(tasks,projectId=''){
     const parents=new Set(tasks.map(t=>t.parent_task_id).filter(Boolean)),latest=new Map();
@@ -24,6 +32,6 @@
     return tasks.filter(t=>t.result&&(!projectId||t.project_id===projectId)).sort((a,b)=>(Date.parse(b.finished_at||b.updated)||0)-(Date.parse(a.finished_at||a.updated)||0));
   }
   function turns(tasks,task){return tasks.filter(t=>identity(t)===identity(task));}
-  const api={identity,pending,current,status,results,turns};root.AgentModel=api;
+  const api={identity,title,pending,current,status,results,turns};root.AgentModel=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

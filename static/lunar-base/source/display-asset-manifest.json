@@ -1,0 +1,93 @@
+{
+  "source": "Existing unchanged image_gen masters",
+  "sprite_scale": 3,
+  "logical_cell": [
+    64,
+    64
+  ],
+  "logical_foot_anchor": [
+    32,
+    58
+  ],
+  "regions": {
+    "crew": {
+      "x": 0,
+      "y": 1344,
+      "width": 1152,
+      "height": 576,
+      "scale": 3
+    },
+    "work": {
+      "x": 0,
+      "y": 1920,
+      "width": 1152,
+      "height": 960,
+      "scale": 3
+    },
+    "attention": {
+      "x": 0,
+      "y": 2880,
+      "width": 768,
+      "height": 384,
+      "scale": 3
+    },
+    "lander": {
+      "x": 0,
+      "y": 3264,
+      "width": 699,
+      "height": 735,
+      "scale": 3
+    },
+    "hologram": {
+      "x": 0,
+      "y": 4007,
+      "width": 675,
+      "height": 735,
+      "scale": 3
+    },
+    "teststand": {
+      "x": 0,
+      "y": 4750,
+      "width": 855,
+      "height": 480,
+      "scale": 3
+    }
+  },
+  "files": {
+    "terrain.png": {
+      "size": [
+        1536,
+        1024
+      ],
+      "sha256": "d7a6d038b9963c7c2a9f5133d8ad91b23925ce507806e7bc91951e63878b113e"
+    },
+    "habitat.png": {
+      "size": [
+        1230,
+        764
+      ],
+      "sha256": "6295b1fc27740790cb00608f7c53d93f6ce4374c91eaabf431c8a867edd3e6a8"
+    },
+    "console.png": {
+      "size": [
+        258,
+        286
+      ],
+      "sha256": "5455c91b56b2faada0214e49b367f74dbc5f8c6d491becbf042574af1803a2c7"
+    },
+    "astronaut-teal.png": {
+      "size": [
+        1152,
+        5238
+      ],
+      "sha256": "1f5e3b43d5bbfe5bb10217bbf18d51ecd210f67aa3fa0b529f7ba02198248051"
+    },
+    "astronaut-amber.png": {
+      "size": [
+        1152,
+        3264
+      ],
+      "sha256": "b4d15e03be6e170456f0d66751065dce365ef4f24f0299752105343431fcde47"
+    }
+  }
+}

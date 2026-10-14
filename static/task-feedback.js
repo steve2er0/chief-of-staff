@@ -1,6 +1,37 @@
 'use strict';
 
 const shortTaskText=(text,limit=350)=>{const value=String(text||'').replace(/\s+/g,' ').trim();return value.length>limit?value.slice(0,limit-1).trimEnd()+'…':value;};
+// Render a small, escaped Markdown subset. Reports cannot inject HTML, scripts,
+// images or non-web link schemes into the local workspace.
+function reportInline(value){
+  return String(value||'').split(/(`[^`\n]+`|!?\[[^\]\n]+\]\([^\s)]+\)|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g).map(part=>{
+    if(part.startsWith('`')&&part.endsWith('`'))return '<code>'+esc(part.slice(1,-1))+'</code>';
+    const link=part.match(/^(!?)\[([^\]]+)\]\(([^\s)]+)\)$/);
+    if(link){const [,image,label,url]=link;return !image&&/^(?:https?:\/\/|\/api\/)/i.test(url)?`<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(label)}</a>`:esc(label);}
+    if(part.startsWith('**')&&part.endsWith('**'))return '<strong>'+esc(part.slice(2,-2))+'</strong>';
+    if(part.startsWith('*')&&part.endsWith('*'))return '<em>'+esc(part.slice(1,-1))+'</em>';
+    return esc(part);
+  }).join('');
+}
+function reportHTML(value){
+  const blocks=[],paragraph=[],items=[];let fence=null,ordered=false;
+  const flush=()=>{if(paragraph.length)blocks.push('<p>'+reportInline(paragraph.splice(0).join('\n')).replace(/\n/g,'<br>')+'</p>');if(items.length){const tag=ordered?'ol':'ul';blocks.push('<'+tag+'>'+items.splice(0).map(x=>'<li>'+reportInline(x)+'</li>').join('')+'</'+tag+'>');}};
+  for(const line of String(value||'').split('\n')){
+    if(/^\s*```/.test(line)){flush();if(fence!==null){blocks.push('<pre><code>'+esc(fence.join('\n'))+'</code></pre>');fence=null;}else fence=[];continue;}
+    if(fence!==null){fence.push(line);continue;}
+    if(!line.trim()){flush();continue;}
+    const heading=line.match(/^#{1,6}\s+(.+)$/),item=line.match(/^\s*(?:([-*])|\d+\.)\s+(.+)$/);
+    if(heading){flush();blocks.push('<h4>'+reportInline(heading[1])+'</h4>');}
+    else if(item){if(paragraph.length||(items.length&&ordered!==!item[1]))flush();ordered=!item[1];items.push(item[2]);}
+    else{if(items.length)flush();paragraph.push(line);}
+  }
+  flush();if(fence!==null)blocks.push('<pre><code>'+esc(fence.join('\n'))+'</code></pre>');
+  return '<div class="report-markdown">'+blocks.join('')+'</div>';
+}
+function reportPreview(value,limit=260){
+  const plain=String(value||'').replace(/!?\[([^\]]+)\]\([^\s)]+\)/g,'$1').replace(/[*`#]/g,'');
+  return esc(shortTaskText(plain,limit));
+}
 const taskReviewDrafts=new Map();
 function rememberTaskReviewDraft(event) {
   const field=event.target;
@@ -58,7 +89,7 @@ function taskFeedbackHTML(t,compact=false) {
   const signature=JSON.stringify([t.state,f.text,f.reported,f.at,f.start,f.end,t.handoff_issues]);
   const issues=t.handoff_issues||t.result?.handoff_issues||[];
   const message=issues.length&&!['ready_for_review','accepted'].includes(t.state)?(compact?shortTaskText(issues[0],260):`Report preserved · ${issues.length} item${issues.length===1?' needs':'s need'} attention. See what needs fixing below.`):!compact&&t.result?({ready_for_review:t.managed_agent?'Finished · your result is saved below.':'Result ready for your review.',blocked:'Agent stopped with a blocker. Review the incomplete work below.',failed:'Agent stopped with a failure. Review the returned work below.',accepted:'Result accepted.'}[t.state]||stateName(t.state)):compact?shortTaskText(f.text,260):f.text;
-  return `<div class="agent-feedback ${warning?'warning':''}" data-agent-feedback="${esc(t.id)}" data-feedback-signature="${esc(signature)}" ${compact?'':'role="status" aria-live="polite"'}>${f.reported?'<strong class="reported-blocker">Agent update · still running</strong>':''}<p>${esc(message)}</p><div class="agent-timing">${elapsed?`<span>${f.running?'Elapsed':'Run time'} <span data-elapsed-start="${esc(f.start)}" data-elapsed-end="${esc(f.end||'')}">${esc(elapsed)}</span></span>`:''}<span data-activity-time="${esc(f.lastActivity||'')}">${esc(activityAge(f.lastActivity))}</span></div></div>`;
+  return `<div class="agent-feedback ${warning?'warning':''}" data-agent-feedback="${esc(t.id)}" data-feedback-signature="${esc(signature)}" ${compact?'':'role="status" aria-live="polite"'}>${f.reported?'<strong class="reported-blocker">Agent update · still running</strong>':''}<p>${reportPreview(message,compact?200:320)}</p><div class="agent-timing">${elapsed?`<span>${f.running?'Elapsed':'Run time'} <span data-elapsed-start="${esc(f.start)}" data-elapsed-end="${esc(f.end||'')}">${esc(elapsed)}</span></span>`:''}<span data-activity-time="${esc(f.lastActivity||'')}">${esc(activityAge(f.lastActivity))}</span></div></div>`;
 }
 function syncTaskFeedback() {
   document.querySelectorAll('[data-agent-feedback]').forEach(el=>{
@@ -92,8 +123,8 @@ function resultHandoffHTML(t) {
   if(!t.result)return '';
   const report=resultSections(t.result.summary),links=t.output_links||[],files=links.filter(x=>x.source_path),fullReport=links.find(x=>x.name==='agent-report.txt');
   const ready=['ready_for_review','accepted'].includes(t.prior_state||t.state),issues=t.handoff_issues||t.result.handoff_issues||t.snapshot_limits||[];
-  const limits=[report.limits,...issues].filter(Boolean);
-  return `<section class="result-handoff"><div class="eyebrow">${t.state==='accepted'?'ACCEPTED RESULT':ready?(t.managed_agent?'SAVED RESULT':'RESULT · YOUR REVIEW'):'AGENT HANDOFF · INCOMPLETE'}</div><h3>What got done</h3><div class="prose">${esc(shortTaskText(report.changes||t.result.summary,1000))}</div>${t.result.report_truncated&&fullReport?`<p class="section-note">Preview · <a href="/api/output/${encodeURIComponent(t.id)}/agent-report.txt" download>Download the full report</a></p>`:''}<h3>Confidence</h3><p class="handoff-basis">${t.result.recovery_source?'Recovered agent report':'Reported checks · agent report'}${t.config.mode==='simulated'?' · simulated':''}</p><div class="prose">${esc(shortTaskText(report.checks||'The agent returned its report. Review the work against your goal.',600))}</div>${limits.length?`<h3>Limitations</h3><p>${esc(shortTaskText(limits[0],500))}</p>`:''}<p class="muted">${files.length?`${files.length} file snapshot${files.length===1?'':'s'} · original report retained`:'No validated file snapshots are available. Original report retained.'}</p><p class="section-note">Snapshot integrity and reported testing are separate evidence.</p>${t.result.decisions?.length?`<h3>Needs your decision</h3>${t.result.decisions.map(d=>`<p>${esc(d)}</p>`).join('')}`:''}<details class="assignment-background"><summary>Report, checks & delivery details</summary>${limits.length?`<ul>${limits.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(x=>`<p>${esc(x)}</p>`).join('')}${t.state==='failed'&&t.latest_update?`<h3>Last agent update before the stop</h3><p>Progress report · verification was interrupted</p><pre>${esc(t.latest_update)}</pre>`:''}<pre>${esc(t.result.agent_report||JSON.stringify(t.result,null,2))}</pre></details></section>`;
+  const limits=[report.limits,...issues].filter(Boolean),heading=ready?'Result':'Result · INCOMPLETE';
+  return `<section class="result-handoff"><h3>${heading}</h3><p>${reportPreview(report.changes||t.result.summary,360)}</p>${t.result.report_truncated&&fullReport?`<p class="section-note">Preview · <a href="/api/output/${encodeURIComponent(t.id)}/agent-report.txt" download>Full report</a></p>`:''}${limits.length?`<p class="section-note"><strong>Limitations:</strong> ${reportPreview(limits[0],240)}</p>`:''}<p class="muted">${files.length?files.length+' file'+(files.length===1?'':'s'):'No validated file snapshots are available'} · ${t.config.mode==='simulated'?'simulated result':'agent report'}</p>${t.result.decisions?.length?`<h3>Needs your decision</h3>${t.result.decisions.map(d=>reportHTML(d)).join('')}`:''}<details class="assignment-background"><summary>Report & validation</summary><p class="handoff-basis">${t.result.recovery_source?'Recovered agent report':'Reported checks · agent report'}</p>${reportHTML(report.checks||'No checks reported.')}<p class="section-note">File integrity and reported testing are separate evidence.</p>${limits.length?`<h4>Limitations & delivery issues</h4><ul>${limits.map(x=>`<li>${reportInline(x)}</li>`).join('')}</ul>`:''}${validationChecksHTML(t)}${(t.delivery_notes||t.result.delivery_notes||[]).map(x=>reportHTML(x)).join('')}${t.state==='failed'&&t.latest_update?`<h4>Last agent update before the stop</h4><p class="section-note">Progress report · verification was interrupted</p>${reportHTML(t.latest_update)}`:''}${report.next||t.result.next_steps?.length?`<h4>Next step</h4>${reportHTML(report.next||t.result.next_steps.join('\n'))}`:''}<h4>Original report</h4>${reportHTML(typeof t.result.agent_report==='string'?t.result.agent_report:t.result.summary)}<details><summary>Raw report</summary><pre>${esc(t.result.agent_report||JSON.stringify(t.result,null,2))}</pre></details></details></section>`;
 }
 
 function outputSnapshotsHTML(t) {

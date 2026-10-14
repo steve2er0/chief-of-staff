@@ -43,10 +43,24 @@ The original development demo has two crew members on a shared console circuit.
 The live workspace uses stable agent stations and activity-driven motion; it does
 not run that scripted crew cycle.
 
-To rebuild assets (Pillow is needed only for this step):
+The live renderer uses full-resolution terrain and 3x registered prop and crew
+regions, packaged from the same unchanged artwork masters. Its canvas backing
+surface follows the displayed size and device pixel ratio; camera coordinates,
+movement and pointer picking remain in 768 × 512 logical units. Legacy atlas
+regions remain intact for development fixtures. `source/display-asset-manifest.json`
+records the display regions, output sizes and hashes.
+
+The map and drawers share navy/slate surfaces, cyan actions and system sans-serif
+type. State-key swatches come directly from the scene's state definitions. Reports,
+file lists, earlier turns and configuration explanations expand on demand; saved
+instructions and reports are retained. Report Markdown is escaped before rendering,
+with web/API links only and no embedded HTML or images.
+
+To rebuild display assets and the live bundle (Pillow is needed only for assets):
 
 ```sh
-python3 static/lunar-base/source/prepare_assets.py
+python3 static/lunar-base/source/prepare_display_assets.py
+python3 static/lunar-base/source/build_scene.py
 ```
 
 ## Verify

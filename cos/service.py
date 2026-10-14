@@ -22,7 +22,7 @@ from .live_agent import AgentControl
 
 DEFAULT_CONFIG = {"id": "settings", "mode": "simulated", "executable": "codex", "entrypoint": "",
                   "model": "5.6-Terra", "concurrency": 0, "timeout_seconds": 900,
-                  "default_execution_policy": "sandboxed", "default_time_limit": "none",
+                  "default_execution_policy": "sandboxed", "default_time_limit": "none", "default_isolate": False,
                   "briefing_times": ["09:00", "13:00", "16:30"], "schedule_enabled": True}
 SPEC_PROPERTIES = {"title": {"type": "string"}, "goal": {"type": "string"}, "purpose": {"type": "string"},
                    "criteria": {"type": "array", "items": {"type": "string"}},
@@ -158,6 +158,8 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 raise Invalid("Concurrency must be a nonnegative whole number; 0 means unlimited")
             if c["default_execution_policy"] not in ("sandboxed", "yolo") or c["default_time_limit"] not in ("default", "none"):
                 raise Invalid("Choose a supported default execution policy and time limit")
+            if type(c["default_isolate"]) is not bool:
+                raise Invalid("Separate worktrees must be a boolean")
             for key, lo, hi in (("timeout_seconds", 5, 14400),):
                 if type(c[key]) is not int or not lo <= c[key] <= hi:
                     raise Invalid(key + " is out of range")
@@ -345,7 +347,8 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 local_file(p["cwd"], path, False)
         plan = {"id": uid(), "project_id": pid, "revision": 1, "state": "draft", "created": now(),
                 "bullets": bullets, "source": source, "basis": basis, "specs": specs,
-                "context": self.assignment_context(p), "task_ids": [], "job_id": job_id}
+                "context": self.assignment_context(p), "task_ids": [], "job_id": job_id,
+                "isolate": defaults["default_isolate"]}
         self.store.put("plan", plan)
         for s in suggestions[:20]:
             self.record(pid, s, "suggestion", "Plan " + plan["id"] + " / " + basis)
@@ -585,6 +588,9 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 if action == "resume" and c["mode"] == "codex" and not fresh and (not task.get("session_id") or not same):
                     raise Invalid("Saved-session continuation is unavailable after a folder/CLI change or without a captured session. Select Start a fresh session.")
                 plan = self._draft(task["project_id"], note, ("Continuation" if action == "resume" else "Revision") + " of task " + tid, [spec], "Owner continuation; review, approve, then launch")
+                if source_folder == self.store.get("project", task["project_id"])["cwd"]:
+                    # Continue in the captured workspace even after default changes.
+                    plan["isolate"] = self.store.get("plan", task["plan_id"]).get("isolate", True)
                 plan["specs"][0]["continuation_note"] = note
                 plan["specs"][0]["resume_context"] = {"task_id": tid, "state": state,
                     "summary": (task.get("result") or {}).get("summary", "")[:12000],

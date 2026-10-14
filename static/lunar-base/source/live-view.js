@@ -8,25 +8,26 @@
     document.body.dataset.lunarMode='live';
     document.title=isAttention?'Lunar Base · Needs-you demonstration':isDemo?'Lunar Base · Illustrative workshop':'Lunar Base · Agents';
     host.innerHTML=`
-      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting to this CoS service…</span><span class="demo-label"><span></span><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
+      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
       <section class="viewport" aria-label="Live lunar agent map">
         <canvas id="world" width="768" height="512" tabindex="0" aria-label="Live lunar base with habitat, exterior console, lander, model platform, engine test stand and connecting paths. Astronauts represent recorded CLI agents. Drag to pan. Select an astronaut for its conversation or infrastructure for its project. Arrow keys pan; Space pauses illustration."></canvas>
         <div class="scene-title"><p id="live-outpost">YOUR PROJECT OUTPOSTS</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
         <div id="live-empty" class="live-empty" role="status">Waiting for the first supported CoS snapshot.</div>
-        <div class="scene-caption" id="live-caption">CoS PROJECTS · RECORDED WORKERS</div>
+        <div class="scene-caption" id="live-caption" hidden></div>
       </section>
-      <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause illustration</button><span id="motion-state">Only fresh reported activity animates</span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">All outposts</button><button id="attention-replay" hidden>Replay local attention cycle</button></div></div>
+      <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause</button><span id="motion-state" hidden></span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">All outposts</button><button id="attention-replay" hidden>Replay local attention cycle</button></div></div>
       <nav id="live-projects" class="entities" aria-label="Project outposts"></nav>
       <div class="live-crew-heading"><span id="live-crew-heading">Recorded crew</span><div><button id="live-page-prev" aria-label="Previous crew page">←</button><span id="live-crew-page"></span><button id="live-page-next" aria-label="Next crew page">→</button></div></div>
       <nav id="live-workers" class="entities" aria-label="Agents"></nav>
       <section class="details live-details" aria-labelledby="detail-title" ${embedded?'hidden':''}><div><p class="eyebrow" id="detail-kicker">LIVE CONNECTION</p><h2 id="detail-title">Your projects, in place.</h2><p id="detail-body">Select an astronaut to follow its work.</p><div id="live-detail-fields"></div></div><div class="detail-note"><span id="detail-status">Connecting</span><p id="live-source"></p></div></section>
-      <p id="attention-announcement" class="attention-summary" role="status" aria-live="polite"></p><div class="live-legend" aria-label="Agent states"><span>Working</span><span>Needs you · amber ?</span><span>Queued / paused</span><span>Blocked / failed</span><span>Finished</span><span>Unknown / stale</span></div>
-      <footer><b id="view-footer">LIVE AGENTS</b><span id="view-metaphor">Motion reflects fresh activity · poses illustrate work</span></footer>`;
+      <p id="attention-announcement" class="attention-summary" role="status" aria-live="polite" hidden></p>
+      <details class="scene-info"><summary>Status key</summary><div class="live-legend" aria-label="Agent states">${Object.entries(model.definitions).map(([key,value])=>`<span data-state="${key}"><i></i>${value.label}</span>`).join('')}</div><p id="view-metaphor">Motion illustrates reported activity.</p><b id="view-footer" hidden>LIVE AGENTS</b></details>`;
     if(isDemo) {textSetup();}
     function textSetup(){document.getElementById('view-footer').textContent=isAttention?'SCRIPTED ATTENTION DEMO':'ILLUSTRATIVE WORKSHOP DEMO';document.getElementById('view-metaphor').textContent=isAttention?'Five scripted characters · answers and resolution are in memory only':'Eight scripted characters · no real agent activity';document.getElementById('live-refresh').hidden=true;}
     if(isAttention){elementReplaySetup();}
     function elementReplaySetup(){const button=document.getElementById('attention-replay');button.hidden=false;button.addEventListener('click',()=>{demoElapsed=0;tracks.clear();refresh();});}
     const canvas=host.querySelector('#world'),ctx=canvas.getContext('2d'),images={},tracks=new Map();
+    host.querySelectorAll('[data-state]').forEach(label=>{label.querySelector('i').style.backgroundColor=model.definitions[label.dataset.state].colour;});
     const motion=matchMedia('(prefers-reduced-motion: reduce)');
     const storageKey=isDemo?(isAttention?'cos.lunar.attention-demo.layout.v1':'cos.lunar.workshop-demo.layout.v1'):'cos.lunar.layout.v1';
     let registry,storageAvailable=true;
@@ -35,6 +36,15 @@
     let selectedProject=new URLSearchParams(location.search).get('project')||'',selectedWorker='',fetching=false,requestController=null,connectionError='',initialFocus=false;
     let paused=motion.matches,previous=0,crewPage=0,drag=null,lastPainted=[],listsSignature='',detailSignature='',demoElapsed=0,attentionSignature='',beaconPhase=0;
     let camera={x:0,y:0,zoom:1},assetsReady=false,dirty=true,projectFocus=true,destroyed=false;
+    // Layout and hit testing stay in 768 x 512 logical units. Only the backing
+    // surface follows the CSS size and display density, including drawer resize.
+    function resizeSurface(){
+      const rect=canvas.getBoundingClientRect(),density=window.devicePixelRatio||1;
+      const width=Math.max(1,Math.round(rect.width*density)),height=Math.max(1,Math.round(rect.height*density));
+      if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;dirty=true;}
+    }
+    const resizeObserver=new ResizeObserver(resizeSurface);
+    resizeObserver.observe(canvas);window.addEventListener('resize',resizeSurface);resizeSurface();
     const element=id=>host.querySelector('#'+id);
     const text=(id,value)=>{element(id).textContent=value;};
     const date=value=>model.time(value)===null?'Unavailable':new Date(value).toLocaleString();
@@ -81,7 +91,7 @@
         }
       }
       const requestState=JSON.stringify(view.projects.map(p=>[p.id,p.attentionCount,p.attentionHeld]));
-      if(requestState!==attentionSignature){attentionSignature=requestState;const count=view.projects.reduce((n,p)=>n+p.attentionCount,0);text('attention-announcement',count?count+' explicit request'+(count===1?'':'s')+' for you · amber markers indicate where.':view.projects.some(p=>p.attentionHeld)?'Owner responses saved · waiting for explicit agent resolution.':'No explicit owner requests in this snapshot.');}
+      if(requestState!==attentionSignature){attentionSignature=requestState;const count=view.projects.reduce((n,p)=>n+p.attentionCount,0),held=view.projects.some(p=>p.attentionHeld);text('attention-announcement',count?count+' request'+(count===1?'':'s')+' needs you':held?'Response saved · awaiting agent':'');element('attention-announcement').hidden=!count&&!held;}
       dirty=true; renderLists();renderDetail();renderConnection();
     }
     function focus(project) {
@@ -112,6 +122,7 @@
       const focusProject=focused?.liveProject,focusWorker=focused?.liveWorker;
       const projectList=element('live-projects'),workerList=element('live-workers');
       projectList.replaceChildren();workerList.replaceChildren();
+      projectList.hidden=view.projects.length<=1;
       for (const p of view.projects) {
         const button=document.createElement('button');button.textContent=p.name+(p.attentionCount?' · ? '+p.attentionCount:'');
         button.setAttribute('aria-pressed',String(p.id===selectedProject));button.dataset.liveProject=p.id;
@@ -120,15 +131,16 @@
       const p=selected(),workers=p?.workers||[];
       const pageCount=workers.length?Math.max(...workers.map(w=>w.position.page))+1:1;
       crewPage=Math.min(crewPage,pageCount-1);
-      text('live-crew-heading',workers.length+(isDemo?' scripted character':' agent')+(workers.length===1?'':'s')+(p?' · '+p.name:''));
+      text('live-crew-heading',workers.length+(isDemo?' scripted character':' agent')+(workers.length===1?'':'s'));
       text('live-crew-page','Crew page '+(crewPage+1)+' / '+pageCount);
+      element('live-crew-page').parentElement.hidden=pageCount<=1;
       element('live-page-prev').disabled=crewPage===0;
       element('live-page-next').disabled=crewPage>=pageCount-1;
       for (const worker of workers.filter(w=>w.position.page===crewPage)) {
         const button=document.createElement('button');button.setAttribute('aria-pressed',String(worker.key===selectedWorker));
         button.dataset.liveWorker=worker.key;
         const dot=document.createElement('i');dot.style.backgroundColor=worker.status.colour;
-        const label=document.createElement('span');label.textContent=worker.name;
+        const label=document.createElement('span');label.textContent=root.AgentModel.title({title:worker.name});button.title=worker.name;
         const status=document.createElement('small');status.textContent=worker.status.label;
         button.append(dot,label,status);button.addEventListener('click',()=>workerPick(worker.key));workerList.append(button);
       }
@@ -137,7 +149,7 @@
         note.textContent=p.assignments.length?'No confirmed worker in these earlier assignments. Start an agent to work here.':'No agents here yet. Select this project and start one.';
         workerList.append(note);
       }
-      text('live-outpost',p?p.name.toUpperCase():'YOUR PROJECT OUTPOSTS');
+      text('live-outpost',p?p.name:'Project outposts');
       const crewCount=projectFocus?(p?.workers.length||0):view.workers.length;
       text('live-caption',(projectFocus?'COMPLETE BASE':'PROJECT BASES')+' · CONNECTING PATHS · '+(isDemo?'SCRIPTED DEMO':crewCount+' AGENT'+(crewCount===1?'':'S')));
       if(focusProject)[...projectList.children].find(b=>b.dataset.liveProject===focusProject)?.focus();
@@ -147,9 +159,10 @@
       const context=currentContext();
       const message=!snapshot?(connectionError||'Connecting to this CoS service…'):
         !connected?'Disconnected · showing the last snapshot · '+connectionError:
-        context.snapshotStale?'Snapshot stale · motion held':
-        isAttention?'Scripted attention demo · five characters · no real workers':isDemo?'Scripted workshop · eight illustrative characters · no real workers':view.fixture?'Local QA fixtures connected':snapshot.config?.mode==='simulated'?'Simulated workers · choose Codex CLI in Settings for real work':'Connected · live agent progress';
-      text('live-connection',message+(lastReceived?' · snapshot '+new Date(lastReceived).toLocaleTimeString():''));
+        context.snapshotStale?'Connection stale · motion paused':
+        isAttention?'Scripted attention demo · no real workers':isDemo?'Scripted workshop · no real workers':view.fixture?'QA fixtures':snapshot.config?.mode==='simulated'?'Simulated · no model calls':'Connected';
+      text('live-connection',message);
+      element('live-connection').title=lastReceived?'Last snapshot: '+new Date(lastReceived).toLocaleTimeString():message;
       text('live-kind',isAttention?'SCRIPTED ATTENTION DEMO':isDemo?'ILLUSTRATIVE WORKSHOP DEMO':view.fixture?'QA FIXTURES':snapshot?.config?.mode==='simulated'?'SIMULATED WORKERS':'LIVE AGENTS');
       const empty=element('live-empty');empty.hidden=Boolean(snapshot && view.projects.length);
       empty.textContent=!snapshot?(connectionError||'Waiting for the first supported CoS snapshot.'):
@@ -244,12 +257,19 @@
       ctx.strokeStyle=colour;ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(point.x,point.y,width,width*.25,0,0,Math.PI*2);ctx.stroke();
     }
     function packed(name,x,y,width,height) {
-      const region=root.LunarWorkshopAssets.regions[name];
+      const region=root.LunarDisplayAssets.regions[name];
       ctx.drawImage(images.teal,region.x,region.y,region.width,region.height,x,y,width,height);
+    }
+    function crewFrame(sprite,name,col,row,cellWidth=64){
+      const region=root.LunarDisplayAssets.regions[name],scale=region.scale;
+      ctx.drawImage(sprite,region.x+col*cellWidth*scale,region.y+row*64*scale,cellWidth*scale,64*scale,-32,-58,cellWidth,64);
     }
     function draw() {
       if(!assetsReady)return;
-      ctx.imageSmoothingEnabled=false;ctx.drawImage(images.terrain,0,0,768,512);
+      ctx.setTransform(canvas.width/768,0,0,canvas.height/512,0,0);
+      ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(images.terrain,0,0,768,512);
+      // A restrained ground tint keeps the crew and warm-lit props prominent.
+      const ground=ctx.createLinearGradient(0,105,0,512);ground.addColorStop(0,'#0b122000');ground.addColorStop(1,'#0b122030');ctx.fillStyle=ground;ctx.fillRect(0,0,768,512);
       lastPainted=[];const drawables=[],beacons=[];
       for (const p of view.projects) {
         if(projectFocus && p.id!==selectedProject)continue;
@@ -271,7 +291,7 @@
             if(object.id==='habitat') {
               if(p.id===selectedProject)ring({x:s.x+w/2,y:s.y+h},w*.45,'#75dfe4');
               if(!projectFocus) {
-                ctx.font=Math.max(8,11*camera.zoom)+'px ui-monospace, monospace';
+                ctx.font=Math.max(8,11*camera.zoom)+'px system-ui, sans-serif';
                 const label=p.name.length>38?p.name.slice(0,37)+'…':p.name,width=ctx.measureText(label).width+16;
                 ctx.fillStyle='#0b1422e6';ctx.fillRect(s.x,s.y-22,width,20);
                 ctx.fillStyle='#e8e4df';ctx.fillText(label,s.x+8,s.y-8);
@@ -304,11 +324,11 @@
           const sprite=worker.slot%2?images.amber:images.teal;
           if(attending){
             const pose=root.LunarAttention.phase(track.attentionPhase||0,!paused&&worker.status.attentionAnimate);
-            ctx.drawImage(sprite,pose.frame*64,root.LunarAttentionAssets.y+pose.row*64,64,64,-32,-58,64,64);
+            crewFrame(sprite,'attention',pose.frame,pose.row);
           } else if(working && role.row!==null) {
             const workFrame=Math.floor(track.phase*role.rate)%4;
-            ctx.drawImage(sprite,workFrame*96,192+role.row*64,96,64,-32,-58,96,64);
-          } else ctx.drawImage(sprite,frame*64,row*64,64,64,-32,-58,64,64);
+            crewFrame(sprite,'work',workFrame,role.row,96);
+          } else crewFrame(sprite,'crew',frame,row);
           ctx.restore();
           if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
           ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
@@ -325,7 +345,9 @@
       }
     }
     function updateMotion() {
-      element('pause').textContent=paused?'Resume illustration':'Pause illustration';
+      element('pause').textContent=paused?'Resume':'Pause';
+      element('pause').setAttribute('aria-label',paused?'Resume illustration':'Pause illustration');
+      element('pause').title='Animation illustrates fresh reported activity';
       element('pause').setAttribute('aria-pressed',String(paused));
       text('motion-state',paused?(motion.matches?'Paused · reduced motion':'Illustration paused'):isDemo?'Scripted work poses and gentle lunar bounds':'Fresh reported activity enables illustrative poses');
     }
@@ -404,7 +426,7 @@
       disconnect(message){connected=false;connectionError=message;if(snapshot)reconcile();else renderConnection();},
       selectAgent(id){const worker=view.workers.find(w=>w.agentId===id);if(worker&&selectedWorker!==worker.key){selectedProject=worker.projectId;selectedWorker=worker.key;crewPage=worker.position.page;focus(selected());renderLists();renderDetail();}},
       selectProject(id){if(selectedProject!==id&&view.projects.some(p=>p.id===id)){selectedProject=id;selectedWorker='';crewPage=0;focus(selected());renderLists();renderDetail();}},
-      destroy(){destroyed=true;clearInterval(polling);clearInterval(aging);requestController?.abort();document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pagehide',pagehide);}
+      destroy(){destroyed=true;resizeObserver.disconnect();window.removeEventListener('resize',resizeSurface);clearInterval(polling);clearInterval(aging);requestController?.abort();document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pagehide',pagehide);}
     };
   }
   root.LunarLiveView={mount};

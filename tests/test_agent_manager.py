@@ -64,7 +64,7 @@ class AgentManagerTests(unittest.TestCase):
             entered.set();release.wait(3)
             return None
         with patch('cos.agents.isolate_workspace',side_effect=prepare):
-            key=uid();raw={'project_id':self.p['id'],'agents':[{'instructions':'Inspect fixture'}]}
+            key=uid();raw={'project_id':self.p['id'],'agents':[{'instructions':'Inspect fixture'}],'isolate':True}
             plan=self.s.start_agents(raw,key);self.s.tick()
             self.assertTrue(entered.wait(1));tid=plan['task_ids'][0]
             self.assertEqual(self.s.start_agents(raw,key)['task_ids'],[tid])
@@ -292,6 +292,45 @@ class WorktreeTests(unittest.TestCase):
 
     def tearDown(self):self.tmp.cleanup()
 
+    def test_default_agents_edit_source_and_serialize_overlapping_writers(self):
+        adapter=test_app.FakeAdapter(hold=True,writer=lambda cwd:(cwd/'tracked.txt').write_text('Agent edit'))
+        service=Service(self.root/'data',adapter=adapter,start=False)
+        try:
+            project=service.project({'vision':'Edit fixture','cwd':str(self.source)})
+            service.settings({'mode':'codex'})
+            plan=service.start_agents({'project_id':project['id'],'agents':[{'instructions':'Edit one'},{'instructions':'Edit two'}]})
+            self.assertFalse(plan['isolate'])
+            tasks=service.store.all('task')
+            self.assertTrue(all(t['context']['cwd']==str(self.source.resolve()) and not t.get('worktree') and not t.get('workspace_preparation') for t in tasks))
+            service.tick()
+            end=time.monotonic()+2
+            while not adapter.calls and time.monotonic()<end:time.sleep(.005)
+            self.assertEqual(len(service.active),1)
+            self.assertEqual(len(adapter.calls),1)
+            service.tick();self.assertEqual(len(service.active),1)
+            adapter.release.set()
+            end=time.monotonic()+3
+            while (service.active or any(t['state']=='queued' for t in service.store.all('task'))) and time.monotonic()<end:
+                service.tick();time.sleep(.005)
+            self.assertEqual(len(adapter.calls),2)
+            self.assertEqual((self.source/'tracked.txt').read_text(),'Agent edit')
+            self.assertTrue(all(t['state']=='ready_for_review' for t in service.store.all('task')))
+        finally:adapter.release.set();service.close()
+
+    def test_worktree_preference_can_be_overridden_at_start(self):
+        service=Service(self.root/'data',adapter=test_app.FakeAdapter(),start=False)
+        try:
+            project=service.project({'vision':'Edit fixture','cwd':str(self.source)})
+            service.settings({'mode':'codex','default_isolate':True})
+            raw={'project_id':project['id'],'agents':[{'instructions':'Edit fixture'}]}
+            isolated=service.start_agents(raw)
+            self.assertTrue(isolated['isolate'])
+            self.assertEqual(service.store.get('task',isolated['task_ids'][0])['workspace_preparation'],'pending')
+            direct=service.start_agents(dict(raw,isolate=False))
+            self.assertFalse(direct['isolate'])
+            self.assertNotIn('workspace_preparation',service.store.get('task',direct['task_ids'][0]))
+        finally:service.close()
+
     def test_independent_worktrees_include_dirty_inputs_and_leave_source_unchanged(self):
         (self.source/'tracked.txt').write_text('Owner edit')
         (self.source/'new-input.txt').write_text('Untracked owner input')
@@ -343,7 +382,7 @@ class WorktreeTests(unittest.TestCase):
         try:
             project=service.project({'vision':'Edit fixture','cwd':str(self.source)})
             service.settings({'mode':'codex'})
-            plan=service.start_agents({'project_id':project['id'],'agents':[{'instructions':'Edit one'},{'instructions':'Edit two'}]})
+            plan=service.start_agents({'project_id':project['id'],'agents':[{'instructions':'Edit one'},{'instructions':'Edit two'}],'isolate':True})
             end=time.monotonic()+3
             while len(service.active)<2 and time.monotonic()<end:
                 service.tick();time.sleep(.005)
@@ -366,7 +405,7 @@ class WorktreeTests(unittest.TestCase):
         try:
             project=service.project({'vision':'Edit fixture','cwd':str(self.source)})
             service.settings({'mode':'codex'})
-            started=service.start_agents({'project_id':project['id'],'agents':[{'instructions':'Edit fixture'}]})
+            started=service.start_agents({'project_id':project['id'],'agents':[{'instructions':'Edit fixture'}],'isolate':True})
             drain();original=service.store.get('task',started['task_ids'][0]);old_folder=Path(original['context']['cwd'])
             (old_folder/'kept.txt').write_text('Do not discard prior work')
             revised=service.action(original['id'],'resume','Continue with a fresh session',fresh=True)

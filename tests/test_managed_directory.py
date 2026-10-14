@@ -40,7 +40,7 @@ class ManagedDirectoryTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def finish_task(self):
-        started = self.s.start_agents({'project_id': self.p['id'], 'agents': [{'instructions': 'Inspect the input.'}]})
+        started = self.s.start_agents({'project_id': self.p['id'], 'agents': [{'instructions': 'Inspect the input.'}], 'isolate': True})
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
             self.s.tick()

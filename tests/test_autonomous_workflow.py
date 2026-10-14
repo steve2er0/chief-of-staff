@@ -42,6 +42,17 @@ class AutonomousWorkflowTests(unittest.TestCase):
         self.assertFalse(self.s.slots_full())
         self.adapter.release.set();self.drain()
 
+    def test_planned_workspace_choice_is_captured_and_continuations_keep_it(self):
+        plan=self.draft();self.assertFalse(plan['isolate'])
+        self.s.settings({'default_isolate':True})
+        self.assertTrue(self.draft()['isolate'])
+        launched=self.s.delegate_now(plan['id'],plan['revision']);self.drain()
+        task=self.s.store.get('task',launched['task_ids'][0])
+        self.assertEqual(task['context']['cwd'],str(self.work.resolve()))
+        self.assertNotIn('workspace_preparation',task)
+        continued=self.s.action(task['id'],'resume','Continue',fresh=True)
+        self.assertFalse(continued['isolate'])
+
     def test_new_tasks_use_preferences_and_continuations_keep_approved_policy(self):
         self.s.settings({'default_execution_policy':'yolo','default_time_limit':'none'})
         whole=self.s.prepare_project_assignment(self.p['id'])

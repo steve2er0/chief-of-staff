@@ -118,7 +118,7 @@ class AgentMixin:
                              "criteria": ["Address the owner's instructions and report the work, checks and remaining limitations."]})
         from .service import normalized_spec
         prepared = [normalized_spec(value) for value in prepared]
-        if type(raw.get("isolate", True)) is not bool:
+        if type(raw.get("isolate", config["default_isolate"])) is not bool:
             raise Invalid("Separate worktrees must be a boolean")
         if config["mode"] == "codex" and not self.adapter.capabilities:
             self.preflight()
@@ -143,7 +143,7 @@ class AgentMixin:
                     self.cancel_project_review(project["id"])
             plan = self._draft(project["id"], "Direct agent start", "Owner start", prepared, "Owner instructions")
             plan["direct_agents"] = True
-            plan["isolate"] = raw.get("isolate", True)
+            plan["isolate"] = raw.get("isolate", config["default_isolate"])
             self.store.put("plan", plan)
             approved = self.approve(plan["id"], plan["revision"])
             if approved.get("refreshed"):
