@@ -21,6 +21,10 @@ filter shows one project's agents in place. Filters and agent selection do not m
 the camera or create scenery. Descriptive metadata prefers workstations, allocated
 globally so workers from different projects never share a station on the same crew
 page. The base is present even before the first project or agent exists.
+Generic work animations match the assigned station: console operation at the
+original console, assembly at the habitat, inspection at the model, and scanning,
+sensor attachment or welding around the lander and test stand. Projects share
+these existing structures; additional agents do not add consoles.
 
 Each agent keeps one astronaut across continuations. The current turn uses the
 same `agent_id`, suit, browser-local slot and selection. Old turns remain history

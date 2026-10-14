@@ -144,3 +144,17 @@ assert.equal(legacy.version,2);assert.notEqual(migrated.workers[0].slot,migrated
 const sparse=model.build({...shared,tasks:shared.tasks.filter(t=>t.project_id==='test')},sharedRegistry,context);
 assert.deepEqual(model.crewPages(sparse),[...new Set(sparse.workers.map(w=>w.position.page))].sort((a,b)=>a-b),'paging skips unused historical slots');
 console.log('PASS: all-project crew separation, immutable filters, persistent identities, one empty base, legacy layout migration and sparse display paging.');
+
+// Generic agents in different projects share station-specific work animations.
+const pair=model.build({projects:[{id:'a'},{id:'b'}],tasks:[
+ real({id:'console-a',project_id:'a',title:'Summarize repo'}),
+ real({id:'console-b',project_id:'b',title:'Summarize repo'})],jobs:[]},model.cleanRegistry(null),context);
+assert.deepEqual(pair.workers.map(w=>[w.position.area,w.visual.key]),[['console','console'],['habitat','assemble']]);
+for(const worker of sharedView.workers){
+ if(worker.visual.key==='console')assert.equal(worker.position.area,'console','typing is reserved for the original console');
+ if(worker.position.area==='hologram')assert.equal(worker.visual.key,'inspect','generic model work uses tablet inspection');
+}
+assert.equal(model.roleFor({title:'Use the terminal'},{type:'miscellaneous'},0,{station:'habitat'}).key,'assemble','console metadata cannot cause typing on bare ground');
+assert.equal(model.roleFor({title:'Weld a fixture'},{type:'miscellaneous'},0,{station:'habitat'}).key,'weld','specific non-console work cues still apply');
+assert.equal(model.roleFor({demo_role:'scan'},{type:'miscellaneous'},0,{illustrative:true,station:'habitat'}).key,'scan','scripted demos retain explicit poses');
+console.log('PASS: station-specific shared-base animations, one original console, and retained explicit work and demo poses.');

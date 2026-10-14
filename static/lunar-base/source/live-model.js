@@ -41,10 +41,18 @@
   }
   function roleFor(record,infrastructure,slot,context={}) {
     if(context.illustrative && roles[record.demo_role])return {key:record.demo_role,basis:'Scripted workshop demo role'};
+    const stationRole=({console:'console',habitat:'assemble',habitatRight:'weld',
+      landerLeft:'sensor',landerRight:'scan',modelLeft:'inspect',modelRight:'inspect',
+      standLeft:'weld',standRight:'sensor',junction:'inspect'})[context.station];
+    const stationIllustration=()=>({key:stationRole,basis:'Illustration selected for the assigned shared-base station; no physical-activity telemetry'});
     const text=['title','goal','purpose'].map(k=>String(record[k]||'')).join(' ').toLowerCase();
     for(const [key,pattern] of [['weld',/\bweld\w*\b/],['sensor',/\b(sensor|instrument|attach)\w*\b/],['scan',/\b(scan|laser|survey)\w*\b/],['assemble',/\b(assembl|hammer|fabricat|repair)\w*\b/],['console',/\b(console|terminal)\b/],['inspect',/\b(inspect|review|tablet|analys|analyz|model)\w*\b/]]) {
-      const match=text.match(pattern);if(match)return {key,basis:'Illustration selected from task metadata: '+match[0]};
+      const match=text.match(pattern);if(match){
+        if(key==='console'&&stationRole&&stationRole!=='console')return stationIllustration();
+        return {key,basis:'Illustration selected from task metadata: '+match[0]};
+      }
     }
+    if(stationRole)return stationIllustration();
     // Generic tasks get distinct stable visual roles at shared infrastructure.
     // This is explicitly an illustration, not physical-activity telemetry.
     const choices=infrastructure.type==='flight'?['console','assemble','sensor','scan','inspect']:
@@ -211,15 +219,19 @@
         w.roleSlot=slots[w.key];
         w.name = String(w.raw.title || (w.kind === 'job' ? 'CoS ' + (w.raw.kind || 'call') : 'Agent task'));
         w.workType=workType(w.raw);
-        w.visual={...roleFor(w.raw,p.infrastructure,w.roleSlot,context),phase:w.roleSlot*.73,sharedProject:p.id};
-        w.visual.label=roles[w.visual.key].label;
       }
       p.ownerRequests=attention.projectRequests(snapshot,p);
       p.attentionCount=p.ownerRequests.length+p.assignments.reduce((n,a)=>n+a.status.attention.items.filter(i=>a.status.attentionPending&&!i.answered).length,0);
       p.attentionHeld=p.assignments.some(a=>a.status.attentionPending);
     }
     assignCrew(registry.crew,workers,byProject);
-    for(const worker of workers){worker.slot=registry.crew[worker.key];worker.position=workerPosition(byProject.get(worker.projectId),worker.slot);}
+    for(const worker of workers){
+      const owner=byProject.get(worker.projectId);
+      worker.slot=registry.crew[worker.key];worker.position=workerPosition(owner,worker.slot);
+      const station=baseLayout.orders.miscellaneous[worker.position.station];
+      worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.roleSlot*.73,sharedProject:owner.id};
+      worker.visual.label=roles[worker.visual.key].label;
+    }
     workers.sort((a,b)=>a.slot-b.slot);
     for(const p of projects)p.workers.sort((a,b)=>a.slot-b.slot);
     const base={id:'shared-base',name:'Lunar Base',x:0,y:0,width:baseLayout.width,height:baseLayout.height};
