@@ -126,6 +126,13 @@ Queued and simulated managed agents appear as stationary, explicitly labeled
 astronauts. Animation still requires confirmed Codex execution and fresh activity.
 Only active or recovery-locked coordinator calls appear as additional crew.
 
+Each project displays the complete original infrastructure and connecting paths.
+`source/base-layout.js` shares scenery with the local placement fixture; scripted
+crew remain outside the product bundle. Metadata chooses illustrative workstations
+within the full base, without removing other infrastructure. Project footprints
+are separated and camera focus fits the complete layout. Crew pages and identity
+slots remain stable, and selecting any structure opens its owning project.
+
 The application owns the authenticated state poll and POST controls. Its scene
 instance receives snapshots and connection failures; opening or refreshing a panel
 does not remount the canvas or reset the camera. Native questions and permissions

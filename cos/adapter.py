@@ -24,6 +24,12 @@ from .owner_requests import REQUEST_SCHEMA, validate_requests
 MAX_EVENT_BYTES = 4 * 1024 * 1024
 
 
+def model_payload(result):
+    """Separate adapter evidence from fields returned by the structured model."""
+    return {key: value for key, value in result.items()
+            if key not in ("session_id", "agent_report", "execution_verified")}
+
+
 COMPLETION_SCHEMA = {
     "type": "object", "additionalProperties": False,
     "properties": {

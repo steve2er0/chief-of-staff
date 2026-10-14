@@ -6,7 +6,7 @@ import re
 import threading
 import time
 
-from .adapter import CodexAdapter, COMPLETION_SCHEMA, completion, session_id, command_prefix
+from .adapter import CodexAdapter, COMPLETION_SCHEMA, completion, session_id, command_prefix, model_payload
 from .safety import Invalid, bounded_text, digest, local_file, local_reference, overlaps, working_directory
 from .store import Store, now, uid
 from .portfolio import PortfolioMixin, FRAME_SCHEMA, MAP_SCHEMA, FOCUS_SCHEMA, FRAME_FIELDS, PRIORITIES
@@ -16,7 +16,7 @@ from .progress import apply_progress, activity_snapshot
 from .attention import attention_queue
 from .results import capture_result, file_digest
 from .owner_requests import apply_request_update, sync_request_records, owner_snapshot
-from .agents import AgentMixin
+from .agents import AgentMixin, git
 from .live_agent import AgentControl
 
 
@@ -628,7 +628,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 raise Invalid("Saved report session does not match this assignment")
             if task.get("recovery_lock"):
                 raise Invalid("Confirm worker cleanup before recovering its handoff")
-            cwd = working_directory(task["context"]["cwd"], (self.data, Path(__file__).resolve().parent.parent))
+            cwd = self.task_directory(task)
             if self._locked(cwd, "read-only"):
                 raise Invalid("Wait for the project writer to stop before capturing its files")
             prefix = "recovered-" + uid()
@@ -765,6 +765,30 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 "artifacts": [], "decisions": ["Choose whether this synthetic report is useful for demonstrating the workflow"],
                 "next_steps": ["Replace demo inputs with authorized project context when ready"]}
 
+    def task_directory(self, task):
+        """Only a verified task checkout may run inside otherwise protected storage."""
+        protected = (self.data, Path(__file__).resolve().parent.parent)
+        cwd = task["context"]["cwd"]
+        tree = task.get("worktree")
+        if not tree:
+            return working_directory(cwd, protected)
+        workspace_id = bounded_text(tree.get("workspace_id", task.get("agent_id", task["id"])), "workspace ID", 200)
+        if workspace_id in (".", "..") or "/" in workspace_id or "\\" in workspace_id:
+            raise Invalid("Agent worktree does not match its managed workspace")
+        expected = self.data / "worktrees" / workspace_id
+        if expected.resolve() != expected or Path(tree["path"]).resolve() != expected:
+            raise Invalid("Agent worktree does not match its managed workspace")
+        folder = Path(working_directory(cwd))
+        if not folder.is_relative_to(expected):
+            raise Invalid("Agent worktree does not match its managed workspace")
+        source = Path(working_directory(tree["source"], protected))
+        source_common = (source / git(source, "rev-parse", "--git-common-dir").stdout.decode().strip()).resolve()
+        common = (expected / git(expected, "rev-parse", "--git-common-dir").stdout.decode().strip()).resolve()
+        top = Path(git(expected, "rev-parse", "--show-toplevel").stdout.decode().strip()).resolve()
+        if common != source_common or top != expected:
+            raise Invalid("Agent checkout is not a Git worktree of its recorded source")
+        return str(folder)
+
     def _prompt(self, task):
         if task.get("managed_agent"):
             return self.agent_prompt(task)
@@ -792,14 +816,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                             saved = self.store.get("task", tid)
                             saved["interactive"] = task["interactive"]
                             self.store.put("task", saved)
-                if task.get("worktree"):
-                    tree = task["worktree"]
-                    expected = (self.data / "worktrees" / tree.get("workspace_id", task.get("agent_id", task["id"]))).resolve()
-                    if Path(tree["path"]).resolve() != expected or not Path(cwd).resolve().is_relative_to(expected):
-                        raise Invalid("Agent worktree does not match its managed workspace")
-                    cwd = working_directory(cwd, (Path(__file__).resolve().parent.parent,))
-                else:
-                    cwd = working_directory(cwd, (self.data, Path(__file__).resolve().parent.parent))
+                cwd = self.task_directory(task)
                 for ref in task["expected_outputs"]:
                     p = local_file(cwd, ref, False, max_bytes=None)
                     baseline[ref] = file_digest(p) if p.is_file() else None
@@ -958,7 +975,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                     j.update(state="cancelled", progress="Coordinator stopped")
                 elif result["status"] == "completed":
                     if planning:
-                        validate_plan({k: v for k, v in result.items() if k != "session_id"})
+                        validate_plan(model_payload(result))
                         if kind == "assignment" and self.store.get("project", project["id"])["version"] != project["version"]:
                             raise Invalid("Project changed while preparing the task. Prepare a fresh brief using the latest conversation.")
                         plan = self._draft(project["id"], text, job["source"], result["tasks"], "Model-backed Codex coordinator / " + config["model"], result["suggestions"], job["id"])

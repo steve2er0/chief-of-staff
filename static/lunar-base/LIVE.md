@@ -14,6 +14,12 @@ tool permission requests, reply/continue form, returned work and earlier results
 Results collects every returned turn, including partial work and file snapshots.
 Acceptance is optional and does not gate continuation.
 
+Each project has a complete base: habitat, adjacent console, lander, holographic
+model platform, engine test stand and connecting paths. Focus shows the entire
+base; All outposts fits every project. Selecting any structure opens its project.
+Descriptive metadata chooses agent workstations within the base. Paths and work
+poses are illustrations; crew counts and status come from recorded agents.
+
 Each agent keeps one astronaut across continuations. The current turn uses the
 same `agent_id`, suit, browser-local slot and selection. Old turns remain history
 and results. Active or recovery-locked coordinator calls are separate crew;
@@ -35,8 +41,8 @@ independent CLI windows or external Codex sessions.
 | Activity silence, stale snapshot or disconnected service | Last-known state; motion held |
 
 Native `commandExecution`, `fileChange`, `mcpToolCall` and `webSearch` events and
-legacy event names are recognized. Only explicit tool events choose a work area;
-prose never invents activity, requests, measured progress or token usage. Obsolete
+legacy event names are recognized. Explicit tool events select work or nearby
+workspace positions; prose never invents activity, requests, measured progress or token usage. Obsolete
 questions linked to superseded/cancelled turns and stopped native requests do not
 leave attention markers behind.
 
@@ -57,7 +63,8 @@ recovery locks and file conflict protection remain in place.
 ## Source and verification
 
 `static/agent-model.js` is the shared immutable agent/result selector.
-`source/live-model.js` maps state and layout; `source/attention-model.js` maps
+`source/base-layout.js` supplies the original scenery and connecting paths;
+`source/live-model.js` maps state and agent stations; `source/attention-model.js` maps
 explicit requests; `source/live-view.js` renders the scene; `static/agents.js`
 supplies the operational panels. Source demos remain developer fixtures and are
 excluded from the shipped scene bundle.

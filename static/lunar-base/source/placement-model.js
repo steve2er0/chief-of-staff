@@ -1,15 +1,7 @@
 /* One coherent placement review, entirely synthetic and separate from live state. */
 (function(root){
  'use strict';
- const width=1152,height=768;
- const objects=[
-  {id:'habitat',asset:'habitat',x:136,y:140,width:410,height:255,label:'01 · HABITAT',labelX:341,labelY:447},
-  {id:'console',asset:'console',x:103,y:319,width:86,height:95,label:'02 · CONSOLE',labelX:90,labelY:446},
-  {id:'lander',asset:'lander',x:815,y:214,width:233,height:245,label:'03 · FLIGHT DATA / LANDER',labelX:930,labelY:516},
-  {id:'hologram',asset:'hologram',x:342,y:450,width:225,height:245,label:'04 · ANALYSIS / MODEL',labelX:454,labelY:729},
-  {id:'teststand',asset:'teststand',x:763,y:523,width:285,height:160,label:'05 · TEST DATA / STAND',labelX:905,labelY:727}
- ];
- const paths=[[[546,382],[589,421],[621,449],[710,477],[812,473]],[[710,477],[712,585],[637,635],[617,685]],[[712,585],[747,621],[742,675]]];
+ const {width,height,objects,paths}=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
  const circuit=[{x:621,y:449},{x:710,y:477},{x:712,y:585},{x:637,y:635},{x:617,y:685}];
  const crew=[
   {id:'operator',x:127,y:426,role:'console',colour:'teal',area:'console',label:'Exterior console operation'},

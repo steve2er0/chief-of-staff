@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 import json
 
 from .safety import Invalid, bounded_text
+from .adapter import model_payload
 from .store import now, uid
 from .intake import SETUP_INSTRUCTION
 from .progress import apply_progress
@@ -154,7 +155,7 @@ class PortfolioMixin:
             self._local_conversation(p, "", initial=True)
 
     def _save_project_proposal(self, project, kind, result, basis, job_id=None):
-        result = {k: v for k, v in result.items() if k != "session_id"}
+        result = model_payload(result)
         validate_proposal(kind, result)
         proposal = {"id": uid(), "project_id": project["id"], "kind": kind,
                     "based_on_version": project["version"], "state": "suggested", "created": now(),
@@ -258,7 +259,7 @@ class PortfolioMixin:
                 current.update(state="cancelled" if cancel.is_set() else result["status"], progress=result["summary"], result=result, updated=now())
                 if not cancel.is_set() and result["status"] == "completed":
                     if kind == "portfolio":
-                        self._validate_focus_advice({k: v for k, v in result.items() if k != "session_id"}, context)
+                        self._validate_focus_advice(model_payload(result), context)
                         advice = {"id": "latest", "created": now(), "result": result, "basis": "Codex CoS / " + config["model"],
                                   "project_versions": {p["id"]: p["version"] for p in context["projects"]},
                                   "task_versions": {t["id"]: [t["state"], t["updated"]] for t in context["tasks"]},

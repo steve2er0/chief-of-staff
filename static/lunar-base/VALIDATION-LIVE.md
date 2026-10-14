@@ -22,7 +22,7 @@ The fixture uses real local subprocess pipes and the production API/UI, with
 synthetic JSON-RPC replies. It uses a fresh temporary state directory and never
 opens operational CoS data, invokes a model, grants actual command access, or
 changes the user’s running service. It validates integration and presentation,
-not live provider reliability or Windows process behavior. Current screenshots
+not live provider reliability or Windows process behavior. Initial integration screenshots
 show fixture data. No new frame-by-frame live motion recording was made; earlier
 motion GIFs demonstrate scripted/shared animation only.
 
@@ -30,3 +30,19 @@ Two minutes of activity silence means stale, not proof that a process stopped.
 The client has no independent external-agent inventory, measured progress or token
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
+
+## Complete live base restoration
+
+The full suite passed **334 tests**, all 27 JavaScript/CJS files passed syntax
+checks, and the scene rebuilt deterministically. Model fixtures check reuse of
+all five original structures and connecting paths, no crew for an empty project,
+separate project footprints, crew separation in every work-area layout, stable
+continuation identities and paged positions.
+
+The operational in-app browser was reconnected to its current service and checked
+on the live route. All infrastructure and paths were visible together. Selecting
+the actual astronaut opened its existing conversation and result controls; its
+state updated from Working to Finished when the CLI result arrived. The overview
+fit the complete scenery. No additional project agents or model calls were started
+for this visual change, and the running service was not restarted. This verifies
+the live map integration, not the engineering claims in that agent's report.

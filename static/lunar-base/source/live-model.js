@@ -3,6 +3,7 @@
   'use strict';
   const attention=root.LunarAttention||(typeof require==='function'?require('./attention-model.js'):null);
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
+  const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
   const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = 10;
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
@@ -19,7 +20,7 @@
     inspect:{label:'Tablet inspection',row:4,rate:1.3}
   };
   function workType(record) {
-    // Descriptive metadata chooses scenery; it never proves current activity.
+    // Descriptive metadata chooses workstations; it never proves current activity.
     const fields=['name','title','vision','goal','purpose'];
     const outputs=Array.isArray(record?.expected_outputs)?record.expected_outputs:[];
     const text=fields.map(k=>String(record?.[k]||'')).concat(outputs.map(v=>typeof v==='string'?v:v?.name||'')).join(' ').toLowerCase();
@@ -150,14 +151,14 @@
     let next = Math.max(-1, ...Object.values(slots)) + 1;
     for (const id of [...ids].sort()) if (!Object.prototype.hasOwnProperty.call(slots, id)) slots[id] = next++;
   }
-  function projectPosition(slot) { return {x:(slot % 3) * 760, y:Math.floor(slot / 3) * 720}; }
+  function projectPosition(slot) { return {x:(slot % 3) * (baseLayout.width+128), y:Math.floor(slot / 3) * (baseLayout.height+132)}; }
   function workerPosition(project, slot) {
     const visibleSlot = slot % WORKERS_PER_PAGE;
-    const stations=project.infrastructure?.type==='miscellaneous'?
-      [[128,400],[302,378],[512,385],[585,413],[423,382],[143,518],[300,490],[420,500],[540,490],[660,500]]:
-      [[270,525],[530,525],[385,585],[145,515],[645,550],[130,610],[265,670],[530,670],[385,685],[645,680]];
-    const [x,y]=stations[visibleSlot],work={x:project.x+x,y:project.y+y};
-    return {work,home:{x:work.x+(visibleSlot%2?-42:42),y:work.y+28},page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot};
+    const order=baseLayout.orders[project.infrastructure?.type]||baseLayout.orders.miscellaneous;
+    const station=baseLayout.stations[order[visibleSlot]];
+    return {work:{x:project.x+station.work[0],y:project.y+station.work[1]},
+      home:{x:project.x+station.home[0],y:project.y+station.home[1]},
+      page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot,area:station.area};
   }
   function project(raw, registry) {
     const slot = registry.projects[raw.id], position = projectPosition(slot);
@@ -226,7 +227,7 @@
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);

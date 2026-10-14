@@ -222,3 +222,31 @@ server; reopening reused its PID and instance ID. The live UI showed Codex CLI
 mode, CLI help confirmed app-server support, and the existing login status passed.
 No model task was launched. The Desktop icon opens the current checkout and
 retains its existing runtime data; moving the checkout requires reinstalling it.
+
+## CoS intake contract correction (2026-10-13)
+
+The CLI adapter adds session, report and execution evidence after validating model
+JSON. CoS calls now remove that transport metadata before validating and saving
+the proposal a second time. Strict validation of the original model fields remains
+in place. Regression fixtures run the actual adapter through intake, discussion,
+work maps, focus advice, planning and project assignment. They preserve the full
+report on the job, exclude adapter evidence from proposal data, reject missing or
+unknown model fields, and never launch project agents or paid model calls.
+The full suite passed 330 tests and changed-source syntax checks. The affected
+operational intake was restored from its valid original CLI session after checking
+the saved project version was unchanged. The idle server was reloaded; no new model
+call was made, and the project was preserved.
+
+## Managed checkout path correction (2026-10-13)
+
+Agent startup and stopped-handoff recovery use one directory check. A task's
+checkout may reside under app runtime only when its exact managed path, resolved
+working folder and Git source match the saved task. Other app folders, other
+agents' checkouts, mismatched Git sources and redirected paths remain blocked.
+Regression fixtures place runtime inside an app folder, run an agent, capture its
+output, continue with its retained checkout and recover its stopped handoff. The
+source repository remains unchanged. All of these tests use synthetic agents.
+The full suite passed 334 tests and changed-source syntax checks. The persisted
+operational checkout also passed the corrected validation. After the idle app
+reload, the agent continued in that saved checkout and captured a live CLI session
+with progress. Its project work and final handoff were still underway at this check.

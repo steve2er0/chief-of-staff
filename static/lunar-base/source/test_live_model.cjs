@@ -91,3 +91,25 @@ assert(!status(queued).animate);
 const simulated=real({managed_agent:true,config:{mode:'simulated'}});
 assert.equal(model.build({...liveSnapshot,tasks:[simulated]},model.cleanRegistry(null),context).workers[0].status.label,'Simulated · Working');assert(!status(simulated).animate);
 console.log('PASS: persistent astronaut identity and position, completed results, queued/simulated labels and native event vocabulary.');
+
+// Full scenery is independent of crew count; every astronaut has a recorded identity.
+const scenery=model.baseLayout,placement=require('./placement-model.js');
+assert.deepEqual(scenery.objects,placement.objects);
+assert.deepEqual(scenery.paths,placement.paths);
+assert.deepEqual(scenery.objects.map(o=>o.asset).sort(),['console','habitat','hologram','lander','teststand']);
+assert.equal(model.build({projects:[{id:'empty'}],tasks:[],jobs:[]},model.cleanRegistry(null),context).workers.length,0);
+for(const type of Object.keys(scenery.orders)){
+ const project={...model.projectPosition(0),infrastructure:{type}};
+ const positions=Array.from({length:model.WORKERS_PER_PAGE},(_,slot)=>model.workerPosition(project,slot));
+ for(const p of positions)for(const key of ['work','home']){
+  assert(p[key].x>=32&&p[key].x+32<=scenery.width);
+  assert(p[key].y>=58&&p[key].y<=scenery.height);
+ }
+ for(const [i,a] of positions.entries())for(const [j,b] of positions.entries())if(i!==j){
+  for(const ak of ['work','home'])for(const bk of ['work','home'])assert(Math.hypot(a[ak].x-b[bk].x,a[ak].y-b[bk].y)>=70,`${type} crew ${i}/${j} overlaps`);
+ }
+ assert.deepEqual(model.workerPosition(project,model.WORKERS_PER_PAGE).work,positions[0].work);
+}
+const origin=model.projectPosition(0),right=model.projectPosition(1),below=model.projectPosition(3);
+assert(right.x-origin.x>scenery.width);assert(below.y-origin.y>scenery.height);
+console.log('PASS: complete original scenery and paths, no fabricated crew, all work-area placements, retained pagination and separate project footprints.');
