@@ -8,17 +8,19 @@ one map, with panels for Results, Needs you, Projects and Settings.
 ## Manage work on the map
 
 Use **Start agents** to choose a project or folder and enter multiple independent
-instructions. Selecting an outpost opens project context and a preselected start
+instructions. Project context opens from Projects and provides a preselected start
 button. Selecting an astronaut opens its progress, conversation, native questions,
 tool permission requests, reply/continue form, returned work and earlier results.
 Results collects every returned turn, including partial work and file snapshots.
 Acceptance is optional and does not gate continuation.
 
-Each project has a complete base: habitat, adjacent console, lander, holographic
-model platform, engine test stand and connecting paths. Focus shows the entire
-base; All outposts fits every project. Selecting any structure opens its project.
-Descriptive metadata chooses agent workstations within the base. Paths and work
-poses are illustrations; crew counts and status come from recorded agents.
+All projects share one complete base: habitat, adjacent console, lander, holographic
+model platform, engine test stand and the original connecting floor guides. Home
+centers that base. Project names label the astronauts and crew list; the Project
+filter shows one project's agents in place. Filters and agent selection do not move
+the camera or create scenery. Descriptive metadata prefers workstations, allocated
+globally so workers from different projects never share a station on the same crew
+page. The base is present even before the first project or agent exists.
 
 Each agent keeps one astronaut across continuations. The current turn uses the
 same `agent_id`, suit, browser-local slot and selection. Old turns remain history
@@ -48,10 +50,12 @@ leave attention markers behind.
 
 ## Controls and safety
 
-Drag to pan, use arrow keys with the canvas focused, and zoom or select All
-outposts. Pause and Space freeze illustration while state polling continues.
+Drag to pan, use arrow keys with the canvas focused, and zoom, or use Home to center
+the shared base. Pause and Space freeze illustration while state polling continues.
 Reduced motion starts paused. Positions stay in `cos.lunar.layout.v1` in this
-browser; they do not alter the operational store. Crew pages hold ten astronauts.
+browser; they do not alter the operational store. Crew display pages hold ten astronauts across all projects; the list retains every
+filtered agent and selecting one shows its page. Display paging does not cap agent
+execution. Earlier per-project visual registries migrate to a shared crew registry.
 
 The application owns the authenticated same-origin state poll and reuses the
 existing start, reply, response and Stop APIs. The renderer projects snapshots;

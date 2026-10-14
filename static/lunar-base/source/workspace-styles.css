@@ -94,3 +94,7 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
 
 .workspace-drawer .eyebrow{font:500 11px var(--font-ui);letter-spacing:.1px;text-transform:none}
 .workspace-drawer .modal-top .eyebrow:empty{display:none}
+
+#lunar-host .live-project-filter{display:flex;align-items:center;gap:10px;margin:0;color:var(--muted);font-size:12px}
+#lunar-host .live-project-filter select{margin:0;min-width:180px;max-width:350px;background:var(--white);color:var(--ink);border-color:var(--line);padding:8px 10px;border-radius:8px;font:12px var(--font-ui)}
+#lunar-host .live-worker-project{display:block;margin-top:3px;color:var(--muted);font-size:10px}

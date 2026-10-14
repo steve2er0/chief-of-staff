@@ -31,6 +31,38 @@ The client has no independent external-agent inventory, measured progress or tok
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
 
+## One shared base for all projects
+
+The live projection now supplies one shared base, including the five original
+structures and unchanged connecting paths. Projects label agents and filter the
+crew in place. Global station allocation prevents collisions across projects;
+version-1 browser layout registries migrate to shared crew positions. Every agent
+remains listed, including agents on other display pages; display paging does not
+limit execution. An empty workspace still renders the complete base.
+
+Validation for this change:
+
+- The full suite passed **339 tests**. Model fixtures cover 36 agents across three
+  projects, cross-project work/home separation, persistent positions after adding
+  projects and reloading, immutable project filters, legacy registry migration,
+  empty scenery and sparse display pages.
+- The generated scene and scoped styles rebuild byte for byte, and changed
+  JavaScript files pass syntax checks. No raster artwork changed.
+- The isolated read-only browser fixture showed three projects sharing one base.
+  Project filtering preserved the camera and infrastructure. Adding a fourth
+  project and three agents kept the same scenery; selecting an agent on the
+  second crew page retained All projects and opened its conversation. Empty
+  project/task lists retained the complete base. Fixture interactions used only
+  GET requests; writable endpoints and model calls were disabled.
+- The operational live app was opened with All projects selected. Its actual CLI
+  astronaut opened the existing conversation, and its project label was visible.
+  The active agent/session was not restarted or sent new instructions. No browser
+  warnings/errors were observed. This verifies the live view, not the agent's
+  engineering result or reported checks.
+
+Earlier multiple-outpost validation below is historical and superseded by this
+shared-base layout.
+
 ## Complete live base restoration
 
 The full suite passed **334 tests**, all 27 JavaScript/CJS files passed syntax

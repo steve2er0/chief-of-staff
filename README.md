@@ -55,9 +55,10 @@ The previous demo URLs also open the live workspace. Results, project context,
 questions and settings are panels; the map stays in place.
 
 
-The **live Lunar Base** is the starting view. Each project has a complete base:
-habitat, exterior console, lander, model platform, engine test stand and connecting
-paths. Each agent keeps one astronaut across its turns. Click **Start agents**, choose an
+The **live Lunar Base** is the starting view: one shared habitat, exterior console,
+lander, model platform, engine test stand and connecting paths for all projects.
+Project labels and filters identify the work without moving the camera or creating
+more bases. Each agent keeps one astronaut across its turns. Click **Start agents**, choose an
 existing project or a working folder, and write an instruction. Add another
 agent row for each separate responsibility, then click **Start agents** once.
 No framing proposal, work map, acceptance criteria form, or separate approval

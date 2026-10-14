@@ -132,8 +132,8 @@
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:1, projects:Object.create(null), workers:Object.create(null)};
-    if (!saved || saved.version !== 1) return registry;
+    const registry = {version:2, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
+    if (!saved || ![1,2].includes(saved.version)) return registry;
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
       if (id.length <= 200 && Number.isSafeInteger(slot) && slot >= 0 && slot < 100000 && !usedProjects.has(slot)) {registry.projects[id] = slot;usedProjects.add(slot);}
@@ -145,16 +145,31 @@
       }
       registry.workers[pid] = valid;
     }
+    const usedCrew=new Set();
+    for(const [id,slot] of Object.entries(saved.version===2?saved.crew||{}:{})) {
+      if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0&&slot<100000&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
+    }
     return registry;
   }
   function assign(slots, ids) {
     let next = Math.max(-1, ...Object.values(slots)) + 1;
     for (const id of [...ids].sort()) if (!Object.prototype.hasOwnProperty.call(slots, id)) slots[id] = next++;
   }
-  function projectPosition(slot) { return {x:(slot % 3) * (baseLayout.width+128), y:Math.floor(slot / 3) * (baseLayout.height+132)}; }
+  function projectPosition() { return {x:0,y:0}; }
+  function assignCrew(slots, workers, byProject) {
+    const occupied=new Set(Object.values(slots)),canonical=baseLayout.orders.miscellaneous;
+    for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))) {
+      if(Object.prototype.hasOwnProperty.call(slots,worker.key))continue;
+      const type=workType(worker.raw),project=byProject.get(worker.projectId);
+      const order=baseLayout.orders[type.matched?type.type:project.infrastructure.type]||canonical;
+      let page=0,slot;
+      do {slot=order.map(name=>page*WORKERS_PER_PAGE+canonical.indexOf(name)).find(value=>!occupied.has(value));page++;} while(slot===undefined);
+      slots[worker.key]=slot;occupied.add(slot);
+    }
+  }
   function workerPosition(project, slot) {
     const visibleSlot = slot % WORKERS_PER_PAGE;
-    const order=baseLayout.orders[project.infrastructure?.type]||baseLayout.orders.miscellaneous;
+    const order=baseLayout.orders.miscellaneous;
     const station=baseLayout.stations[order[visibleSlot]];
     return {work:{x:project.x+station.work[0],y:project.y+station.work[1]},
       home:{x:project.x+station.home[0],y:project.y+station.home[1]},
@@ -193,19 +208,25 @@
       const slots = registry.workers[p.id] ||= Object.create(null);
       assign(slots, p.workers.map(w => w.key));
       for (const w of p.workers) {
-        w.slot = slots[w.key]; w.position = workerPosition(p,w.slot);
+        w.roleSlot=slots[w.key];
         w.name = String(w.raw.title || (w.kind === 'job' ? 'CoS ' + (w.raw.kind || 'call') : 'Agent task'));
         w.workType=workType(w.raw);
-        w.visual={...roleFor(w.raw,p.infrastructure,w.slot,context),phase:w.slot*.73,sharedProject:p.id};
+        w.visual={...roleFor(w.raw,p.infrastructure,w.roleSlot,context),phase:w.roleSlot*.73,sharedProject:p.id};
         w.visual.label=roles[w.visual.key].label;
       }
-      p.workers.sort((a,b) => a.slot - b.slot);
       p.ownerRequests=attention.projectRequests(snapshot,p);
       p.attentionCount=p.ownerRequests.length+p.assignments.reduce((n,a)=>n+a.status.attention.items.filter(i=>a.status.attentionPending&&!i.answered).length,0);
       p.attentionHeld=p.assignments.some(a=>a.status.attentionPending);
     }
-    return {projects,workers,orphanRecords,unverifiedRecords,simulatedRecords,fixture:snapshot.lunar_fixture === true,illustrative:context.illustrative===true};
+    assignCrew(registry.crew,workers,byProject);
+    for(const worker of workers){worker.slot=registry.crew[worker.key];worker.position=workerPosition(byProject.get(worker.projectId),worker.slot);}
+    workers.sort((a,b)=>a.slot-b.slot);
+    for(const p of projects)p.workers.sort((a,b)=>a.slot-b.slot);
+    const base={id:'shared-base',name:'Lunar Base',x:0,y:0,width:baseLayout.width,height:baseLayout.height};
+    return {base,projects,workers,orphanRecords,unverifiedRecords,simulatedRecords,fixture:snapshot.lunar_fixture === true,illustrative:context.illustrative===true};
   }
+  function visibleWorkers(view,projectId=''){return projectId?view.workers.filter(w=>w.projectId===projectId):view.workers;}
+  function crewPages(view,projectId=''){const pages=[...new Set(visibleWorkers(view,projectId).map(w=>w.position.page))].sort((a,b)=>a-b);return pages.length?pages:[0];}
   function transport(lastReceived, connected, clientNow) {
     return {connected, snapshotStale:connected && lastReceived > 0 && clientNow - lastReceived > SNAPSHOT_STALE_MS};
   }
@@ -227,7 +248,7 @@
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,visibleWorkers,crewPages,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);

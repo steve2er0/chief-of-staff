@@ -3,9 +3,11 @@
 The live map is the Chief of Staff home screen. Start multiple agents, select an
 astronaut to follow or reply, and open Results, project context or Settings in
 side panels. See [LIVE.md](LIVE.md) for status, controls, architecture and safety.
-Each live project has the original habitat, adjacent console, lander, holographic
-model platform and engine test stand, with connecting floor guides. Astronauts
-come from recorded agents; infrastructure does not create extra crew.
+All projects share one original habitat, adjacent console, lander, holographic
+model platform and engine test stand, with the original connecting floor guides.
+Astronauts come from recorded agents; infrastructure does not create extra crew.
+Project names appear on crew labels and in the project filter. Filtering keeps the
+base, camera and global crew positions fixed. Home centers the complete base.
 
 Start CoS normally with `python3 -B app.py --port 8876` and open its private launch
 URL. Do not run a second service against an already-open data directory. Previous

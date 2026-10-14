@@ -136,7 +136,7 @@ assignmentHTML=function(p) {
 };
 
 renderProjects=function(){
-  return `<div class="section-title"><button id="projects-new">+ New project</button></div>${state.projects.map(p=>`<article class="panel"><h3><button class="text-button" data-project="${esc(p.id)}">${esc(p.name)}</button></h3><p>${reportPreview(p.vision||p.goal,150)}</p><p class="section-note">${currentAgents(p.id).length} agent${currentAgents(p.id).length===1?'':'s'}</p><details><summary>Project folder</summary><p class="prose">${esc(p.cwd)}</p></details><div class="actions"><button data-project="${esc(p.id)}">Open outpost</button><button data-start-agent="${esc(p.id)}" class="primary">Start agents</button></div></article>`).join('')||'<p>No projects yet. Start agents to create one from a working folder.</p>'}`;
+  return `<div class="section-title"><button id="projects-new">+ New project</button></div>${state.projects.map(p=>`<article class="panel"><h3><button class="text-button" data-project="${esc(p.id)}">${esc(p.name)}</button></h3><p>${reportPreview(p.vision||p.goal,150)}</p><p class="section-note">${currentAgents(p.id).length} agent${currentAgents(p.id).length===1?'':'s'}</p><details><summary>Project folder</summary><p class="prose">${esc(p.cwd)}</p></details><div class="actions"><button data-project="${esc(p.id)}">Open project</button><button data-start-agent="${esc(p.id)}" class="primary">Start agents</button></div></article>`).join('')||'<p>No projects yet. Start agents to create one from a working folder.</p>'}`;
 };
 renderProject=function(){
   const p=state.projects.find(p=>p.id===selectedProject);if(!p)return '<p>Project not found.</p>';
@@ -190,7 +190,7 @@ document.addEventListener('submit',async event=>{
       const fingerprint=JSON.stringify(payload);if(!startAgentRequest||startAgentRequest.fingerprint!==fingerprint)startAgentRequest={fingerprint,id:crypto.randomUUID()};
       $('#agent-start-status').textContent='Starting agents…';
       result=await api('start-agents',payload,startAgentRequest.id,false);startAgentRequest=null;
-      closeModal();boardFilter='';agentFilter='all';await refresh(false);setView('live');lunarScene?.selectProject(result.project_id);toast(`${result.task_ids.length} agent${result.task_ids.length===1?'':'s'} queued.`);
+      closeModal();boardFilter='';agentFilter='all';await refresh(false);setView('live');lunarScene?.selectProject('');toast(`${result.task_ids.length} agent${result.task_ids.length===1?'':'s'} queued.`);
     }else if(form.id==='agent-reply-form'){
       const tid=form.dataset.taskId,payload={id:tid,text:data.get('text'),confirmed_stopped:form.elements.confirmed_stopped?.checked||false,fresh:form.elements.fresh.checked};
       const fingerprint=JSON.stringify(payload),previous=agentReplyRequests.get(tid);

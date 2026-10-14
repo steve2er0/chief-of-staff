@@ -111,5 +111,36 @@ for(const type of Object.keys(scenery.orders)){
  assert.deepEqual(model.workerPosition(project,model.WORKERS_PER_PAGE).work,positions[0].work);
 }
 const origin=model.projectPosition(0),right=model.projectPosition(1),below=model.projectPosition(3);
-assert(right.x-origin.x>scenery.width);assert(below.y-origin.y>scenery.height);
-console.log('PASS: complete original scenery and paths, no fabricated crew, all work-area placements, retained pagination and separate project footprints.');
+assert.deepEqual(right,origin);assert.deepEqual(below,origin);
+console.log('PASS: complete original scenery and paths, no fabricated crew, shared base footprint and retained crew display pages.');
+
+// Projects are context and filters. Their agents share globally unique stations.
+const shared={projects:[{id:'flight',name:'Flight data'},{id:'analysis',name:'Analysis'},{id:'test',name:'Engine test data'}],
+ tasks:Array.from({length:36},(_,i)=>real({id:'shared-'+i,agent_id:'shared-'+i,managed_agent:true,project_id:['flight','analysis','test'][i%3]})),jobs:[]};
+const sharedRegistry=model.cleanRegistry(null),sharedBefore=structuredClone(shared),sharedView=model.build(shared,sharedRegistry,context);
+assert.deepEqual(shared,sharedBefore,'shared projection never changes operational records');
+assert.equal(sharedView.base.id,'shared-base');assert.equal(sharedView.base.width,scenery.width);
+assert.equal(sharedView.workers.length,36);assert.equal(new Set(sharedView.workers.map(w=>w.slot)).size,36);
+assert(sharedView.projects.every(p=>p.x===0&&p.y===0));
+for(const page of model.crewPages(sharedView)){
+ const group=sharedView.workers.filter(w=>w.position.page===page);
+ for(const a of group)for(const b of group)if(a.key!==b.key)for(const ak of ['work','home'])for(const bk of ['work','home']){
+  assert(Math.hypot(a.position[ak].x-b.position[bk].x,a.position[ak].y-b.position[bk].y)>=70,'stations collide across projects');
+ }
+}
+const physical=sharedView.workers.map(w=>[w.key,w.slot,structuredClone(w.position)]);
+for(const project of shared.projects){const filtered=model.visibleWorkers(sharedView,project.id);assert.equal(filtered.length,12);assert(filtered.every(w=>w.projectId===project.id));}
+assert.equal(model.visibleWorkers(sharedView).length,36);
+assert.deepEqual(sharedView.workers.map(w=>[w.key,w.slot,w.position]),physical,'filtering cannot move crew');
+shared.projects.reverse();shared.projects.push({id:'later',name:'Later project'});shared.tasks.reverse();
+shared.tasks.push(real({id:'additional',project_id:'later',managed_agent:true}));
+const retained=model.build(shared,model.cleanRegistry(JSON.parse(JSON.stringify(sharedRegistry))),context);
+assert.deepEqual(retained.workers.filter(w=>w.id!=='additional').map(w=>[w.key,w.slot,w.position]),physical,'new projects and reload preserve global stations');
+const empty=model.build({projects:[],tasks:[],jobs:[]},model.cleanRegistry(null),context);
+assert.deepEqual(empty.base,sharedView.base);assert.equal(empty.workers.length,0,'empty workspace retains scenery without inventing astronauts');
+const legacy=model.cleanRegistry({version:1,projects:{a:0,b:1},workers:{a:{'task:one':0},b:{'task:two':0}}});
+const migrated=model.build({projects:[{id:'a'},{id:'b'}],tasks:[real({id:'one',project_id:'a'}),real({id:'two',project_id:'b'})],jobs:[]},legacy,context);
+assert.equal(legacy.version,2);assert.notEqual(migrated.workers[0].slot,migrated.workers[1].slot);
+const sparse=model.build({...shared,tasks:shared.tasks.filter(t=>t.project_id==='test')},sharedRegistry,context);
+assert.deepEqual(model.crewPages(sparse),[...new Set(sparse.workers.map(w=>w.position.page))].sort((a,b)=>a-b),'paging skips unused historical slots');
+console.log('PASS: all-project crew separation, immutable filters, persistent identities, one empty base, legacy layout migration and sparse display paging.');

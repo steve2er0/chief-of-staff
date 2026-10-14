@@ -45,7 +45,7 @@ function render() {
   if(!lunarScene){
     lunarScene=LunarLiveView.mount({host:$('#lunar-host'),onRefresh:()=>refresh(false).catch(error=>{lunarScene.disconnect(error.message);toast(error.message,true);}),
       onWorker:worker=>{if(worker.kind==='task')taskModal(worker.id);else openCoordinatorPanel(worker.id);},
-      onProject:id=>{selectedProject=id;projectTab='assignment';setView('project');}});
+      onFilter:id=>{boardFilter=id;selectedProject=id;}});
     lunarScene.update(state);
   }
   document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===view));
