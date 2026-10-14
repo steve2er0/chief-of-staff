@@ -1,0 +1,350 @@
+{
+  "version": 1,
+  "purpose": "Future expansion assets only; no MVP/app integration",
+  "display_scale": 3,
+  "anchor_units": "logical pixels; bottom-centre ground baseline",
+  "generation": "Built-in image_gen, one call per asset; unchanged generated masters",
+  "processing": "Binary alpha core at 128, alpha-bounds crop, common logical sizing, 3x Lanczos display export and nearest-neighbour logical export; no repainting",
+  "assets": {
+    "rover-garage": {
+      "path": "sprites/rover-garage.png",
+      "display_path": "sprites-3x/rover-garage.png",
+      "logical_dimensions": [
+        356,
+        218
+      ],
+      "display_dimensions": [
+        1068,
+        654
+      ],
+      "ground_anchor": [
+        178,
+        210
+      ],
+      "display_anchor": [
+        534,
+        630
+      ],
+      "logical_alpha_bounds": [
+        8,
+        8,
+        348,
+        210
+      ],
+      "opaque_ground_shadow": false,
+      "sha256": "71e09d305fdd6c848bb62861adaef1d36b6fbc5215c2510ad32708540a8e53a5",
+      "display_sha256": "a439fbd4428d8342296f96cf5b7ae693fb24f58486bdc68335a33be305eaa243",
+      "source": {
+        "original_file": "exec-d3fd551d-8a68-4609-a9ec-929ced7ae938.png",
+        "master": "source/masters/rover-garage.png",
+        "master_dimensions": [
+          1482,
+          1062
+        ],
+        "master_sha256": "307e0e9fea8e8141040e717c5e32fb652628c0e96dbb76b34886de4d29d1729e",
+        "core_source_bounds": [
+          81,
+          170,
+          1410,
+          958
+        ]
+      }
+    },
+    "greenhouse": {
+      "path": "sprites/greenhouse.png",
+      "display_path": "sprites-3x/greenhouse.png",
+      "logical_dimensions": [
+        316,
+        165
+      ],
+      "display_dimensions": [
+        948,
+        495
+      ],
+      "ground_anchor": [
+        158,
+        157
+      ],
+      "display_anchor": [
+        474,
+        471
+      ],
+      "logical_alpha_bounds": [
+        8,
+        8,
+        308,
+        157
+      ],
+      "opaque_ground_shadow": false,
+      "sha256": "0f56da45883b5a51d1900548bd7e51fcfbcab703a6edcacc47b975d38c335b23",
+      "display_sha256": "cd91c3be988fa19d43ede59f99906ece794a05a23b9846d11e517d68a675ea78",
+      "source": {
+        "original_file": "exec-56a3b535-f6e5-4f58-94c3-6d1dd912afbe.png",
+        "master": "source/masters/greenhouse.png",
+        "master_dimensions": [
+          1683,
+          935
+        ],
+        "master_sha256": "0d19f4312b687492fae814c35a4086d7057e019ac38b5c48acf328f28ff2f153",
+        "core_source_bounds": [
+          57,
+          81,
+          1664,
+          877
+        ]
+      }
+    },
+    "communications-dish": {
+      "path": "sprites/communications-dish.png",
+      "display_path": "sprites-3x/communications-dish.png",
+      "logical_dimensions": [
+        166,
+        191
+      ],
+      "display_dimensions": [
+        498,
+        573
+      ],
+      "ground_anchor": [
+        83,
+        183
+      ],
+      "display_anchor": [
+        249,
+        549
+      ],
+      "logical_alpha_bounds": [
+        8,
+        8,
+        158,
+        183
+      ],
+      "opaque_ground_shadow": false,
+      "sha256": "e3ade9921c33a1ff90f3814fcb8e89bc5c7efb5156f594ae8b47b0b510ce8218",
+      "display_sha256": "be2a937e661e3aa39ef037813be7a69aefdd18517a332641f1b02a827ed12aae",
+      "source": {
+        "original_file": "exec-d531c4b2-0c45-4b2a-8d8e-5423a5aeed3d.png",
+        "master": "source/masters/communications-dish.png",
+        "master_dimensions": [
+          1196,
+          1315
+        ],
+        "master_sha256": "d330c864f9ab23290ce2756be8f83ba0a018cfeb55bc9757352bf818c7a1626f",
+        "core_source_bounds": [
+          169,
+          72,
+          1153,
+          1217
+        ]
+      }
+    },
+    "launch-pad": {
+      "path": "sprites/launch-pad.png",
+      "display_path": "sprites-3x/launch-pad.png",
+      "logical_dimensions": [
+        346,
+        173
+      ],
+      "display_dimensions": [
+        1038,
+        519
+      ],
+      "ground_anchor": [
+        173,
+        165
+      ],
+      "display_anchor": [
+        519,
+        495
+      ],
+      "logical_alpha_bounds": [
+        8,
+        8,
+        338,
+        165
+      ],
+      "opaque_ground_shadow": false,
+      "sha256": "411044e599a22a29e429c0f0346bea23e717abf61a62af3edc1570ce620e5de0",
+      "display_sha256": "dc2ee8b52c8500ee513510f5122d9664d34a13a4407fa4c243fcadd23fc30120",
+      "source": {
+        "original_file": "exec-fd07cbe0-ce67-45f7-b3a1-8c11a899b56e.png",
+        "master": "source/masters/launch-pad.png",
+        "master_dimensions": [
+          1610,
+          977
+        ],
+        "master_sha256": "7fe6e6f69f632c564b9fbba2038906dbab004f53385952a026defead8bf6e7bb",
+        "core_source_bounds": [
+          93,
+          165,
+          1539,
+          852
+        ]
+      }
+    },
+    "rover": {
+      "path": "sprites/rover.png",
+      "display_path": "sprites-3x/rover.png",
+      "logical_dimensions": [
+        151,
+        101
+      ],
+      "display_dimensions": [
+        453,
+        303
+      ],
+      "ground_anchor": [
+        76,
+        93
+      ],
+      "display_anchor": [
+        228,
+        279
+      ],
+      "logical_alpha_bounds": [
+        8,
+        8,
+        143,
+        93
+      ],
+      "opaque_ground_shadow": false,
+      "sha256": "46e28a8d5e88b7db8847c2ebd8b1dbcbe7dd96ee1838501279692722cd6ba930",
+      "display_sha256": "6e1d5d595e0471442ea97c2248e7224404bfe8bcaec43c6a7c2e4e70bdb1c063",
+      "source": {
+        "original_file": "exec-e6947bc9-d273-4c94-be3c-4c28dbe18a8a.png",
+        "master": "source/masters/rover.png",
+        "master_dimensions": [
+          1580,
+          995
+        ],
+        "master_sha256": "3fc2afec0a24ae463a18fab357936f78f2c9c42a991aa2f552b79515f4da49f6",
+        "core_source_bounds": [
+          147,
+          98,
+          1483,
+          937
+        ]
+      }
+    }
+  },
+  "references": {
+    "habitat": {
+      "path": "references/habitat-reference.png",
+      "logical_size": [
+        410,
+        254.66666666666666
+      ],
+      "anchor": [
+        205,
+        254.66666666666666
+      ]
+    },
+    "astronaut-teal": {
+      "path": "references/astronaut-teal-reference.png",
+      "logical_size": [
+        64,
+        64
+      ],
+      "anchor": [
+        32,
+        58
+      ]
+    },
+    "astronaut-amber": {
+      "path": "references/astronaut-amber-reference.png",
+      "logical_size": [
+        64,
+        64
+      ],
+      "anchor": [
+        32,
+        58
+      ]
+    }
+  },
+  "motion": {
+    "purpose": "Standalone asset study only; synthetic visual loop, no telemetry",
+    "loop_seconds": 8,
+    "rover_path": [
+      [
+        630,
+        710
+      ],
+      [
+        540,
+        755
+      ]
+    ],
+    "rover_rolling_atlas": {
+      "path": "sprites-3x/rover-rolling.png",
+      "cell": [
+        453,
+        303
+      ],
+      "columns": 8,
+      "anchor": [
+        228,
+        279
+      ],
+      "wheel_radius_logical": 9
+    },
+    "wheels": [
+      {
+        "path": "layers/rover-wheel-front.png",
+        "display_box": [
+          192,
+          213,
+          246,
+          273
+        ],
+        "logical_center": [
+          73,
+          81
+        ],
+        "logical_radii": [
+          9,
+          10
+        ]
+      },
+      {
+        "path": "layers/rover-wheel-middle.png",
+        "display_box": [
+          291,
+          183,
+          339,
+          237
+        ],
+        "logical_center": [
+          105,
+          70
+        ],
+        "logical_radii": [
+          8,
+          9
+        ]
+      },
+      {
+        "path": "layers/rover-wheel-rear.png",
+        "display_box": [
+          375,
+          159,
+          417,
+          207
+        ],
+        "logical_center": [
+          132,
+          61
+        ],
+        "logical_radii": [
+          7,
+          8
+        ]
+      }
+    ],
+    "cyan_emission_layers": [
+      "layers/greenhouse-cyan-emission.png",
+      "layers/communications-dish-cyan-emission.png"
+    ],
+    "activity": "Gentle forward/reverse shuttle with wheel rotation tied to displacement; restrained cyan display/greenhouse pulses. Pause/reduced motion holds a static frame."
+  }
+}

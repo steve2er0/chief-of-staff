@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "rover-garage: alpha, margins, scale, anchors and provenance pass",
+    "greenhouse: alpha, margins, scale, anchors and provenance pass",
+    "communications-dish: alpha, margins, scale, anchors and provenance pass",
+    "launch-pad: alpha, margins, scale, anchors and provenance pass",
+    "rover: alpha, margins, scale, anchors and provenance pass",
+    "Rover: all 8 frames preserve the exact silhouette, ground baseline and fixed hull registration",
+    "Dish/greenhouse: source-derived emission layers are nonempty",
+    "Motion GIF: 64 measured output frames, 8.00s, moving regions confirmed",
+    "Placement: every sprite fits wholly inside the review viewport"
+  ],
+  "status": "passed",
+  "existing_application": "Not imported, rebuilt, integrated or modified by this pack"
+}

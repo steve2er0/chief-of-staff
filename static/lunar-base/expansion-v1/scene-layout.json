@@ -1,0 +1,65 @@
+{
+  "width": 1280,
+  "height": 800,
+  "objects": [
+    {
+      "id": "habitat",
+      "reference": true,
+      "anchor": [
+        290,
+        390
+      ]
+    },
+    {
+      "id": "communications-dish",
+      "anchor": [
+        745,
+        390
+      ]
+    },
+    {
+      "id": "greenhouse",
+      "anchor": [
+        1040,
+        470
+      ]
+    },
+    {
+      "id": "rover-garage",
+      "anchor": [
+        565,
+        630
+      ]
+    },
+    {
+      "id": "launch-pad",
+      "anchor": [
+        1050,
+        775
+      ]
+    },
+    {
+      "id": "rover",
+      "anchor": [
+        630,
+        710
+      ]
+    },
+    {
+      "id": "astronaut-teal",
+      "reference": true,
+      "anchor": [
+        255,
+        439
+      ]
+    },
+    {
+      "id": "astronaut-amber",
+      "reference": true,
+      "anchor": [
+        812,
+        672
+      ]
+    }
+  ]
+}

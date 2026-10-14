@@ -7,6 +7,7 @@ const agentSessionChoices=new Map();
 const liveRequestDrafts=new Map();
 let startAgentRequest=null;
 const resultsReadingState=new Map();
+const projectReadingState=new Map();
 
 function currentAgents(projectId=boardFilter) {
   return AgentModel.current(state.tasks,projectId);
@@ -30,15 +31,19 @@ renderBoard=function() {
   const drafts=state.plans.filter(p=>['draft','approved'].includes(p.state)&&(!boardFilter||p.project_id===boardFilter));
   return `<div class="stats"><div class="stat"><span>In motion</span><strong>${active.length}</strong></div><div class="stat"><span>Needs you</span><strong>${waiting.length}</strong></div><div class="stat"><span>Finished</span><strong>${finished.length}</strong></div><div class="stat"><span>Saved results</span><strong>${state.tasks.filter(t=>t.result&&(!boardFilter||t.project_id===boardFilter)).length}</strong></div></div><section class="panel agent-toolbar"><div><h2>Your agents</h2><p>Give each agent a task. Follow its progress and reply here.</p></div><button data-start-agent class="primary">+ Start agents</button></section>${state.config.mode==='simulated'?'<div class="help">Simulated mode · try the workflow without model calls. Choose Codex CLI in Settings for real agents.</div>':''}<div class="board-top"><div class="attention-filters" role="group" aria-label="Filter agents">${[['all','All'],['active','In motion'],['waiting','Needs you'],['finished','Finished']].map(([key,label])=>`<button data-agent-filter="${key}" class="mini-button" aria-pressed="${agentFilter===key}">${label}</button>`).join('')}</div>${projectFilterHTML()}</div><div class="agent-grid">${visible.map(agentCard).join('')||`<section class="panel empty-state"><h2>${all.length?'No agents in this view.':'Start your first agent.'}</h2><p>Choose a project or folder and describe the work. Add more agents when you want separate responsibilities.</p><button data-start-agent class="primary">Start agent</button></section>`}</div>${drafts.length?`<details class="panel"><summary>Saved planning drafts · ${drafts.length}</summary>${drafts.map(p=>`<div class="brief-row"><span>${esc(projectName(p.project_id))} · ${esc(p.specs[0].title)}</span><button data-plan="${esc(p.id)}">Open draft</button></div>`).join('')}</details>`:''}<section class="panel"><div class="section-title"><h2>Recent results</h2><button data-view="results" class="mini-button">All results →</button></div>${agentResultRows(collectedResults().slice(0,4))}</section>`;
 };
-function agentResultRows(tasks) {
+function agentResultRows(tasks,{showProject=true}={}) {
   return tasks.map(raw=>{
     const t=AgentModel.resultView(raw),status=AgentModel.resultStatus(t),preview=resultPreviewLink(t);
-    return `<article class="agent-result result-compact" data-result-row="${esc(t.id)}"><div class="result-card-heading"><div><p class="result-meta">${esc(projectName(t.project_id))} · ${esc(date(t.finished_at||t.updated))}</p><h3 title="${esc(t.title)}">${esc(AgentModel.title(t,42))}</h3></div><span class="badge" data-result-tone="${status.tone}">${esc(status.label)}</span></div><p class="result-outcome">${esc(resultOutcome(t))}</p>${resultAlertsHTML(t)}<div class="result-tools"><div class="result-actions">${preview?`<a href="${esc(preview.url)}" class="result-primary-action primary" target="_blank" rel="noreferrer" data-result-focus="${esc(t.id)}:preview">Open preview</a>`:''}<button data-agent-result="${esc(t.id)}" data-result-focus="${esc(t.id)}:view" class="${preview?'mini-button':'primary'}">View result</button></div>${resultFilesHTML(t)}${resultMoreHTML(t)}</div></article>`;
+    return `<article class="agent-result result-compact" data-result-row="${esc(t.id)}"><div class="result-card-heading"><div><p class="result-meta">${showProject?esc(projectName(t.project_id))+' · ':''}${esc(date(t.finished_at||t.updated))}</p><h3 title="${esc(t.title)}">${esc(AgentModel.title(t,42))}</h3></div><span class="badge" data-result-tone="${status.tone}">${esc(status.label)}</span></div><p class="result-outcome">${esc(resultOutcome(t))}</p>${resultAlertsHTML(t)}<div class="result-tools"><div class="result-actions">${preview?`<a href="${esc(preview.url)}" class="result-primary-action primary" target="_blank" rel="noreferrer" data-result-focus="${esc(t.id)}:preview">Open preview</a>`:''}<button data-agent-result="${esc(t.id)}" data-result-focus="${esc(t.id)}:view" class="${preview?'mini-button':'primary'}">View result</button></div>${resultFilesHTML(t)}${resultMoreHTML(t)}</div></article>`;
   }).join('')||'<p class="muted">No results yet.</p>';
 }
-function renderResults() {
-  const tasks=collectedResults(),seen=new Set(),latest=[],earlier=[];
+function groupAgentResults(tasks){
+  const seen=new Set(),latest=[],earlier=[];
   for(const task of tasks){const id=AgentModel.identity(task);if(seen.has(id))earlier.push(task);else{seen.add(id);latest.push(task);}}
+  return {latest,earlier};
+}
+function renderResults() {
+  const {latest,earlier}=groupAgentResults(collectedResults());
   return `<div id="results-overview" data-project-filter="${esc(boardFilter)}"><div class="results-toolbar"><p class="result-meta">${latest.length} latest result${latest.length===1?'':'s'}${earlier.length?' · '+earlier.length+' earlier run'+(earlier.length===1?'':'s'):''}</p>${state.projects.length>1?projectFilterHTML():''}</div><section class="results-list" aria-label="Latest results">${agentResultRows(latest)}</section>${earlier.length?`<details class="previous-results" data-preserve-open="results-history"><summary data-result-focus="results-history">Earlier runs (${earlier.length})</summary><section class="results-list">${agentResultRows(earlier)}</section></details>`:''}</div>`;
 }
 function resultsSignature(){
@@ -248,10 +253,12 @@ function syncAgentSession(){
 }
 taskModal=function(id,tab='conversation',returnToResults=false){
   const raw=state.tasks.find(t=>t.id===id);if(!raw)return;
-  const t=AgentModel.resultView(raw);rememberLiveRequestDrafts();
+  const t=AgentModel.resultView(raw),origin=$('#project-overview')?.dataset.projectId||currentModal?.returnToProject;
+  const returnToProject=!returnToResults&&origin===t.project_id?origin:'';rememberLiveRequestDrafts();
   selectedProject=t.project_id;lunarScene?.selectAgent(AgentModel.identity(t));
   modal(AgentModel.title(t),projectName(t.project_id),`<div id="agent-panel" data-tab="${tab}" data-follow-latest="true"><div id="agent-status">${agentStatusHTML(t)}</div><div class="agent-panel-tabs" role="tablist" aria-label="Agent panel">${[['conversation','Conversation'],['results','Results'],['details','Details']].map(([key,label])=>`<button type="button" role="tab" id="agent-tab-${key}" aria-controls="agent-${key}-panel" aria-selected="${key===tab}" tabindex="${key===tab?0:-1}" data-agent-tab="${key}">${label}</button>`).join('')}</div><section id="agent-conversation-panel" class="agent-tab-panel" data-agent-tab-panel="conversation" role="tabpanel" aria-labelledby="agent-tab-conversation" ${tab!=='conversation'?'hidden':''}><div id="agent-conversation-scroll" class="agent-tab-scroll">${agentConversationHTML(t)}<div id="agent-current-requests"></div></div><button id="agent-new-messages" type="button" class="mini-button" hidden>New messages ↓</button>${replyComposerHTML(t)}</section><section id="agent-results-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="results" role="tabpanel" aria-labelledby="agent-tab-results" ${tab!=='results'?'hidden':''}><div id="agent-returned-work"></div></section><section id="agent-details-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="details" role="tabpanel" aria-labelledby="agent-tab-details" ${tab!=='details'?'hidden':''}><div id="agent-details-content"></div></section></div>`,'task',id);
-  currentModal.followAgent=t.state!=='superseded';currentModal.tab=tab;currentModal.returnToResults=returnToResults;
+  currentModal.followAgent=t.state!=='superseded';currentModal.tab=tab;currentModal.returnToResults=returnToResults;currentModal.returnToProject=returnToProject;
+  if(returnToProject)$('#agent-panel').insertAdjacentHTML('afterbegin',`<button type="button" class="text-button project-back" data-project="${esc(returnToProject)}">← Back to project</button>`);
   $('[data-agent-transcript]').dataset.signature=JSON.stringify([t.id,t.conversation]);
   $('#agent-conversation-scroll').addEventListener('scroll',()=>{const scroll=$('#agent-conversation-scroll');if(!scroll||scroll.clientHeight===0)return;$('#agent-panel').dataset.followLatest=String(scroll.scrollHeight-scroll.scrollTop-scroll.clientHeight<48);if($('#agent-panel').dataset.followLatest==='true')clearNewMessages();});
   $('#agent-new-messages').addEventListener('click',jumpToLatest);
@@ -263,13 +270,80 @@ assignmentHTML=function(p) {
   return `<section class="panel"><h2>Agents for this project</h2><p>Start as many separate tasks as you need. Existing runs and unreviewed results stay available.</p><button data-start-agent="${esc(p.id)}" class="primary">+ Start agents</button></section><div class="agent-grid">${currentAgents(p.id).map(agentCard).join('')}</div><details class="panel"><summary>Optional planning</summary><button data-project-tab="work" class="mini-button">Open work map</button></details>`;
 };
 
+function projectAgentNeedsYou(t){
+  const owner=t.owner_attention||t.user_requests;
+  return AgentModel.pending(t).some(r=>r.status==='pending')||!['accepted','cancelled','superseded'].includes(t.state)&&owner?.state==='needs_user'&&owner.items?.some(r=>!r.answered)||['blocked','failed','interrupted'].includes(t.state)||Boolean(t.recovery_lock);
+}
+function projectPendingRecords(p){
+  return (p.records||[]).filter(r=>{
+    if(r.user_request_task_id&&state.tasks.some(t=>t.id===r.user_request_task_id&&['superseded','cancelled'].includes(t.state)))return false;
+    return r.category==='question'&&r.status==='open'||['decision','assumption'].includes(r.category)&&r.status==='suggested';
+  });
+}
+function projectAgentLabel(t){
+  const pending=AgentModel.pending(t);
+  if(pending.length&&pending.every(r=>r.status==='sending'))return 'Sending response';
+  return t.recovery_lock?'Needs cleanup':agentStatus(t);
+}
+function projectStatus(p){
+  const agents=currentAgents(p.id),counts=new Map(),waiting=agents.filter(projectAgentNeedsYou);
+  for(const t of agents){
+    const key=projectAgentNeedsYou(t)?'attention':['ready_for_review','accepted','completed'].includes(t.state)?'finished':t.state;
+    counts.set(key,(counts.get(key)||0)+1);
+  }
+  const labels={attention:n=>n+' '+(n===1?'needs':'need')+' attention',running:n=>n+' working',queued:n=>n+' queued',stopping:n=>n+' stopping',finished:n=>n+' finished agent'+(n===1?'':'s'),paused:n=>n+' paused',cancelled:n=>n+' stopped'};
+  const keys=[...new Set(['attention','running','queued','stopping','finished','paused','cancelled',...counts.keys()])];
+  const parts=keys.filter(key=>counts.has(key)).map(key=>labels[key]?.(counts.get(key))||counts.get(key)+' '+key.replaceAll('_',' '));
+  const records=projectPendingRecords(p).filter(r=>!waiting.some(t=>t.id===r.user_request_task_id));
+  const questions=records.filter(r=>r.category==='question').length,decisions=records.length-questions;
+  if(questions)parts.push(questions+' open question'+(questions===1?'':'s'));
+  if(decisions)parts.push(decisions+' proposed decision'+(decisions===1?'':'s'));
+  const simulation=agents.some(t=>t.config?.mode==='simulated')?(agents.every(t=>t.config?.mode==='simulated')?'Simulated · ':'Includes simulated agents · '):'';
+  return {text:simulation+(parts.join(' · ')||'No agents yet'),tone:waiting.length||records.length?'attention':agents.some(t=>['running','queued','stopping'].includes(t.state))?'active':agents.length&&counts.get('finished')===agents.length?'finished':'quiet',waiting,records};
+}
+function projectsPanelSignature(){
+  if(view==='projects')return JSON.stringify(['projects',state.projects.map(p=>[p.id,p.name,p.vision||p.goal,projectStatus(p).text,projectStatus(p).tone])]);
+  const p=state.projects.find(p=>p.id===selectedProject);
+  return JSON.stringify(['project',selectedProject,p,state.tasks.filter(t=>t.project_id===selectedProject),(state.messages||[]).filter(m=>m.project_id===selectedProject),(state.findings||[]).filter(f=>f.project_id===selectedProject)]);
+}
+function projectFocusKey(el){return el?.dataset.projectFocus||el?.dataset.resultFocus;}
+function projectAnchorKey(el){return el?.dataset.projectAnchor||el?.dataset.resultRow;}
+function rememberProjectPanels(){
+  const node=$('#project-panel');if(!node||!$('#modal').open)return;
+  const drawer=$('#modal'),bounds=drawer.getBoundingClientRect(),header=drawer.querySelector('.modal-top').getBoundingClientRect();
+  const visible=el=>{const r=el.getBoundingClientRect();return r.height&&r.bottom>header.bottom&&r.top<bounds.bottom;};
+  const focused=node.contains(document.activeElement)?document.activeElement.closest('[data-project-anchor],[data-result-row]'):null;
+  const anchor=focused&&visible(focused)?focused:[...node.querySelectorAll('[data-project-anchor],[data-result-row]')].find(visible);
+  projectReadingState.set(node.dataset.readingKey,{scroll:drawer.scrollTop,open:[...node.querySelectorAll('details[data-preserve-open][open]')].map(el=>el.dataset.preserveOpen),anchor:projectAnchorKey(anchor),top:anchor?.getBoundingClientRect().top-bounds.top,focus:node.contains(document.activeElement)?projectFocusKey(document.activeElement):null});
+}
+function restoreProjectPanels(){
+  const node=$('#project-panel');if(!node)return;
+  const drawer=$('#modal'),saved=projectReadingState.get(node.dataset.readingKey);if(!saved){drawer.scrollTop=0;return;}
+  node.querySelectorAll('details[data-preserve-open]').forEach(el=>{el.open=saved.open.includes(el.dataset.preserveOpen);});
+  const anchor=[...node.querySelectorAll('[data-project-anchor],[data-result-row]')].find(el=>projectAnchorKey(el)===saved.anchor);
+  const focus=saved.focus?[...node.querySelectorAll('[data-project-focus],[data-result-focus]')].find(el=>projectFocusKey(el)===saved.focus):null;
+  for(const target of [anchor,focus])if(target)for(let parent=target.parentElement;parent&&parent!==node;parent=parent.parentElement){if(parent.tagName==='DETAILS')parent.open=true;}
+  drawer.scrollTop=anchor?drawer.scrollTop+anchor.getBoundingClientRect().top-drawer.getBoundingClientRect().top-saved.top:saved.scroll;
+  focus?.focus({preventScroll:true});
+}
+function projectContextHTML(p){
+  const key='project:'+p.id,brief=p.brief||{},messages=(state.messages||[]).filter(m=>m.project_id===p.id),findings=(state.findings||[]).filter(f=>f.project_id===p.id);
+  const summary=(part,label)=>`<summary data-project-anchor="${part}" data-project-focus="${part}">${label}</summary>`;
+  const section=(label,value)=>value?`<section data-project-anchor="context:${label}"><h4>${label}</h4>${reportHTML(value)}</section>`:'';
+  return `<details id="project-context" class="project-context" data-preserve-open="${esc(key)}:context">${summary('context','Project context')}<section data-project-anchor="full-vision"><h4>Your full vision</h4>${reportHTML(p.vision||p.goal)}</section><section data-project-anchor="folder"><h4>Project folder</h4><p class="prose project-folder-path">${esc(p.cwd||'Not recorded')}</p></section>${section('Agreed direction',brief.interpretation)}${section('Current milestone',brief.milestone)}${section('Evidence of success',brief.success)}${section('Constraints',brief.constraints)}${section('Open questions',p.open_questions)}${section('Next steps',p.next_steps)}${p.priority||p.deadline?`<p class="project-meta">${esc(typeof priorityLabel==='function'?priorityLabel(p.priority):p.priority||'')}${p.deadline?' · Target '+esc(p.deadline):''}</p>`:''}${p.file_refs?.length||p.reference_files?.length?`<details data-preserve-open="${esc(key)}:references">${summary('references','References')}<ul>${(p.file_refs||[]).map(ref=>`<li>${esc(ref)}</li>`).join('')}</ul>${typeof savedReferencesHTML==='function'?savedReferencesHTML(p):''}</details>`:''}${p.vision_history?.length?`<details data-preserve-open="${esc(key)}:vision-history">${summary('vision-history','Vision history ('+p.vision_history.length+')')}${p.vision_history.map((v,index)=>`<article class="record" data-project-anchor="vision:${index}">${reportHTML(v.text)}<small>${esc(v.source)} · ${esc(date(v.at))}</small></article>`).join('')}</details>`:''}<details id="project-records" data-preserve-open="${esc(key)}:records">${summary('records','Saved decisions & questions ('+(p.records||[]).length+')')}${(p.records||[]).map(r=>`<div data-project-anchor="record:${esc(r.id)}" data-project-record="${esc(r.id)}">${recordHTML(r)}</div>`).join('')||'<p class="muted">None recorded.</p>'}<button data-view="briefings" class="mini-button">Manage project records</button></details>${p.accepted_results?.length?`<details data-preserve-open="${esc(key)}:accepted">${summary('accepted','Accepted results ('+p.accepted_results.length+')')}${p.accepted_results.map((r,index)=>`<article class="record" data-project-anchor="accepted:${index}"><button data-task="${esc(r.task_id)}" class="text-button">${esc(r.title)}</button>${reportHTML(r.summary)}<small>${esc(r.provenance)} · ${esc(date(r.accepted_at))}</small></article>`).join('')}</details>`:''}${messages.length?`<details data-preserve-open="${esc(key)}:conversation">${summary('conversation','Project conversation ('+messages.length+')')}${messages.map(m=>`<article class="record" data-project-anchor="message:${esc(m.id)}"><small>${esc(m.role==='user'?'You':m.basis||'CoS')} · ${esc(date(m.created))}</small>${reportHTML(m.text)}</article>`).join('')}</details>`:''}${findings.length?`<details data-preserve-open="${esc(key)}:findings">${summary('findings','Saved findings ('+findings.length+')')}${findings.map((f,index)=>`<article class="record" data-project-anchor="finding:${index}">${reportHTML(f.text)}<button data-task="${esc(f.task_id)}" class="mini-button">Source result</button></article>`).join('')}</details>`:''}</details>`;
+}
+function projectAgentRows(p){
+  return currentAgents(p.id).map(t=>`<article class="project-agent-row" data-project-anchor="agent:${esc(t.id)}"><div class="project-agent-heading"><button data-task="${esc(t.id)}" data-project-focus="agent:${esc(t.id)}" class="text-button" title="${esc(t.title)}">${esc(AgentModel.title(t,48))}</button><span class="project-state" data-project-tone="${projectAgentNeedsYou(t)?'attention':['running','queued','stopping'].includes(t.state)?'active':'quiet'}">${esc((t.config?.mode==='simulated'?'Simulated · ':'')+projectAgentLabel(t))}</span>${['running','queued','stopping'].includes(t.state)?`<button data-agent-stop="${esc(t.id)}" data-project-focus="stop:${esc(t.id)}" class="mini-button" ${t.state==='stopping'?'disabled':''}>${t.state==='stopping'?'Stopping…':'Stop'}</button>`:''}</div><details data-preserve-open="project:${esc(p.id)}:agent:${esc(t.id)}"><summary data-project-focus="agent-details:${esc(t.id)}" data-project-anchor="agent-details:${esc(t.id)}">Run details</summary>${taskFeedbackHTML(t)}${t.worktree?'<p class="project-meta">Run uses a separate checkout · folder in agent Details</p>':''}</details></article>`).join('')||'<p class="muted">No agents yet.</p>';
+}
 renderProjects=function(){
-  return `<div class="section-title"><button id="projects-new">+ New project</button></div>${state.projects.map(p=>`<article class="panel"><h3><button class="text-button" data-project="${esc(p.id)}">${esc(p.name)}</button></h3><p>${reportPreview(p.vision||p.goal,150)}</p><p class="section-note">${currentAgents(p.id).length} agent${currentAgents(p.id).length===1?'':'s'}</p><details><summary>Project folder</summary><p class="prose">${esc(p.cwd)}</p></details><div class="actions"><button data-project="${esc(p.id)}">Open project</button><button data-start-agent="${esc(p.id)}" class="primary">Start agents</button></div></article>`).join('')||'<p>No projects yet. Start agents to create one from a working folder.</p>'}`;
+  return `<div id="project-panel" data-reading-key="projects"><div class="projects-toolbar"><button id="projects-new" data-project-focus="new">+ New project</button></div><section class="projects-list" aria-label="Projects">${state.projects.map(p=>{const status=projectStatus(p);return `<article class="project-list-row" data-project-anchor="project:${esc(p.id)}"><div class="project-list-heading"><h3><button class="text-button" data-project="${esc(p.id)}" data-project-focus="open:${esc(p.id)}">${esc(p.name)}</button></h3><button data-start-agent="${esc(p.id)}" data-project-focus="start:${esc(p.id)}" class="text-button project-start">Start agents</button></div><p class="project-vision-preview">${esc(shortTaskText(resultPlain(p.vision||p.goal),120))}</p><p class="project-state" data-project-tone="${status.tone}">${status.tone==='attention'?'<strong>Needs you · </strong>':''}${esc(status.text)}</p></article>`;}).join('')||'<p class="muted">No projects yet. Start agents or create a project.</p>'}</section></div>`;
 };
 renderProject=function(){
   const p=state.projects.find(p=>p.id===selectedProject);if(!p)return '<p>Project not found.</p>';
   lunarScene?.selectProject(p.id);
-  return `<div class="actions"><button data-start-agent="${esc(p.id)}" class="primary">+ Start agents here</button><button data-edit-project="${esc(p.id)}">Project details</button></div><p>${reportPreview(p.vision||p.goal,180)}</p><details><summary>Vision & folder</summary>${reportHTML(p.vision||p.goal)}<p class="prose">${esc(p.cwd)}</p></details><h3>Agents</h3><div class="agent-grid">${currentAgents(p.id).map(agentCard).join('')||'<p class="muted">No agents yet.</p>'}</div><h3>Recent results</h3>${agentResultRows(AgentModel.results(state.tasks,p.id).slice(0,4))}<details><summary>Saved project decisions & questions</summary>${(p.records||[]).map(recordHTML).join('')||'<p class="muted">None recorded.</p>'}<button data-view="briefings">Manage project records</button></details>`;
+  const status=projectStatus(p),{latest,earlier}=groupAgentResults(AgentModel.results(state.tasks,p.id));
+  const folder=String(p.cwd||'').replace(/[\\/]+$/,'').split(/[\\/]/).at(-1)||'Folder not recorded';
+  return `<div id="project-panel" data-reading-key="project:${esc(p.id)}"><div id="project-overview" data-project-id="${esc(p.id)}"><button data-projects-overview data-project-focus="back" class="text-button project-back">← Back to Projects</button><div class="project-controls"><button data-start-agent="${esc(p.id)}" data-project-focus="start" class="primary">+ Start agents</button><button data-edit-project="${esc(p.id)}" data-project-focus="edit" class="text-button">Edit project</button></div><section class="project-summary" data-project-anchor="summary"><p class="project-vision-preview">${esc(shortTaskText(resultPlain(p.vision||p.goal),180))}</p><p class="project-meta">${esc(folder)}</p><p class="project-state" data-project-tone="${status.tone}">${esc(status.text)}</p></section>${status.waiting.length||status.records.length?`<div class="project-needs-you" data-project-anchor="needs-you"><strong>Needs you</strong>${status.waiting.map(t=>`<button data-task="${esc(t.id)}" data-project-focus="reply:${esc(t.id)}" class="text-button">${esc(AgentModel.title(t,36))} →</button>`).join('')}${status.records.length?`<button data-project-records data-project-focus="requests" class="text-button">Review questions & decisions (${status.records.length}) →</button>`:''}</div>`:''}<section class="project-agents" aria-label="Current agents"><h3>Agents</h3>${projectAgentRows(p)}</section><section class="project-latest-results" aria-label="Latest results"><h3>Latest results</h3>${agentResultRows(latest,{showProject:false})}</section>${earlier.length?`<details class="previous-results project-earlier" data-preserve-open="project:${esc(p.id)}:earlier"><summary data-project-anchor="earlier" data-project-focus="earlier">Earlier runs (${earlier.length})</summary>${agentResultRows(earlier,{showProject:false})}</details>`:''}${projectContextHTML(p)}</div></div>`;
 };
 function openCoordinatorPanel(id){
   const job=state.jobs.find(j=>j.id===id);if(!job)return;
@@ -278,6 +352,11 @@ function openCoordinatorPanel(id){
 
 document.addEventListener('click',async event=>{
   const button=event.target.closest('button');if(!button)return;
+  if(button.hasAttribute('data-projects-overview')){setView('projects');return;}
+  if(button.hasAttribute('data-project-records')){
+    $('#project-context').open=true;const records=$('#project-records');records.open=true;
+    records.querySelector('summary').focus();records.scrollIntoView({block:'start',behavior:'instant'});return;
+  }
   if(button.dataset.agentCopy){
     const task=state.tasks.find(t=>t.id===currentModal?.id);if(!task)return;
     const folders=agentFolders(task),value=({'session':task.session_id,'project-folder':folders.project,'working-folder':folders.working})[button.dataset.agentCopy];

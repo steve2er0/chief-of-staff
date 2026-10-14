@@ -1,0 +1,11 @@
+{
+  "source": "Deterministic asset-only composition, same path/timing as standalone Canvas preview",
+  "frames": 64,
+  "duration_seconds": 8,
+  "dimensions": [
+    960,
+    600
+  ],
+  "motion": "Grounded forward/reverse rover with 8 wheel states, gentle cyan greenhouse/dish display pulse",
+  "boundary": "Not a recording of app or real agent activity"
+}

@@ -224,6 +224,45 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
 .result-handoff.result-compact>.result-files,.result-handoff.result-compact>.result-more{margin:12px 0 0;padding:12px 0 0}
 .result-handoff.result-compact>details>summary{font-size:12px;color:var(--muted)}
 .result-back{font-size:12px;margin:0 0 16px}
+#project-panel{font-size:13px}
+.projects-toolbar{display:flex;justify-content:flex-end;margin:0 0 14px}
+.projects-toolbar button{font-size:12px;padding:8px 11px}
+.project-list-row{border-top:1px solid var(--line);padding:18px 0}
+.project-list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.project-list-heading h3{margin:0;min-width:0;font-size:15px}
+.project-list-heading h3 button{font-size:15px;line-height:1.5;font-weight:650;text-align:left;overflow-wrap:anywhere}
+.project-list-heading .project-start{flex-shrink:0;font-size:11px;color:var(--muted);padding:6px 0}
+.project-vision-preview{margin:8px 0;line-height:1.65;font-size:13px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.project-state{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 0;overflow-wrap:anywhere}
+.project-state[data-project-tone=attention]{color:var(--gold)}
+.project-state[data-project-tone=active]{color:var(--accent)}
+.project-state[data-project-tone=finished]{color:var(--success)}
+.project-controls{display:flex;align-items:center;gap:14px;margin:0 0 14px}
+.project-controls button{font-size:12px}
+.project-controls .primary{padding:8px 11px}
+.project-back{align-self:flex-start;font-size:12px;margin:0 0 16px}
+.project-summary{margin:0 0 18px}
+.project-meta{font-size:11px;color:var(--muted);line-height:1.6;margin:4px 0 0;overflow-wrap:anywhere}
+.project-needs-you{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;border-top:1px solid var(--line);padding:12px 0;margin-bottom:12px;color:var(--gold);font-size:12px}
+.project-needs-you button{font-size:12px;color:var(--gold);overflow-wrap:anywhere;text-align:left}
+#project-overview>section>h3{font-size:14px;margin:20px 0 10px}
+.project-agent-row{border-top:1px solid var(--line);padding:12px 0}
+.project-agent-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.project-agent-heading>.text-button{font-size:13px;text-align:left;overflow-wrap:anywhere;flex:1;min-width:0}
+.project-agent-heading .project-state{margin:0;text-align:right;max-width:42%}
+.project-agent-heading .mini-button{font-size:11px;padding:5px 8px}
+.project-agent-row>details{border:0;margin:6px 0 0;padding:0}
+.project-agent-row>details>summary{font-size:11px;color:var(--muted)}
+.project-agent-row .task-feedback{margin-top:10px}
+.project-earlier,.project-context{border-top:1px solid var(--line);padding:14px 0;margin:0}
+.project-earlier>summary,.project-context summary{font-size:12px;color:var(--muted)}
+.project-context h4{font-size:12px;margin:18px 0 7px}
+.project-context .report-markdown{font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.project-folder-path{font-size:12px;overflow-wrap:anywhere}
+.project-context .record{font-size:12px;scroll-margin-top:100px}
+.project-context .record small{font-size:10px;color:var(--muted)}
+.project-context details{margin:14px 0 0;padding-top:12px}
+#project-records{scroll-margin-top:100px}
 #agent-returned-work>article{margin-bottom:16px}
 .previous-results>summary{font-size:12px}
 @media(max-width:650px){

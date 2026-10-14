@@ -31,6 +31,35 @@ The client has no independent external-agent inventory, measured progress or tok
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
 
+## Projects panel and expansion artwork delivery (2026-10-14)
+
+The Projects panel shows compact names, vision previews and current agent status.
+Each project presents current agents and one latest result per persistent agent;
+Earlier runs and Project context retain older results and the full owner context.
+Returning from an agent/result restores disclosure state, focus and reading
+position. Pending requests remain visible; project rendering does not mutate
+operational records.
+
+- **349 tests passed**. Project regressions cover current agent identity,
+  latest/earlier result grouping, retained vision and history, references,
+  records, conversations and findings, pending/sending responses, simulation
+  labels and relevant update signatures.
+- All **30 JavaScript/CJS files**, the standalone artwork preview script and
+  Python sources passed syntax checks. Generated scene/styles rebuild byte for
+  byte; whitespace checks passed.
+- The operational browser showed both existing projects and finished agents.
+  The SP-8072 project displayed one latest result and eight earlier results;
+  its full vision remained in Project context. Opening a result and returning
+  retained expanded sections and restored focus. Back to Projects worked.
+  Warning/error logs were empty, and the browser returned to All projects in
+  the live view. No agents, instructions or operational records were changed.
+- The separate five-sprite expansion pack passed its acceptance script in an
+  isolated copy: transparency, margins, scale, anchors, source hashes, rover
+  frame registration, emission layers, 64-frame/eight-second motion and review
+  placement. Display-sprite hashes and unchanged base-reference hashes also
+  matched. The contact sheet and placement preview were inspected visually.
+  These are future assets and illustrative previews, not live map integration.
+
 ## Manual infrastructure choices (2026-10-14)
 
 Every live astronaut card now offers **Work at**, with **Automatic** as the
@@ -184,3 +213,29 @@ Reloading the existing operational browser tab was blocked by Chrome with
 ERR_BLOCKED_BY_CLIENT, so this change has isolated browser verification rather
 than a completed live-service browser check. No operational records, worker
 sessions, execution permissions or running service were changed.
+
+## Compact Projects panel (2026-10-14)
+
+The full suite passed **349 tests**. Project presentation checks cover current
+agent counts without duplicate earlier turns, one latest saved outcome per agent,
+retained full owner vision and history, references, accepted records, conversation
+and findings. Questions, decisions and native request states remain distinct;
+linked requests are not counted twice and obsolete requests stay in history.
+Unrelated project progress does not rebuild the selected project panel. Source
+syntax checks and deterministic generated-asset rebuilds passed.
+
+The isolated read-only browser fixture used twelve projects, active and finished
+agents, older turns, an open question and a long owner vision. Default views kept
+extra detail collapsed. Back to Projects restored the list position exactly;
+returning from a saved result retained open history and its reading position.
+Incoming results preserved open sections and focus, with anchor shifts below one
+pixel. When the focused result became an earlier run, that section opened to keep
+the previous result readable. The full vision and both saved vision revisions
+remained available. Questions revealed the saved records without submitting them.
+
+At 390 by 844, the project list and project view had a 390-pixel document/drawer
+and no horizontal overflow. Temporary viewport overrides were reset. Fixture
+interactions used GET requests only; no worker or model was launched. Chrome
+blocked the operational tab reload during that initial fixture QA. The delivery
+check above subsequently verified the live service. The running service was not
+restarted.

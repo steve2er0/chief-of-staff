@@ -122,6 +122,13 @@ and detailed planning remain available when useful. Dependencies are advisory;
 deferred work pieces stay deferred. See [agent management](docs/AGENT-MANAGER.md)
 for transport, recovery and validation details.
 
+The **Projects** panel shows each project's name, short vision and current agent
+status. Open a project for compact agent rows and one latest result per agent;
+**Earlier runs** keeps all older results. **Project context** preserves the full
+owner-written vision, vision history, references, conversation and saved records.
+Questions and reply requests stay visible. **Back to Projects** and **Back to
+project** restore reading position; live updates retain expanded sections and focus.
+
 With **Codex mode** configured, creating a project automatically starts a
 read-only setup review of the vision, working folder and selected references.
 The project saves immediately while the CoS gets oriented. Empty folders are valid.
