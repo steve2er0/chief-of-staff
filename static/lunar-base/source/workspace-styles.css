@@ -66,6 +66,17 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
 #toast{z-index:40}
 .live-agent-request fieldset{border:0;padding:0;margin:0;min-width:0}
 .live-agent-request fieldset:disabled{opacity:.65}
+/* Start keeps instructions prominent and shows the selected execution scope. */
+#start-agent-form .new-agent-row .row{margin-bottom:8px}
+#start-agent-form .agent-name-options{border:0;padding:0;margin:8px 0 0}
+#start-agent-form .agent-name-options summary{font-size:11px;overflow-wrap:anywhere}
+#start-agent-form .agent-name-options label{margin:10px 0 0}
+.start-agent-folder{font-size:11px;color:var(--muted);margin:0 0 4px}
+.start-agent-folder strong{display:block;font-size:13px;font-weight:550;color:var(--ink);overflow-wrap:anywhere}
+.start-agent-folder-path{border:0;padding:0;margin:0 0 12px}
+.start-agent-folder-path summary{font-size:11px}
+#agent-folder-path{font-size:12px;overflow-wrap:anywhere;margin:8px 0 0}
+#agent-options-summary{display:block;color:var(--ink);line-height:1.5;margin:4px 0 0 14px;overflow-wrap:anywhere}
 @media(max-width:1000px){
  body[data-panel-open] main.agent-workspace,body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:0}
  .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{width:min(570px,70vw)}
@@ -89,6 +100,10 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
  .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{top:16dvh;height:84dvh;width:100%;border-radius:15px 15px 0 0;padding:16px}
  .workspace-drawer .modal-top{top:-16px}
  .workspace-drawer .form-grid{grid-template-columns:1fr}
+ #start-agent-form .path-input{flex-wrap:nowrap;gap:8px}
+ #start-agent-form .path-input input{flex-basis:0}
+ #start-agent-form .path-input button{font-size:12px;padding:10px}
+ #start-agent-form .new-agent-row{padding:14px}
  .workspace-footer{font-size:10px}
 }
 

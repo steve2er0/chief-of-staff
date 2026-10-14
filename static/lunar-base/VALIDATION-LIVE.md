@@ -60,6 +60,25 @@ operational records.
   matched. The contact sheet and placement preview were inspected visually.
   These are future assets and illustrative previews, not live map integration.
 
+## Start agents refinements (2026-10-14)
+
+The existing single-panel launch flow now shows the selected project's folder,
+with its full path expandable. Optional project/agent names are collapsed, agent
+rows and the Start count stay in sync, and the execution summary and short footer
+follow the selected access, networking, duration and checkout choices.
+
+- **350 tests passed**, including a regression for displayed execution choices.
+  Focused agent/panel/time-limit/project checks passed 61 tests.
+- An isolated browser fixture checked folder switching and selection, collapsed
+  custom names, three agents with a middle row removed, retained instructions,
+  read-only normalization, networking and separate-checkout notices, and 15-minute
+  versus unlimited duration. Blocked launches verified the actual submitted
+  payload and an unchanged retry ID without launching any worker.
+- At 390×844, the default new-project form's Start button and footer fit on screen
+  with no horizontal overflow. Desktop and mobile previews contain synthetic
+  fixture data. The operational service and existing browser form were untouched;
+  this checks UI behavior, not live provider execution.
+
 ## Manual infrastructure choices (2026-10-14)
 
 Every live astronaut card now offers **Work at**, with **Automatic** as the

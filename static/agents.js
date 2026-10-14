@@ -63,12 +63,44 @@ function restoreResultsOverview(){
   if(saved.focus)[...node.querySelectorAll('[data-result-focus]')].find(el=>el.dataset.resultFocus===saved.focus)?.focus({preventScroll:true});
 }
 
-function newAgentFields() {
-  return `<section class="new-agent-row"><div class="row"><h3>Agent</h3><button type="button" data-remove-agent class="mini-button">Remove</button></div><label>Instructions<textarea name="instructions" required rows="3" placeholder="What should this agent accomplish?"></textarea></label><label>Name <span class="muted">· optional</span><input name="title" maxlength="100" placeholder="A short task name"></label></section>`;
+function newAgentFields(number=1) {
+  return `<section class="new-agent-row"><div class="row"><h3>Agent ${number}</h3><button type="button" data-remove-agent class="mini-button" ${number===1?'hidden disabled':''}>Remove</button></div><label>Instructions<textarea name="instructions" aria-label="Instructions for Agent ${number}" required rows="3" placeholder="What should this agent accomplish?"></textarea></label><details class="agent-name-options"><summary data-agent-name>Customize name</summary><label>Name <span class="muted">· optional</span><input name="title" aria-label="Name for Agent ${number}" maxlength="100" placeholder="Uses the first line of instructions"></label></details></section>`;
+}
+function startAgentExecution(values,seconds) {
+  const reader=values.access==='read-only',yolo=!reader&&values.execution_policy==='yolo';
+  const access=reader?'Read-only · Sandboxed':yolo?'Full access (YOLO)':'Edit files · Sandboxed';
+  const duration=values.time_limit==='default'?(seconds%60===0?`${seconds/60} min`:`${seconds} sec`):'Until finished or stopped';
+  return {summary:access+(values.research_access&&!reader&&!yolo?' · Network allowed':'')+' · '+duration,
+    footer:reader?'Read-only · no project edits.':values.isolate?'Git edits stay in separate checkouts; other folders are edited directly.':'Edits go to the project folder.',
+    permission:yolo?'YOLO lets CLI commands access files and the network beyond the project.':'Sandboxed agents can ask here for extra tool permissions.'};
+}
+function syncStartAgentForm() {
+  const form=$('#start-agent-form');if(!form)return;
+  const fields=form.elements,project=state.projects.find(p=>p.id===fields.project_id.value),reader=fields.access.value==='read-only';
+  $('#agent-new-project').hidden=!!project;$('#agent-existing-project').hidden=!project;
+  fields.cwd.required=!project&&state.config.mode==='codex';
+  const folder=project?.cwd||'',label=folder.split(/[\\/]/).filter(Boolean).pop()||folder;
+  $('#agent-selected-folder').textContent=label||'No working folder set';
+  $('#agent-folder-path').textContent=folder;$('#agent-folder-path').closest('details').hidden=!folder;
+  fields.execution_policy.querySelector('[value=yolo]').disabled=reader;if(reader)fields.execution_policy.value='sandboxed';
+  fields.research_access.disabled=reader||fields.execution_policy.value==='yolo';if(reader)fields.research_access.checked=false;
+  const execution=startAgentExecution({access:fields.access.value,execution_policy:fields.execution_policy.value,research_access:fields.research_access.checked,isolate:fields.isolate.checked,time_limit:fields.time_limit.value},state.config.timeout_seconds);
+  $('#agent-options-summary').textContent=execution.summary;$('#agent-folder-note').textContent=execution.footer;$('#agent-permission-note').textContent=execution.permission;
+  const rows=[...form.querySelectorAll('.new-agent-row')];
+  rows.forEach((row,index)=>{
+    const number=index+1,remove=row.querySelector('[data-remove-agent]');row.querySelector('h3').textContent=`Agent ${number}`;
+    remove.hidden=rows.length===1;remove.disabled=rows.length===1;remove.setAttribute('aria-label',`Remove Agent ${number}`);
+    row.querySelector('[name=instructions]').setAttribute('aria-label',`Instructions for Agent ${number}`);
+    const name=row.querySelector('[name=title]');name.setAttribute('aria-label',`Name for Agent ${number}`);
+    row.querySelector('[data-agent-name]').textContent=name.value.trim()?'Name · '+name.value.trim():'Customize name';
+  });
+  form.querySelector('button[type=submit]').textContent=`Start ${rows.length} agent${rows.length===1?'':'s'} →`;
+  $('[data-start-project-name]').textContent=fields.project_name.value.trim()?'Project name · '+fields.project_name.value.trim():'Customize project name';
 }
 function startAgentModal(pid='') {
   const project=state.projects.find(p=>p.id===(pid||selectedProject||boardFilter));
-  modal('Start agents','',`<form id="start-agent-form"><label>Project<select name="project_id" id="agent-project"><option value="">Choose a folder for a new project</option>${state.projects.map(p=>`<option value="${esc(p.id)}" ${project?.id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><div id="agent-new-project" ${project?'hidden':''}><label>Working folder<div class="path-input"><input name="cwd" id="project-cwd" placeholder="Absolute project folder" ${state.config.mode==='codex'&&!project?'required':''}><button type="button" data-pick-path="directory">Choose folder…</button></div></label><label>Project name<input name="project_name" placeholder="Optional · uses the folder name"></label></div><div id="new-agent-rows">${newAgentFields()}</div><button type="button" data-add-agent class="mini-button">+ Add another agent</button><details class="agent-options"><summary>Execution options · ${state.config.default_execution_policy==='yolo'?'YOLO':'sandboxed'} · until finished or stopped</summary><div class="form-grid"><label>Access<select name="access"><option value="workspace-write">Edit project files</option><option value="read-only">Read-only report</option></select></label><label>Execution<select name="execution_policy"><option value="sandboxed" ${state.config.default_execution_policy!=='yolo'?'selected':''}>Sandboxed · project access</option><option value="yolo" ${state.config.default_execution_policy==='yolo'?'selected':''}>YOLO · full CLI access</option></select></label></div><label class="checkbox-label"><input type="checkbox" name="research_access">Allow command network access in sandboxed mode</label><label class="checkbox-label"><input type="checkbox" name="isolate" ${state.config.default_isolate?'checked':''}>Use separate checkouts for Git projects</label><p class="section-note">Agents edit the chosen project folder by default. Writers in overlapping folders run one at a time. Separate checkouts allow parallel edits in the same Git project; those edits stay in the checkout until applied to the original.</p><label>Time limit<select name="time_limit"><option value="none">Until finished or stopped</option><option value="default">Configured limit · ${esc(state.config.timeout_seconds)} seconds</option></select></label><p class="section-note" id="agent-permission-note">${state.config.default_execution_policy==='yolo'?'YOLO lets CLI commands access files and the network beyond the project.':'Sandboxed agents can ask for additional tool permissions here when needed.'}</p></details><div class="actions"><button type="submit" class="primary">Start agents →</button></div><p class="section-note"><span id="agent-folder-note">${state.config.default_isolate?'Changes stay in separate checkouts until applied to the original project.':'Changes are saved directly in the chosen project folder.'}</span> Start launches these instructions with the execution options above.</p><p id="agent-start-status" role="status" aria-live="polite"></p></form>`,'start-agents',project?.id||'');
+  modal('Start agents','',`<form id="start-agent-form"><label>Project<select name="project_id" id="agent-project"><option value="">Choose a folder for a new project</option>${state.projects.map(p=>`<option value="${esc(p.id)}" ${project?.id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><div id="agent-existing-project" ${project?'':'hidden'}><p class="start-agent-folder">Working folder <strong id="agent-selected-folder"></strong></p><details class="start-agent-folder-path"><summary>Full path</summary><p id="agent-folder-path"></p></details></div><div id="agent-new-project" ${project?'hidden':''}><label>Working folder<div class="path-input"><input name="cwd" id="project-cwd" placeholder="Absolute project folder" ${state.config.mode==='codex'&&!project?'required':''}><button type="button" data-pick-path="directory">Choose folder…</button></div></label><details class="agent-name-options"><summary data-start-project-name>Customize project name</summary><label>Project name<input name="project_name" placeholder="Uses the folder name"></label></details></div><div id="new-agent-rows">${newAgentFields()}</div><button type="button" data-add-agent class="mini-button">+ Add another agent</button><details class="agent-options"><summary>Execution options<span id="agent-options-summary"></span></summary><div class="form-grid"><label>Access<select name="access"><option value="workspace-write">Edit project files</option><option value="read-only">Read-only report</option></select></label><label>Execution<select name="execution_policy"><option value="sandboxed" ${state.config.default_execution_policy!=='yolo'?'selected':''}>Sandboxed · project access</option><option value="yolo" ${state.config.default_execution_policy==='yolo'?'selected':''}>YOLO · full CLI access</option></select></label></div><label class="checkbox-label"><input type="checkbox" name="research_access">Allow command network access in sandboxed mode</label><label class="checkbox-label"><input type="checkbox" name="isolate" ${state.config.default_isolate?'checked':''}>Use separate checkouts for Git projects</label><p class="section-note">Writers in overlapping folders run one at a time. Separate checkouts allow parallel edits in Git projects; apply those edits to the original folder when ready.</p><label>Time limit<select name="time_limit"><option value="none">Until finished or stopped</option><option value="default">Configured limit · ${esc(state.config.timeout_seconds)} seconds</option></select></label><p class="section-note" id="agent-permission-note"></p></details><div class="actions"><button type="submit" class="primary">Start 1 agent →</button></div><p id="agent-folder-note" class="section-note"></p><p id="agent-start-status" role="status" aria-live="polite"></p></form>`,'start-agents',project?.id||'');
+  syncStartAgentForm();
 }
 
 function liveRequestsHTML(t) {
@@ -366,8 +398,11 @@ document.addEventListener('click',async event=>{
   if(button.dataset.agentTab){selectAgentTab(button.dataset.agentTab);return;}
   if(button.dataset.agentResult){const fromResults=Boolean($('#results-overview'));rememberResultsOverview();taskModal(button.dataset.agentResult,'results',fromResults);return;}
   if(button.hasAttribute('data-start-agent')){startAgentModal(button.dataset.startAgent);return;}
-  if(button.hasAttribute('data-add-agent')){$('#new-agent-rows').insertAdjacentHTML('beforeend',newAgentFields());return;}
-  if(button.hasAttribute('data-remove-agent')){if(document.querySelectorAll('.new-agent-row').length>1)button.closest('.new-agent-row').remove();return;}
+  if(button.hasAttribute('data-add-agent')){$('#new-agent-rows').insertAdjacentHTML('beforeend',newAgentFields(document.querySelectorAll('.new-agent-row').length+1));syncStartAgentForm();return;}
+  if(button.hasAttribute('data-remove-agent')){
+    const rows=[...document.querySelectorAll('.new-agent-row')],row=button.closest('.new-agent-row'),index=rows.indexOf(row);
+    if(rows.length>1){row.remove();syncStartAgentForm();document.querySelectorAll('.new-agent-row')[Math.min(index,rows.length-2)].querySelector('textarea').focus();}return;
+  }
   if(button.dataset.agentFilter){agentFilter=button.dataset.agentFilter;render();return;}
   if(button.dataset.agentOpenLatest){const latest=[...state.tasks].reverse().find(t=>(t.agent_id||t.id)===button.dataset.agentOpenLatest&&t.state!=='superseded');if(latest)taskModal(latest.id);return;}
   if(button.dataset.agentStop){button.disabled=true;try{await api('action',{id:button.dataset.agentStop,action:'pause'});if(currentModal?.type==='task')syncAgentSession();else render();toast('Stopping the agent and its tools.');}catch(error){toast(error.message,true);}finally{if(button.isConnected)button.disabled=false;}}
@@ -375,20 +410,11 @@ document.addEventListener('click',async event=>{
 document.addEventListener('change',event=>{
   const field=event.target;
   if(field.name==='fresh'&&field.closest('#agent-reply-form')){agentSessionChoices.set(field.form.dataset.taskId,field.checked);syncAgentSession();}
-  if(field.id==='agent-project'){
-    $('#agent-new-project').hidden=!!field.value;
-    $('#start-agent-form').elements.cwd.required=!field.value&&state.config.mode==='codex';
-  }
-  if(field.closest('#start-agent-form')&&field.name==='isolate')$('#agent-folder-note').textContent=field.checked?'Changes stay in separate checkouts until applied to the original project.':'Changes are saved directly in the chosen project folder.';
+  if(field.closest('#start-agent-form'))syncStartAgentForm();
   if(field.dataset.questionChoice){const answer=[...field.form.querySelectorAll('[data-agent-answer]')].find(x=>x.dataset.agentAnswer===field.dataset.questionChoice);answer.value=field.value;}
-  if(field.closest('#start-agent-form')&&['access','execution_policy'].includes(field.name)){
-    const form=field.form,reader=form.elements.access.value==='read-only',policy=form.elements.execution_policy;
-    policy.querySelector('[value=yolo]').disabled=reader;if(reader)policy.value='sandboxed';
-    form.elements.research_access.disabled=reader||policy.value==='yolo';if(reader)form.elements.research_access.checked=false;
-    $('#agent-permission-note').textContent=policy.value==='yolo'?'YOLO lets CLI commands access files and the network beyond the project.':'Sandboxed agents can ask for additional tool permissions here when needed.';
-  }
 });
 document.addEventListener('input',event=>{
+  if(event.target.closest('#start-agent-form'))syncStartAgentForm();
   if(event.target.closest('[data-live-agent-form]'))rememberLiveRequestDrafts();
   if(event.target.closest('#agent-reply-form')&&event.target.name==='text')agentReplyDrafts.set(event.target.form.dataset.taskId,event.target.value);
 });

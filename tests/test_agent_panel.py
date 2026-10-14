@@ -67,6 +67,30 @@ class DiscussionHandoffTests(unittest.TestCase):
 
 class AgentPanelPresentationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
+    def test_start_summary_reports_selected_permissions_and_duration(self):
+        root = Path(__file__).resolve().parents[1]
+        script = r'''
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const c={document:{addEventListener(){}},setInterval(){},planModal(){}};vm.createContext(c);
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
+c.values={access:'workspace-write',execution_policy:'yolo',time_limit:'none',research_access:true,isolate:false};
+const presentation=()=>vm.runInContext('startAgentExecution(values,900)',c);
+assert.ok(presentation().summary.includes('Full access (YOLO)'));
+assert.ok(presentation().summary.includes('Until finished or stopped'));
+c.values.execution_policy='sandboxed';c.values.time_limit='default';
+assert.ok(presentation().summary.includes('Sandboxed'));assert.ok(!presentation().summary.includes('YOLO'));
+assert.ok(presentation().summary.includes('15 min'));assert.ok(presentation().summary.includes('Network allowed'));
+c.values.isolate=true;assert.ok(presentation().footer.includes('separate checkouts'));
+c.values.access='read-only';
+assert.ok(presentation().summary.includes('Read-only'));assert.ok(!presentation().summary.includes('Network allowed'));
+assert.ok(presentation().footer.includes('no project edits'));assert.ok(!presentation().footer.includes('Edits go'));
+c.values.execution_policy='yolo';assert.ok(!presentation().summary.includes('YOLO'));
+c.values.time_limit='default';assert.ok(vm.runInContext('startAgentExecution(values,95).summary',c).includes('95 sec'));
+'''
+        run = subprocess.run(['node', '-e', script, str(root/'static/agents.js')], capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node is needed for presentation checks')
     def test_details_preserve_run_scope_permissions_and_session_choices(self):
         root = Path(__file__).resolve().parents[1]
         script = r'''

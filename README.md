@@ -63,6 +63,10 @@ existing project or a working folder, and write an instruction. Add another
 agent row for each separate responsibility, then click **Start agents** once.
 No framing proposal, work map, acceptance criteria form, or separate approval
 step is required. Starting records your instructions and execution choices.
+The selected project's folder stays visible, with its full path expandable.
+Optional project and agent names sit under **Customize name** controls. Agent rows
+are numbered, the Start button shows the count, and the collapsed execution
+summary follows your selected access, networking and time limit.
 
 Select an astronaut to open **Conversation**, **Results**, and **Details**. Conversation
 opens at the latest message with a compact reply box. Earlier runs are expandable;
