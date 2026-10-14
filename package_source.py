@@ -4,7 +4,7 @@ from pathlib import Path
 import zipfile
 
 root = Path(__file__).resolve().parent
-files = [root / name for name in ("app.py", "README.md", "package_source.py", ".gitignore")]
+files = [root / name for name in ("app.py", "launch_mac.py", "README.md", "package_source.py", ".gitignore")]
 for folder, suffixes in (("cos", {".py"}), ("static", {".html", ".css", ".js"}),
                          ("tests", {".py"}), ("docs", {".md"})):
     files += [p for p in (root / folder).rglob("*") if p.is_file() and p.suffix in suffixes and "__pycache__" not in p.parts]
@@ -12,6 +12,8 @@ for folder, suffixes in (("cos", {".py"}), ("static", {".html", ".css", ".js"}),
 files += [p for p in (root / "static" / "lunar-base").rglob("*")
           if p.is_file() and p.suffix in {".png", ".json", ".md", ".py", ".cjs"}
           and "evidence" not in p.parts]
+files += [p for p in (root / "desktop").rglob("*")
+          if p.is_file() and p.suffix in {".py", ".swift", ".png", ".icns"}]
 archive = root.parent / "chief-of-staff-source.zip"
 with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as z:
     for path in sorted(files):

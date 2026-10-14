@@ -7,9 +7,12 @@ import re
 import subprocess
 import threading
 import time
+import tempfile
+import uuid
 
 from .adapter import MAX_EVENT_BYTES, WindowsJob, command_prefix, completion, session_id, stop_process
 from .safety import Invalid
+from .wire import CapturedText, Node, WireRecord, read_record, write_json
 
 
 class AgentControl:
@@ -64,7 +67,13 @@ def report(text, status, captured, artifacts, cwd=None):
             except (ValueError, OSError):
                 pass
     result["artifacts"] = list(dict.fromkeys(x for x in result["artifacts"] + sorted(paths) if isinstance(x, str)))
-    return dict(result, session_id=captured, agent_report=text, execution_verified=status == "completed")
+    result = dict(result, session_id=captured, agent_report=str(text), execution_verified=status == "completed")
+    if isinstance(text, CapturedText):
+        path = text.record.path.with_suffix('.report.txt')
+        text.save(path)
+        result.update(agent_report_file=str(path), report_truncated=True)
+        result.setdefault("delivery_notes", []).append("Full report saved in the report download; the live view shows a preview.")
+    return result
 
 
 def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, session=None,
@@ -100,9 +109,11 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
     warnings = []
     started = time.monotonic()
     turn_status = None
+    capture_dir = config.get("_capture_dir") or Path(tempfile.gettempdir()) / ("cos-agent-wire-" + str(uuid.uuid4()))
 
     def send(value):
-        process.stdin.write(json.dumps(value, ensure_ascii=False) + "\n")
+        write_json(value, process.stdin)
+        process.stdin.write("\n")
         process.stdin.flush()
 
     def call(method, params, action=None):
@@ -118,15 +129,10 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
     def read(pipe, channel):
         try:
             while not done.is_set():
-                line = pipe.readline(MAX_EVENT_BYTES + 1)
+                line = read_record(pipe, capture_dir, done)
                 if not line:
                     break
-                if len(line.encode("utf-8")) > MAX_EVENT_BYTES or not line.endswith("\n"):
-                    while line and not line.endswith("\n"):
-                        line = pipe.readline(MAX_EVENT_BYTES + 1)
-                    value = {"capture_warning": "An oversized app-server record was omitted; the agent kept running."}
-                else:
-                    value = line
+                value = line
                 while not done.is_set():
                     try:
                         events.put((channel, value), timeout=.1)
@@ -198,11 +204,33 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
                 continue
             if channel == "stderr":
                 continue  # Diagnostic stderr is not evidence that the turn failed.
+            record = None
+            captured_text = None
+            questions_omitted = False
+            has_secret_questions = False
             try:
-                event = json.loads(line)
+                if isinstance(line, Path):
+                    record = WireRecord(line)
+                    if not isinstance(record.root, Node):
+                        raise ValueError()
+                    event = record.root.preview()
+                    original = record.root.get("params")
+                    if isinstance(original, Node):
+                        questions = original.get("questions")
+                        if isinstance(questions, Node):
+                            questions_omitted = len(questions) != len(event.get("params", {}).get("questions", []))
+                            has_secret_questions = any(q.get("isSecret", False) for q in questions if isinstance(q, Node))
+                        original_item = original.get("item")
+                        if isinstance(original_item, Node):
+                            captured_text = original_item.get("text")
+                    record.close()
+                else:
+                    event = json.loads(line)
                 if not isinstance(event, dict):
                     raise ValueError()
             except (ValueError, TypeError):
+                if record:
+                    record.close()
                 warnings.append("An invalid app-server record was omitted.")
                 continue
             if "method" not in event and "id" in event:
@@ -251,9 +279,9 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
                     continue
                 if params.get("turnId") and turn_id and params["turnId"] != turn_id:
                     raise Invalid("Agent request belongs to a different turn")
-                requests[event["id"]] = params
+                requests[event["id"]] = True
                 update({"live_request": {"id": str(event["id"]), "wire_id": event["id"], "method": method,
-                                         "params": params, "status": "pending"}, "progress_kind": "activity", "progress": "Agent is waiting for your response"})
+                                         "params": params, "status": "pending", **({"capture_name": line.name, "questions_omitted": questions_omitted, "has_secret_questions": has_secret_questions} if record else {})}, "progress_kind": "activity", "progress": "Agent is waiting for your response"})
             elif method == "serverRequest/resolved":
                 requests.pop(params.get("requestId"), None)
                 update({"live_request_resolved": str(params.get("requestId"))})
@@ -265,10 +293,12 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
                 typ = item.get("type")
                 if typ == "agentMessage" and method == "item/completed":
                     text = item.get("text", "")
+                    if captured_text is not None:
+                        text = captured_text
                     if item.get("phase") != "commentary":
                         final = text
                     update({"progress": text, "progress_kind": "message", "event": method,
-                            "agent_message": {"id": item.get("id"), "text": text}})
+                            "agent_message": {"id": item.get("id"), "text": str(text), **({"capture_name": line.name} if record else {})}})
                 elif typ in ("commandExecution", "fileChange", "mcpToolCall", "webSearch"):
                     if typ == "fileChange":
                         for change in item.get("changes", []):
@@ -296,10 +326,17 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
                 channel, line = events.get(timeout=.05)
             except queue.Empty:
                 continue
-            if channel != "stdout" or not isinstance(line, str):
+            if channel != "stdout" or line is None:
                 continue
             try:
-                event = json.loads(line)
+                if isinstance(line, Path):
+                    saved_record = WireRecord(line)
+                    try:
+                        event = saved_record.root.preview() if isinstance(saved_record.root, Node) else None
+                    finally:
+                        saved_record.close()
+                else:
+                    event = json.loads(line)
             except (ValueError, TypeError):
                 continue
             if not isinstance(event, dict) or "method" in event or event.get("id") not in pending:
@@ -315,7 +352,7 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
                 receipt(action, "uncertain", "Agent acknowledged a different turn")
         result = report(final, turn_status, captured, artifacts, cwd)
         if warnings:
-            result["delivery_notes"] = warnings
+            result.setdefault("delivery_notes", []).extend(warnings)
         return result
     except (Invalid, ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
         result = report(final or str(error), "failed", captured, artifacts)

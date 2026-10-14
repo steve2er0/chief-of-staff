@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -144,11 +145,11 @@ class CommandCenterTests(unittest.TestCase):
         self.s.tick();self.assertEqual(len(self.s.active),7)
         self.adapter.release.set();self.drain()
 
-    def test_review_item_leaves_queue_only_after_owner_acceptance(self):
+    def test_managed_result_is_collectable_without_requiring_owner_acceptance(self):
         self.adapter.result=copy.deepcopy(test_app.GOOD)
         self.adapter.writer=lambda cwd:(cwd/'research.txt').write_text('Reviewable fixture')
         task=self.finished();self.assertEqual(task['state'],'ready_for_review')
-        self.assertEqual(self.items()[0]['group'],'reviews')
+        self.assertFalse(self.items())
         self.s.action(task['id'],'accept','Reviewed fixture output')
         self.assertFalse(self.items());self.assertTrue(self.s.store.get('project',self.p['id'])['accepted_results'])
 
@@ -156,7 +157,10 @@ class CommandCenterTests(unittest.TestCase):
         self.s.settings({'concurrency':6});self.adapter.hold=True
         for _ in range(2):
             plan=self.draft();self.s.approve(plan['id'],plan['revision']);self.s.launch(plan['id'])
-        self.s.tick();self.assertEqual(len(self.s.active),1)
+        end=time.monotonic()+2
+        while not self.s.active and time.monotonic()<end:
+            self.s.tick();time.sleep(.005)
+        self.assertEqual(len(self.s.active),1)
         self.assertEqual(sum(t['state']=='queued' for t in self.s.store.all('task')),1)
         self.adapter.release.set();self.drain()
 

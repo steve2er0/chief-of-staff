@@ -106,12 +106,11 @@ disk. Its last captured project test run passed 145 of 146 tests; the failure
 asserted the previous offline cache identifier after the worker updated it. This
 is incomplete work, not an accepted result or verified engineering delivery.
 
-The current parser uses a 4 MiB record buffer and eight queued records, without
-cumulative byte or event-count cutoffs. Fixture tests cover runs above 16 MiB and
-20,000 events, UTF-8 byte limits, malformed data and actual CLI failures. Oversized
-records no longer stop the agent; capture omissions leave an explicit incomplete
-handoff while retaining the final report. These are injected streams, not live
-provider validation.
+The current parser reads bounded chunks with eight queued records and spills large
+records to disk. Fixture tests cover runs above 16 MiB and 20,000 events, Unicode
+and escaped text, malformed data, and actual CLI failures. Oversized questions stay
+answerable and report downloads retain complete text. These are injected streams,
+not live provider validation.
 
 Result tests reproduce a delivery with 40 regular files plus an invalid directory:
 all valid files and the original report survive, the handoff names the bad entry,
@@ -192,3 +191,34 @@ permission display/decline, Stop, paused continuation controls, disconnect
 freeze and recovery after an initial state-request failure. The map stays mounted behind panels. This is API/UI integration evidence;
 no real provider/model calls or operational-service restart were performed. See
 `static/lunar-base/VALIDATION-LIVE.md` for the full boundary.
+
+
+## Guardrail fixes (2026-10-13)
+
+Regression checks cover background preparation while state reads, queued replies
+and Stop remain responsive; per-UUID HTTP retries without global action blocking;
+planned native sessions and explicit deadlines; declared ignored file/folder inputs
+without unrelated ignored secrets; rejected external links; questions and reports
+above 4 MiB; bounded live previews and exact full permission replies. Older test
+expectations that managed results require acceptance before leaving the attention
+queue now reflect their optional acceptance. All checks use local fixtures and no
+paid model calls. Runtime provider behavior and Windows remain separate validation.
+
+Final verification passed 320 tests, Python syntax, all 26 JavaScript/CJS syntax
+checks, deterministic Lunar bundle rebuilds and `git diff --check`. An isolated
+browser fixture answered a request above 4 MiB, continued without acceptance,
+collected both turns and retained a 6,000,076-byte report with its final line.
+The 16 MiB capture regression stayed below 4 MiB of traced Python memory. The
+temporary browser/server were closed; no operational service or provider was used.
+
+
+## Mac app launcher (2026-10-13)
+
+The full suite passed 326 tests, including private instance discovery, URL
+containment, concurrent launcher reuse, Finder PATH construction, CLI model/profile
+selection and a real provider-free server start/cleanup. The installed arm64 Mac
+app passed strict code-signature verification. Finder opening started a detached
+server; reopening reused its PID and instance ID. The live UI showed Codex CLI
+mode, CLI help confirmed app-server support, and the existing login status passed.
+No model task was launched. The Desktop icon opens the current checkout and
+retains its existing runtime data; moving the checkout requires reinstalling it.

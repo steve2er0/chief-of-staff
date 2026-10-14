@@ -14,6 +14,7 @@
     return [...latest.values()].filter(t=>t&&(!projectId||t.project_id===projectId));
   }
   function status(task){
+    if(task.state==='queued'&&['pending','preparing'].includes(task.workspace_preparation))return 'Preparing';
     if(pending(task).length)return 'Waiting for you';
     const owner=task.owner_attention||task.user_requests;
     if(!['superseded','accepted','cancelled'].includes(task.state)&&owner?.state==='needs_user'&&owner.items?.length)return owner.items.every(i=>i.answered)?'Response saved · awaiting agent':'Waiting for you';
@@ -159,6 +160,7 @@ window.LunarWorkshopAssets={"regions":{"work":{"x":0,"y":192,"width":384,"height
       reason = state === 'stopping' ? 'CoS reports the worker is stopping.' : 'CoS reports a running worker.';
     } else if (['queued','paused','pending','waiting'].includes(state)) {
       category = 'waiting'; reason = state === 'queued' || state === 'pending' ? 'Waiting; this record does not prove a worker has started.' : 'Worker is paused or waiting.';
+      if(state==='queued'&&['pending','preparing'].includes(record.workspace_preparation))reason='Preparing a separate checkout and selected inputs; the agent has not started.';
     } else if (state === 'ready_for_review' || ['needs_input','waiting_for_input'].includes(state)) {
       category = 'needs_input'; reason = state === 'ready_for_review' ? 'The worker returned a result for your review.' : 'CoS explicitly reports that input is needed.';
       if(state==='ready_for_review'&&record.managed_agent&&!ownerPending){category='completed';reason='Returned work is saved in Results. Continue whenever you want; acceptance is optional.';}

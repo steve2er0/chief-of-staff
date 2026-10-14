@@ -8,7 +8,8 @@ The server and UI use no third-party runtime libraries.
 | `cos/server.py` | Loopback HTTP, cookie/CSRF/origin/Host checks, request UUID idempotency and bounded JSON requests |
 | `cos/store.py` | SQLite WAL, durable JSON records, atomic read/modify/write lock, audit history and exclusive service-instance lock |
 | `cos/service.py` | Projects/context, proposals, approval digest, task lifecycle, scheduling, directory locks, artifact validation, simulation and coordinator requests |
-| `cos/agents.py` | Direct batch starts, persistent agent identity, worktree isolation and immediate continuation |
+| `cos/agents.py` | Shared managed starts, persistent identity, asynchronous worktree preparation and continuation |
+| `cos/wire.py` | Disk-backed protocol records, incremental JSON/text capture and exact permission reply streaming |
 | `cos/live_agent.py` | Task-scoped app-server transport, live steering, request relay and delivery receipts |
 | `static/agents.js` | Primary agent board, start composer, session conversation and shared Results view |
 | `cos/portfolio.py` | Vision/history, discussion proposals, work maps and dependencies, selective delegation, partial findings, continuity and portfolio advice |
@@ -80,7 +81,7 @@ The network grant is not a domain allowlist; public-source/no-upload limits are
 prompt instructions. Browser tools and other connectors retain independent
 permission enforcement. A denial remains blocked; no automatic reviewer is enabled.
 
-An approved spec's `time_limit` is `default` or `none`, defaulting to `default`.
+An approved spec's `time_limit` is `default` or `none`. New drafts default to `none`; explicit finite choices remain available.
 The choice participates in the frozen approval digest. At launch, `none` maps to
 `timeout_seconds=0` in that task's config snapshot, which disables only the
 adapter's wall-clock deadline. Workspace settings retain their bounded default;
@@ -88,11 +89,12 @@ coordinator calls do not inherit the choice. Revisions keep it and require fresh
 approval. Cancellation, bounded capture buffering, session checks and completion validation
 remain active without a deadline.
 
-The JSONL reader uses a 4 MiB individual-record buffer and eight queued records.
-There is no cumulative output budget or event-count cutoff. Oversized records are
-drained without stopping the worker; omitted or malformed capture produces an
-incomplete handoff that identifies the log check needed before acceptance. Exact
-session identity, actual CLI failure and final completion contracts remain checked.
+The JSONL reader uses bounded chunks and eight queued records. Large records spill
+to task storage; `cos/wire.py` indexes JSON on disk and streams decoded text and
+exact permission profiles. Live state contains bounded previews and authenticated
+request/report downloads retain full contents. There is no cumulative output or
+event-count cutoff. Malformed data, session identity and actual CLI failures remain
+checked; managed agents accept prose and coordinators retain strict contracts.
 
 Result capture saves the original agent report before inspecting artifacts. There
 is no artifact-count cap or fixed per-file size cap: copies, downloads and integrity

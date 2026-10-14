@@ -1,4 +1,5 @@
 import base64
+from contextlib import contextmanager
 import binascii
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +11,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .safety import Invalid, docx_text, digest
 from .filesystem import browse_paths
+from .store import uid
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -19,11 +21,29 @@ class LocalServer(ThreadingHTTPServer):
         self.service = service
         self.token = secrets.token_urlsafe(32)
         self.csrf = secrets.token_urlsafe(32)
-        self.mutation_lock = threading.RLock()
+        self.instance_id = uid()
+        self.request_guard = threading.Lock()
+        self.request_locks = {}
         self.static = Path(__file__).resolve().parent.parent / "static"
         super().__init__(("127.0.0.1", port), Handler)
         self.origin = "http://127.0.0.1:" + str(self.server_port)
         self.allowed_hosts = {"127.0.0.1:" + str(self.server_port), "localhost:" + str(self.server_port)}
+
+
+    @contextmanager
+    def request_lock(self, key):
+        # Serialize only retries of the same action, not unrelated Stop/reply calls.
+        with self.request_guard:
+            entry = self.request_locks.setdefault(key, [threading.Lock(), 0])
+            entry[1] += 1
+        try:
+            with entry[0]:
+                yield
+        finally:
+            with self.request_guard:
+                entry[1] -= 1
+                if not entry[1]:
+                    del self.request_locks[key]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -104,6 +124,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (self.server.static / "lunar-base" / name).read_bytes(), content_type)
             if u.path == "/api/state":
                 return self.send(200, dict(self.server.service.snapshot(), csrf=self.server.csrf))
+            if u.path == "/api/launcher":
+                return self.send(200, {"app": "chief-of-staff", "instance_id": self.server.instance_id,
+                                       "config": self.server.service.config(), "csrf": self.server.csrf})
             parts = u.path.strip("/").split("/")
             if len(parts) == 3 and parts[:2] == ["api", "reference"]:
                 record = self.server.service.store.get("reference", parts[2])
@@ -112,15 +135,13 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) == 4 and parts[:2] == ["api", "output"]:
                 p = self.server.service.output(parts[2], unquote(parts[3]))
                 return self.send_output(p)
+            if len(parts) == 4 and parts[:2] == ["api", "agent-capture"]:
+                return self.send_output(self.server.service.live_capture(parts[2], unquote(parts[3])))
             return self.send(404, {"error": "Not found"})
         except (Invalid, ValueError, FileNotFoundError, OSError) as e:
             self.send(400, {"error": str(e)})
 
     def do_POST(self):
-        with self.server.mutation_lock:
-            self._post()
-
-    def _post(self):
         try:
             if not self.authorized():
                 return self.send(401, {"error": "Private session required"})
@@ -148,92 +169,97 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, browse_paths(raw.get("mode", "directory"), raw.get("path", ""),
                     raw.get("root", ""), raw.get("query", ""), raw.get("show_hidden", False),
                     protected=(s.data, self.server.static.parent)))
-            fingerprint = digest(json.dumps({"path": path, "body": raw}, sort_keys=True).encode())
-            try:
-                earlier = s.store.get("request", request_id)
-            except ValueError:
-                earlier = None
-            if earlier:
-                if earlier["fingerprint"] != fingerprint:
-                    raise Invalid("Request ID already used with different input")
-                return self.send(200, earlier["result"])
-            if path == "/api/start-agents":
-                result = s.start_agents(raw, request_id)
-            elif path == "/api/agent-reply":
-                result = s.reply_agent(raw["id"], raw.get("text", ""), request_id,
-                                       raw.get("confirmed_stopped", False), raw.get("fresh", False))
-            elif path == "/api/agent-response":
-                result = s.respond_agent(raw["id"], raw["request"], raw, request_id)
-            elif path == "/api/answer-and-continue":
-                result = s.answer_and_continue(raw["project_id"], raw["record_id"], raw, request_id)
-            elif path == "/api/project":
-                result = s.project(raw, raw.get("id"))
-            elif path == "/api/project-review":
-                result = s.request_project_review(raw["project_id"])
-            elif path == "/api/cancel-project-review":
-                result = s.cancel_project_review(raw["project_id"])
-            elif path == "/api/discuss":
-                result = s.discuss(raw["project_id"], raw["text"], raw.get("method", "local"), request_id=request_id)
-            elif path == "/api/breakdown":
-                result = s.breakdown(raw["project_id"], raw.get("method", "local"))
-            elif path == "/api/proposal":
-                result = s.adopt_proposal(raw["id"], raw["action"], raw.get("data"))
-            elif path == "/api/work-item":
-                result = s.work_item(raw["project_id"], raw, raw.get("id"))
-            elif path == "/api/delegate":
-                result = s.prepare_delegation(raw["project_id"], raw["item_ids"])
-            elif path == "/api/project-assignment":
-                result = s.prepare_project_assignment(raw["project_id"], raw.get("method", "local"))
-            elif path == "/api/partial":
-                result = s.partial_result(raw["id"], raw["note"])
-            elif path == "/api/portfolio":
-                result = s.portfolio_preferences(raw)
-            elif path == "/api/focus-advice":
-                result = s.focus_advice()
-            elif path == "/api/record":
-                result = s.record(raw["project_id"], raw["text"], raw.get("category", "suggestion"), raw.get("provenance", "User entry"))
-            elif path == "/api/resolve":
-                result = s.resolve_batch(raw["items"])
-            elif path == "/api/plan":
-                result = s.plan(raw["project_id"], raw["bullets"], raw.get("source", "Pasted daily log"), raw.get("method", "local"))
-            elif path == "/api/edit-plan":
-                result = s.edit_plan(raw["id"], raw["revision"], raw["specs"])
-            elif path == "/api/approve":
-                result = s.approve(raw["id"], raw["revision"])
-            elif path == "/api/launch":
-                result = s.launch(raw["id"])
-            elif path == "/api/delegate-now":
-                result = s.delegate_now(raw["id"], raw["revision"])
-            elif path == "/api/action":
-                result = s.action(raw["id"], raw["action"], raw.get("note", ""), raw.get("confirmed_stopped", False), raw.get("fresh", False), raw.get("complete_item", False))
-            elif path == "/api/recover-handoff":
-                result = s.recover_handoff(raw["id"], raw["report"], raw["session_id"], raw["source"], raw.get("extra_files"))
-            elif path == "/api/handoff-checks":
-                result = s.handoff_checks(raw["id"], raw["checks"])
-            elif path == "/api/review":
-                result = s.review(raw["id"], raw.get("method", "local"))
-            elif path == "/api/stop-job":
-                result = s.stop_job(raw["id"], raw.get("confirmed_stopped", False))
-            elif path == "/api/briefing":
-                result = s.briefing()
-            elif path == "/api/settings":
-                result = s.settings(raw)
-            elif path == "/api/preflight":
-                result = s.preflight()
-            elif path == "/api/reference-upload":
-                result = s.import_reference(raw["filename"], base64.b64decode(raw["base64"], validate=True))
-            elif path == "/api/reference-discard":
-                result = s.discard_reference(raw["id"])
-            elif path == "/api/import":
-                # Browser-picked bytes only: no server-side arbitrary path access.
-                data = base64.b64decode(raw["base64"], validate=True)
-                text, sha = docx_text(data, raw["filename"])
-                result = {"text": text, "source": "Read-only DOCX import: " + Path(raw["filename"]).name + " / SHA256 " + sha, "sha256": sha}
-            else:
-                return self.send(404, {"error": "Unknown action"})
-            s.store.put("request", {"id": request_id, "fingerprint": fingerprint, "result": result})
-            self.send(200, result)
+            with self.server.request_lock(request_id):
+                self._execute(path, raw, request_id)
         except (Invalid, ValueError, KeyError, TypeError, binascii.Error, FileNotFoundError, OSError) as e:
             self.send(400, {"error": str(e)})
         except Exception:
             self.send(500, {"error": "Unexpected server error; consult the local audit log"})
+
+    def _execute(self, path, raw, request_id):
+        s = self.server.service
+        fingerprint = digest(json.dumps({"path": path, "body": raw}, sort_keys=True).encode())
+        try:
+            earlier = s.store.get("request", request_id)
+        except ValueError:
+            earlier = None
+        if earlier:
+            if earlier["fingerprint"] != fingerprint:
+                raise Invalid("Request ID already used with different input")
+            return self.send(200, earlier["result"])
+        if path == "/api/start-agents":
+            result = s.start_agents(raw, request_id)
+        elif path == "/api/agent-reply":
+            result = s.reply_agent(raw["id"], raw.get("text", ""), request_id,
+                                   raw.get("confirmed_stopped", False), raw.get("fresh", False))
+        elif path == "/api/agent-response":
+            result = s.respond_agent(raw["id"], raw["request"], raw, request_id)
+        elif path == "/api/answer-and-continue":
+            result = s.answer_and_continue(raw["project_id"], raw["record_id"], raw, request_id)
+        elif path == "/api/project":
+            result = s.project(raw, raw.get("id"))
+        elif path == "/api/project-review":
+            result = s.request_project_review(raw["project_id"])
+        elif path == "/api/cancel-project-review":
+            result = s.cancel_project_review(raw["project_id"])
+        elif path == "/api/discuss":
+            result = s.discuss(raw["project_id"], raw["text"], raw.get("method", "local"), request_id=request_id)
+        elif path == "/api/breakdown":
+            result = s.breakdown(raw["project_id"], raw.get("method", "local"))
+        elif path == "/api/proposal":
+            result = s.adopt_proposal(raw["id"], raw["action"], raw.get("data"))
+        elif path == "/api/work-item":
+            result = s.work_item(raw["project_id"], raw, raw.get("id"))
+        elif path == "/api/delegate":
+            result = s.prepare_delegation(raw["project_id"], raw["item_ids"])
+        elif path == "/api/project-assignment":
+            result = s.prepare_project_assignment(raw["project_id"], raw.get("method", "local"))
+        elif path == "/api/partial":
+            result = s.partial_result(raw["id"], raw["note"])
+        elif path == "/api/portfolio":
+            result = s.portfolio_preferences(raw)
+        elif path == "/api/focus-advice":
+            result = s.focus_advice()
+        elif path == "/api/record":
+            result = s.record(raw["project_id"], raw["text"], raw.get("category", "suggestion"), raw.get("provenance", "User entry"))
+        elif path == "/api/resolve":
+            result = s.resolve_batch(raw["items"])
+        elif path == "/api/plan":
+            result = s.plan(raw["project_id"], raw["bullets"], raw.get("source", "Pasted daily log"), raw.get("method", "local"))
+        elif path == "/api/edit-plan":
+            result = s.edit_plan(raw["id"], raw["revision"], raw["specs"])
+        elif path == "/api/approve":
+            result = s.approve(raw["id"], raw["revision"])
+        elif path == "/api/launch":
+            result = s.launch(raw["id"])
+        elif path == "/api/delegate-now":
+            result = s.delegate_now(raw["id"], raw["revision"])
+        elif path == "/api/action":
+            result = s.action(raw["id"], raw["action"], raw.get("note", ""), raw.get("confirmed_stopped", False), raw.get("fresh", False), raw.get("complete_item", False))
+        elif path == "/api/recover-handoff":
+            result = s.recover_handoff(raw["id"], raw["report"], raw["session_id"], raw["source"], raw.get("extra_files"))
+        elif path == "/api/handoff-checks":
+            result = s.handoff_checks(raw["id"], raw["checks"])
+        elif path == "/api/review":
+            result = s.review(raw["id"], raw.get("method", "local"))
+        elif path == "/api/stop-job":
+            result = s.stop_job(raw["id"], raw.get("confirmed_stopped", False))
+        elif path == "/api/briefing":
+            result = s.briefing()
+        elif path == "/api/settings":
+            result = s.settings(raw)
+        elif path == "/api/preflight":
+            result = s.preflight()
+        elif path == "/api/reference-upload":
+            result = s.import_reference(raw["filename"], base64.b64decode(raw["base64"], validate=True))
+        elif path == "/api/reference-discard":
+            result = s.discard_reference(raw["id"])
+        elif path == "/api/import":
+            # Browser-picked bytes only: no server-side arbitrary path access.
+            data = base64.b64decode(raw["base64"], validate=True)
+            text, sha = docx_text(data, raw["filename"])
+            result = {"text": text, "source": "Read-only DOCX import: " + Path(raw["filename"]).name + " / SHA256 " + sha, "sha256": sha}
+        else:
+            return self.send(404, {"error": "Unknown action"})
+        s.store.put("request", {"id": request_id, "fingerprint": fingerprint, "result": result})
+        self.send(200, result)

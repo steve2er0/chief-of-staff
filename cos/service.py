@@ -22,7 +22,7 @@ from .live_agent import AgentControl
 
 DEFAULT_CONFIG = {"id": "settings", "mode": "simulated", "executable": "codex", "entrypoint": "",
                   "model": "5.6-Terra", "concurrency": 0, "timeout_seconds": 900,
-                  "default_execution_policy": "sandboxed", "default_time_limit": "default",
+                  "default_execution_policy": "sandboxed", "default_time_limit": "none",
                   "briefing_times": ["09:00", "13:00", "16:30"], "schedule_enabled": True}
 SPEC_PROPERTIES = {"title": {"type": "string"}, "goal": {"type": "string"}, "purpose": {"type": "string"},
                    "criteria": {"type": "array", "items": {"type": "string"}},
@@ -78,9 +78,11 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         self.adapter = adapter or CodexAdapter()
         self.demo_delay = demo_delay
         self.active = {}  # task/job ID -> cancel event, thread, cwd, access
+        self.preparations = {}
         self.shutdown = threading.Event()
         self.scheduler = None
         self.config_lock = threading.RLock()
+        self.capability_lock = threading.Lock()
         (self.data / "outputs").mkdir(exist_ok=True)
         (self.data / "schemas").mkdir(exist_ok=True)
         (self.data / "schemas" / "completion.json").write_text(json.dumps(COMPLETION_SCHEMA), encoding="utf-8")
@@ -91,6 +93,11 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         with self.store.transaction():
             if not self.store.all("config"):
                 self.store.put("config", copy.deepcopy(DEFAULT_CONFIG))
+            config = self.store.get("config", "settings")
+            if config.get("agent_defaults_version", 0) < 2:
+                # Migrate the old implicit deadline; frozen assignments keep their choice.
+                config.update(default_time_limit="none", agent_defaults_version=2)
+                self.store.put("config", config)
             self._migrate_portfolio()
             # Unadopted worker claims are suggestions, not owner-authored open
             # questions. Preserve answered/approved records and frozen tasks.
@@ -108,7 +115,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
             # A crash cannot prove descendants died. Keep a persistent lock until
             # the user confirms the old CLI/process tree is stopped.
             for task in self.store.all("task"):
-                if task["state"] in ("running", "stopping"):
+                if task["state"] in ("running", "stopping") or task.get("workspace_preparation") == "preparing":
                     task.update(state="interrupted", recovery_lock=True, progress="Service stopped during work. Confirm the old worker is stopped before recovery.", updated=now())
                     for request in task.get("live_requests", []):
                         if request["status"] in ("pending", "sending"):
@@ -166,9 +173,12 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
             return c
 
     def preflight(self):
-        with self.config_lock:
+        with self.capability_lock:
             c = self.config()
             caps = self.adapter.preflight(c)
+            if any(c[key] != self.config()[key] for key in ("executable", "entrypoint")):
+                self.adapter.capabilities = None
+                raise Invalid("CLI settings changed during the capability check; try again")
             caps["checked_at"] = now()
             self.store.put("capabilities", caps)
             return {k: v for k, v in caps.items() if k != "help"}
@@ -398,6 +408,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 "execution": {k: c[k] for k in ("mode", "executable", "entrypoint", "model", "timeout_seconds")}}
 
     def approve(self, plan_id, revision):
+        self.ensure_cli_ready()
         with self.config_lock, self.store.transaction():
             plan = self.store.get("plan", plan_id)
             if plan["revision"] != revision or plan["state"] not in ("draft", "approved"):
@@ -428,6 +439,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
 
     def delegate_now(self, plan_id, revision):
         """One explicit owner action records approval and starts the reviewed brief."""
+        self.ensure_cli_ready()
         with self.config_lock, self.store.transaction():
             plan = self.store.get("plan", plan_id)
             if plan["state"] == "launched":
@@ -442,6 +454,13 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
             if reviewed.get("refreshed"):
                 return reviewed
             return self.launch(plan_id)
+
+    def ensure_cli_ready(self):
+        config = self.config()
+        if config["mode"] == "codex" and isinstance(self.adapter, CodexAdapter):
+            caps = self.adapter.capabilities
+            if not caps or caps.get("prefix") != command_prefix(config):
+                self.preflight()
 
     def launch(self, plan_id):
         with self.config_lock, self.store.transaction():
@@ -465,6 +484,23 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                             config=copy.deepcopy(self.config()), context=copy.deepcopy(plan["context"]), history=[], attempt=0)
                 if spec.get("time_limit") == "none":
                     task["config"]["timeout_seconds"] = 0
+                task.update(managed_agent=True, agent_id=task["id"],
+                            interactive=bool(task["config"]["mode"] == "codex" and (self.adapter.capabilities or {}).get("app_server") and hasattr(self.adapter, "run_interactive")),
+                            conversation=[{"id": uid(), "role": "user", "text": task["purpose"], "at": now(), "status": "pending"}])
+                parent_id = spec.get("resume_context", {}).get("task_id")
+                if parent_id:
+                    parent = self.store.get("task", parent_id)
+                    task.update(agent_id=parent.get("agent_id", parent_id), parent_task_id=parent_id,
+                                conversation=copy.deepcopy(parent.get("conversation", [])) + task["conversation"])
+                    parent_folder = parent["context"]["cwd"]
+                    if parent.get("worktree"):
+                        tree = parent["worktree"]
+                        parent_folder = str(Path(tree["source"]) / Path(parent_folder).relative_to(tree["path"]))
+                    if parent.get("worktree") and Path(task["context"]["cwd"]).resolve() == Path(parent_folder).resolve():
+                        task["worktree"] = copy.deepcopy(parent["worktree"])
+                        task["context"]["cwd"] = parent["context"]["cwd"]
+                if task["config"]["mode"] == "codex" and plan.get("isolate", True) and task["access"] == "workspace-write" and not task.get("worktree"):
+                    task.update(workspace_preparation="pending", progress="Preparing separate checkout")
                 self.store.put("task", task)
                 plan["task_ids"].append(task["id"])
                 if task.get("work_item_id"):
@@ -491,9 +527,9 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                     return task
                 if state not in ("queued", "running", "stopping"):
                     raise Invalid("Only queued or active tasks can be stopped")
-                if tid in self.active:
+                if tid in self.active or tid in self.preparations:
                     task.update(state="stopping", stop_target=target, progress="Stopping worker and descendants…")
-                    self.active[tid]["cancel"].set()
+                    (self.active.get(tid) or self.preparations[tid])["cancel"].set()
                 else:
                     task.update(state=target, progress="Stopped before launch")
             elif action == "accept":
@@ -544,7 +580,8 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 # Keep the original instructions stable through repeated retries.
                 # The latest owner note is separate frozen continuation context.
                 c = self.config()
-                same = all(task["config"][k] == c[k] for k in ("mode", "model", "executable", "entrypoint")) and task["context"]["cwd"] == self.store.get("project", task["project_id"])["cwd"]
+                source_folder = task.get("worktree", {}).get("source_cwd", task["context"]["cwd"])
+                same = all(task["config"][k] == c[k] for k in ("mode", "model", "executable", "entrypoint")) and source_folder == self.store.get("project", task["project_id"])["cwd"]
                 if action == "resume" and c["mode"] == "codex" and not fresh and (not task.get("session_id") or not same):
                     raise Invalid("Saved-session continuation is unavailable after a folder/CLI change or without a captured session. Select Start a fresh session.")
                 plan = self._draft(task["project_id"], note, ("Continuation" if action == "resume" else "Revision") + " of task " + tid, [spec], "Owner continuation; review, approve, then launch")
@@ -653,7 +690,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         return local_file(self.data / "outputs" / tid, name, max_bytes=None)
 
     def _locked(self, cwd, access):
-        holders = [(x["cwd"], x["access"]) for x in self.active.values()]
+        holders = [(x["cwd"], x["access"]) for x in list(self.active.values()) + list(self.preparations.values())]
         for kind in ("task", "job"):
             for x in self.store.all(kind):
                 if x.get("recovery_lock"):
@@ -664,12 +701,13 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         if self.shutdown.is_set():
             return
         self.scheduled_briefings(local_now)
+        self.prepare_agents()
         self._start_project_reviews()
         with self.config_lock, self.store.transaction():
             for task in self.store.all("task"):
                 if self.slots_full():
                     break
-                if task["state"] != "queued" or self._locked(task["context"]["cwd"], task["access"]):
+                if task["state"] != "queued" or task.get("workspace_preparation") in ("pending", "preparing") or self._locked(task["context"]["cwd"], task["access"]):
                     continue
                 task.update(state="running", attempt=task["attempt"] + 1, started_at=now(), updated=now(), progress="Worker started")
                 self.store.put("task", task)
@@ -702,8 +740,8 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                         message.update(status=delivery["status"], error=delivery.get("error", ""))
             if changes.get("agent_message"):
                 message = changes["agent_message"]
-                if message.get("text") and not any(m["id"] == message["id"] for m in task.get("conversation", [])):
-                    task.setdefault("conversation", []).append(dict(message, role="agent", at=now(), status="delivered"))
+                if message.get("text") and not any(m["id"] == message["id"] and m.get("task_id") == tid for m in task.get("conversation", [])):
+                    task.setdefault("conversation", []).append(dict(message, task_id=tid, role="agent", at=now(), status="delivered"))
             if changes.get("live_request"):
                 request = changes["live_request"]
                 task.setdefault("live_requests", []).append(dict(request, at=now()))
@@ -746,7 +784,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
             baseline = {}
             if task["config"]["mode"] == "codex":
                 if task.get("managed_agent") and isinstance(self.adapter, CodexAdapter):
-                    with self.config_lock:
+                    with self.capability_lock:
                         if not self.adapter.capabilities or self.adapter.capabilities.get("prefix") != command_prefix(task["config"]):
                             self.adapter.preflight(task["config"])
                         task["interactive"] = bool(self.adapter.capabilities.get("app_server"))
@@ -756,7 +794,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                             self.store.put("task", saved)
                 if task.get("worktree"):
                     tree = task["worktree"]
-                    expected = (self.data / "worktrees" / task.get("agent_id", task["id"])).resolve()
+                    expected = (self.data / "worktrees" / tree.get("workspace_id", task.get("agent_id", task["id"]))).resolve()
                     if Path(tree["path"]).resolve() != expected or not Path(cwd).resolve().is_relative_to(expected):
                         raise Invalid("Agent worktree does not match its managed workspace")
                     cwd = working_directory(cwd, (Path(__file__).resolve().parent.parent,))
@@ -765,15 +803,18 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 for ref in task["expected_outputs"]:
                     p = local_file(cwd, ref, False, max_bytes=None)
                     baseline[ref] = file_digest(p) if p.is_file() else None
+                if cancel.is_set():
+                    raise InterruptedError("Stopped before the agent session started")
                 if task.get("interactive"):
-                    result = self.adapter.run_interactive(task["config"], cwd, task["access"], self._prompt(task),
+                    result = self.adapter.run_interactive(dict(task["config"], _capture_dir=str(self.data / "outputs" / tid / "wire")), cwd, task["access"], self._prompt(task),
                         cancel, lambda x: self._update(tid, x), self.active[tid]["control"], task.get("session_id"),
                         research_access=task.get("research_access", False), execution_policy=task.get("execution_policy", "sandboxed"))
                 else:
-                    result = self.adapter.run(task["config"], cwd, task["access"], self._prompt(task), self.data / "schemas/completion.json",
+                    result = self.adapter.run(dict(task["config"], _capture_dir=str(self.data / "outputs" / tid / "wire")), cwd, task["access"], self._prompt(task), self.data / "schemas/completion.json",
                                               cancel, lambda x: self._update(tid, x), task.get("session_id"),
                                               research_access=task.get("research_access", False),
-                                              execution_policy=task.get("execution_policy", "sandboxed"))
+                                              execution_policy=task.get("execution_policy", "sandboxed"),
+                                              **({"plain_report": True} if task.get("managed_agent") and isinstance(self.adapter, CodexAdapter) else {}))
             else:
                 result = self._simulated(task, cancel)
             if result["status"] in ("completed", "blocked", "failed", "cancelled"):
@@ -1008,7 +1049,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         if self.scheduler:
             self.scheduler.join(timeout=2)
         with self.store.transaction():
-            entries = list(self.active.items())
+            entries = list(self.active.items()) + list(self.preparations.items())
             for key, item in entries:
                 item["cancel"].set()
                 try:

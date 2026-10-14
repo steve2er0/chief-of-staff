@@ -8,6 +8,21 @@ SQLite, and plain HTML/CSS/JavaScript. No pip or npm install is required for the
 
 Requires Python 3.9 or newer; Python 3.11+ is recommended.
 
+On macOS, install a double-click app once:
+
+```sh
+python3 -B desktop/install_macos.py
+```
+
+This creates **Chief of Staff.app** in your Applications folder and a Desktop icon.
+Double-click the icon to open the live workspace in your default browser. The server
+runs in the background, so no terminal window is needed. Reopening the icon reuses
+the existing server and saved projects. Closing the browser leaves agents running.
+The launcher selects Codex CLI mode and uses your installed CLI and existing login;
+initial model settings follow your CLI preferences. Existing selected app models
+and running task permissions remain unchanged. No agent starts just by opening an
+empty workspace. If you move the repository, run the installer again.
+
 On macOS or Linux:
 
 ```sh
@@ -66,13 +81,15 @@ message receipts are distinct. A reply with an uncertain receipt is never
 silently resent. No additional login, API key or provider configuration is installed.
 
 Execution options include sandboxed or YOLO access, command networking and a
-time limit. Direct starts run until finished or stopped by default. The selected
+time limit. Direct and planned agents run until finished or stopped by default. The selected
 policy is shown before start and remains fixed for follow-ups. Changing workspace
 defaults affects new starts. Live tool permission requests require your actual
 response; ordinary replies do not broaden execution permissions.
 
 For Git projects, editable agents use separate worktrees by default, including
-current tracked changes and untracked inputs. Each agent's edits stay in its own
+current tracked changes, untracked inputs and explicitly selected ignored references.
+Preparation runs in the background with a visible Preparing status; replies and
+Stop remain available. Other ignored files are excluded. Each agent's edits stay in its own
 checkout; the original folder is untouched and no merge or commit is automatic.
 The result shows the checkout and branch. Worktrees and their edits are retained.
 Repositories without commits use their shared folder, where writers run one at
@@ -132,9 +149,9 @@ The report and other valid snapshots remain available. Incomplete capture is lab
 the original report remain available, and **Reply & continue** can fix the handoff.
 Existing unchanged files are allowed for validation-only work and labeled as such.
 
-Long runs have no cumulative output or event-count cutoff. A record too large for
-the 4 MiB capture buffer is omitted while the worker continues; the returned handoff
-asks you to check that log before acceptance. Human review still determines whether
+Long runs have no cumulative output or event-count cutoff. Large records spill to
+disk with bounded live previews and full request/report downloads. Questions remain
+answerable and permission replies use the complete requested scope. Human review still determines whether
 reported checks and outputs satisfy the assignment.
 
 ## Files and references
@@ -195,11 +212,12 @@ allowlist. Read-only coordinator calls keep command networking disabled. Browser
 separate permission checks. App-server tool approval and question requests are
 relayed to the agent conversation; only an explicit response grants a requested tool action.
 
-The assignment brief also has a **Time limit** choice: the workspace default or
-**No time limit**. This choice is captured in approval and retained on revisions.
+New agent drafts default to **No time limit**. A finite limit can still be selected;
+the configured finite limit initially remains 900 seconds (15 minutes). The choice
+is captured with the assignment and retained on revisions.
 No time limit disables the elapsed-time cutoff for that worker; pause/cancel,
 process cleanup, sandbox permissions, output bounds and final-result checks still
-apply. Other assignments and read-only coordinator calls use the workspace default.
+apply. Read-only coordinator calls retain the configured finite limit.
 
 The adapter passes argument arrays with `shell=False` and sends prompts through stdin.
 Assignments default to sandboxed `read-only` or `workspace-write` execution with the

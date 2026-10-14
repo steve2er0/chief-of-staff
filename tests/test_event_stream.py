@@ -26,10 +26,9 @@ class EventStreamTests(unittest.TestCase):
 
     def test_oversized_record_does_not_stop_worker_and_preserves_report(self):
         result,_,_=self.execute([self.tool_event('x'*(MAX_EVENT_BYTES+1))]+test_app.fixture_events())
-        self.assertEqual(result['status'],'blocked')
+        self.assertEqual(result['status'],'completed')
         self.assertEqual(result['summary'],test_app.GOOD['summary'])
-        self.assertIn('capture buffer',result['handoff_issues'][0])
-        self.assertIn('agent continued running',result['handoff_issues'][0])
+        self.assertNotIn('handoff_issues',result)
         self.assertIn('Synthetic engineering report',result['agent_report'])
 
     def test_record_budget_counts_utf8_bytes_not_just_characters(self):
@@ -37,8 +36,8 @@ class EventStreamTests(unittest.TestCase):
         self.assertLess(len(raw),MAX_EVENT_BYTES)
         self.assertGreater(len(raw.encode('utf-8')),MAX_EVENT_BYTES)
         result,_,_=self.execute([raw]+test_app.fixture_events())
-        self.assertEqual(result['status'],'blocked')
-        self.assertIn('capture buffer',result['handoff_issues'][0])
+        self.assertEqual(result['status'],'completed')
+        self.assertNotIn('handoff_issues',result)
 
     def test_long_run_has_no_cumulative_output_cutoff(self):
         result,_,_=self.execute([self.tool_event('x'*900000)]*20+test_app.fixture_events())

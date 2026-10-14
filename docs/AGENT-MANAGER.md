@@ -15,6 +15,12 @@ plan/approval records remain as provenance; they do not require separate UI acti
 HTTP request UUIDs and internal start/reply records prevent duplicate launches.
 Reusing a request ID with different input is rejected.
 
+Direct, drafted and delegated starts all use the same managed task initialization:
+live replies when app-server is available, readable results, stable agent identity,
+and no deadline by default. Explicit finite deadlines and frozen permissions remain
+unchanged. HTTP actions serialize only retries of the same UUID, so a slow capability
+check or preparation cannot block unrelated replies or Stop.
+
 `POST /api/agent-reply` sends a follow-up to a running session, appends instructions
 to a queued start, or directly queues a continuation of a finished/stopped agent.
 Each run is a task record. `agent_id` groups those records into one conversation;
@@ -69,7 +75,12 @@ Protocol reference: [Codex App Server](https://learn.chatgpt.com/docs/app-server
 
 Git write agents default to separate worktrees on `codex/cos-…` branches. They
 start from HEAD with current tracked changes and untracked, non-ignored inputs
-copied into each checkout. No staging, commit, reset or merge occurs in the source.
+copied into each checkout. Explicit local file/folder references also carry ignored
+inputs; other ignored files remain excluded. Preparation is a cancellable background
+step with brief durable state updates. Source-folder reservations prevent overlapping
+app-managed writers during copying. An agent never launches before preparation
+succeeds. Interrupted preparation requires process cleanup confirmation, and a
+continuation keeps prior checkouts and edits. No staging, commit, reset or merge occurs in the source.
 Untracked symlinks and initialized-submodule repositories require shared-folder
 execution rather than an incomplete copy. Worktrees and edits remain available;
 the UI shows their paths and branches. There is no automatic integration or cleanup.
@@ -85,6 +96,15 @@ and file-change events feed the existing containment-checked snapshot capture.
 Individual missing or unsafe artifacts remain visible limitations; other files
 and the original report are retained. Snapshot hashes are retained and checked for optional acceptance. Reported tests remain agent claims, not independent
 verification.
+
+`cos/wire.py` spills large protocol records to managed task storage, indexes JSON
+on disk and decodes strings incrementally. The event queue stays bounded; live state
+contains previews. Full requests are available through authenticated task-scoped
+downloads, and permission replies stream the exact captured scope. Large reports
+are copied in full into the ordinary report download. Preview truncation is visible
+and does not change turn success. Malformed protocol data and session mismatches
+remain failures. The exec fallback uses the same capture path; coordinators retain
+their structured completion contract.
 
 ## Validation boundary
 

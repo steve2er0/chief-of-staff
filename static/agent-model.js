@@ -14,6 +14,7 @@
     return [...latest.values()].filter(t=>t&&(!projectId||t.project_id===projectId));
   }
   function status(task){
+    if(task.state==='queued'&&['pending','preparing'].includes(task.workspace_preparation))return 'Preparing';
     if(pending(task).length)return 'Waiting for you';
     const owner=task.owner_attention||task.user_requests;
     if(!['superseded','accepted','cancelled'].includes(task.state)&&owner?.state==='needs_user'&&owner.items?.length)return owner.items.every(i=>i.answered)?'Response saved · awaiting agent':'Waiting for you';

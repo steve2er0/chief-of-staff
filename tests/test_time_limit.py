@@ -51,7 +51,7 @@ class TimeLimitServiceTests(unittest.TestCase):
         return self.s.edit_plan(plan['id'],plan['revision'],specs)
 
     def test_defaults_and_invalid_time_choices(self):
-        raw=self.draft()['specs'][0];self.assertEqual(raw['time_limit'],'default')
+        raw=self.draft()['specs'][0];self.assertEqual(raw['time_limit'],'none')
         for value in (None,False,0,'unlimited',[],{}):
             with self.subTest(value=value),self.assertRaises(Invalid):normalized_spec(dict(raw,time_limit=value))
         self.assertEqual(normalized_spec(dict(raw,time_limit='none'))['time_limit'],'none')
@@ -65,7 +65,7 @@ class TimeLimitServiceTests(unittest.TestCase):
         self.assertEqual(task['config']['timeout_seconds'],0)
         self.assertEqual(self.adapter.calls[-1]['timeout_seconds'],0)
         self.assertEqual(self.s.config()['timeout_seconds'],900)
-        next_plan=self.draft();self.s.approve(next_plan['id'],next_plan['revision']);self.s.launch(next_plan['id']);self.drain()
+        self.s.settings({'default_time_limit':'default'});next_plan=self.draft();self.s.approve(next_plan['id'],next_plan['revision']);self.s.launch(next_plan['id']);self.drain()
         self.assertEqual(self.adapter.calls[-1]['timeout_seconds'],900)
 
     def test_time_limit_edit_invalidates_approval_and_tampering_is_rejected(self):

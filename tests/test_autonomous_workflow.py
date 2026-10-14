@@ -78,7 +78,7 @@ class AutonomousWorkflowTests(unittest.TestCase):
         task=self.s.store.get('task',plan['task_ids'][0])
         self.assertEqual(task['state'],'ready_for_review');self.assertEqual(task['delivery_status'],'partial')
         self.assertEqual(task['result']['status'],'blocked')
-        self.assertEqual(self.s.snapshot()['attention'][0]['group'],'reviews')
+        self.assertFalse(self.s.snapshot()['attention'])
         self.assertEqual(self.s.store.get('project',self.p['id'])['accepted_results'],[])
         self.s.handoff_checks(task['id'],[dict(id='optional',label='Optional check',status='pending',details='Unavailable check',source='Agent report')])
         self.assertEqual(self.s.store.get('task',task['id'])['state'],'ready_for_review')

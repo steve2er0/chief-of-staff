@@ -56,6 +56,7 @@ class IntakeTests(unittest.TestCase):
         review = self.s.store.get('setup_review', p['id'])
         self.assertEqual(review['state'], 'completed')
         self.assertEqual(len(self.adapter.calls), 1)
+
         self.assertEqual(len(self.s.store.all('proposal')), 1)
         self.assertEqual(self.s.store.get('project', p['id']), p)
         self.assertFalse(self.s.store.all('plan'))
@@ -63,6 +64,25 @@ class IntakeTests(unittest.TestCase):
         self.assertFalse(self.s.store.all('work_item'))
         self.s.request_project_review(p['id']); self.drain()
         self.assertEqual(len(self.adapter.calls), 1)
+
+    def test_slow_capability_check_does_not_block_cancellation_or_revive_cancelled_review(self):
+        p=self.project();self.adapter.capabilities=None
+        entered,release=threading.Event(),threading.Event()
+        def help_only(config):
+            entered.set();release.wait(2)
+            return {'id':'preflight','ok':True,'help':{}}
+        with patch.object(self.adapter,'preflight',side_effect=help_only):
+            worker=threading.Thread(target=self.s._start_project_reviews)
+            worker.start();self.assertTrue(entered.wait(1))
+            results=[]
+            cancel=threading.Thread(target=lambda:results.append(self.s.cancel_project_review(p['id'])))
+            cancel.start();cancel.join(.5)
+            try:
+                self.assertFalse(cancel.is_alive(),'Help check held the global config lock')
+                self.assertEqual(results[0]['state'],'cancelled')
+            finally:release.set();worker.join();cancel.join()
+            self.assertEqual(self.s.store.get('setup_review',p['id'])['state'],'cancelled')
+            self.assertFalse(self.s.active);self.assertFalse(self.adapter.calls)
 
     def test_supplied_folder_and_references_reach_read_only_setup_prompt(self):
         work = self.root/'work'; work.mkdir()

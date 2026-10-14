@@ -27,11 +27,21 @@ def capture_result(folder, cwd, result, expected_outputs, baseline, write_task, 
     report = folder / "agent-report.txt"
     report_link = None
     try:
-        report.write_text(raw, encoding="utf-8")
+        if result.get("agent_report_file"):
+            source = Path(result["agent_report_file"])
+            source = source.parent.resolve() / source.name
+            wire = (folder / "wire").resolve()
+            if not source.absolute().is_relative_to(wire):
+                raise Invalid("Report capture is outside this task's storage")
+            source = local_file(wire, str(source.relative_to(wire)), max_bytes=None)
+            with source.open("rb") as src, report.open("wb") as dst:
+                shutil.copyfileobj(src, dst, 1024 * 1024)
+        else:
+            report.write_text(raw, encoding="utf-8")
         report_link = {"name": report.name, "label": "Original agent report" if supplied else "Saved execution handoff", "sha256": file_digest(report)}
         if on_capture:
             on_capture(report_link)
-    except OSError as error:
+    except (OSError, Invalid) as error:
         issues.append("Could not save the report download: " + str(error) + ". Its text is retained in the task record. Restore writable snapshot storage and recapture it.")
 
     listed = result.get("artifacts", [])

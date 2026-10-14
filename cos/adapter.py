@@ -10,14 +10,17 @@ import subprocess
 import threading
 import time
 import uuid
+import tempfile
+
+from .wire import CapturedText, Node, WireRecord, read_record
 
 from .safety import Invalid, bounded_text
 from .progress import message_details
 from .owner_requests import REQUEST_SCHEMA, validate_requests
 
 
-# Browser/MCP documentation can exceed 128 KiB in one valid JSONL record.
-# Bound individual allocations and queued records, without stopping long runs.
+# Legacy structured completion validation retains its field budget.
+# Transport records use disk-backed capture rather than this limit.
 MAX_EVENT_BYTES = 4 * 1024 * 1024
 
 
@@ -92,6 +95,10 @@ def retained_report(raw, issue, captured, status="blocked"):
             result["user_requests"] = validate_requests(value["user_requests"])
         except Invalid as error:
             result["handoff_issues"].append("Owner request metadata: " + str(error) + ". Correct the request envelope; earlier owner requests remain unchanged.")
+    if isinstance(raw, CapturedText):
+        path = raw.record.path.with_suffix('.report.txt')
+        raw.save(path)
+        result.update(agent_report_file=str(path), report_truncated=True)
     return result
 
 
@@ -241,7 +248,7 @@ class CodexAdapter:
         args += ["--json", "--model", bounded_text(config["model"], "model", 150)]
         if caps["resume_skip_git" if session else "skip_git"]:
             args += ["--skip-git-repo-check"]
-        if caps["resume_schema" if session else "schema"]:
+        if schema_path is not None and caps["resume_schema" if session else "schema"]:
             args += ["--output-schema", str(schema_path)]
         if session:
             args += [session]
@@ -253,11 +260,11 @@ class CodexAdapter:
         return run_agent(self, config, cwd, sandbox, prompt, cancel, update, control, session,
                          research_access, execution_policy)
 
-    def run(self, config, cwd, sandbox, prompt, schema_path, cancel, update, session=None, validator=completion, research_access=False, execution_policy="sandboxed"):
+    def run(self, config, cwd, sandbox, prompt, schema_path, cancel, update, session=None, validator=completion, research_access=False, execution_policy="sandboxed", plain_report=False):
         time_limit = config["timeout_seconds"]
         if type(time_limit) is not int or not 0 <= time_limit <= 14400:
             raise Invalid("Invalid worker time limit")
-        args = self.argv(config, cwd, sandbox, schema_path, session, research_access=research_access, execution_policy=execution_policy)
+        args = self.argv(config, cwd, sandbox, None if plain_report else schema_path, session, research_access=research_access, execution_policy=execution_policy)
         kwargs = dict(cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                       text=True, encoding="utf-8", errors="replace", shell=False, bufsize=1)
         if os.name == "nt":
@@ -269,20 +276,13 @@ class CodexAdapter:
         stream = queue.Queue(maxsize=8)
         readers = []
         done = threading.Event()
+        capture_folder = config.get("_capture_dir") or Path(tempfile.gettempdir()) / ("cos-exec-wire-" + str(uuid.uuid4()))
         def read(pipe, channel):
             try:
                 while not done.is_set():
-                    line = pipe.readline(MAX_EVENT_BYTES + 1)
-                    if not line:
+                    line = read_record(pipe, config.get('_capture_dir') or capture_folder, done)
+                    if line is None:
                         break
-                    if len(line.encode("utf-8")) > MAX_EVENT_BYTES:
-                        # Drain this record without retaining unbounded tool output.
-                        # The worker keeps running; final capture is marked incomplete.
-                        while not line.endswith("\n") and not done.is_set():
-                            line = pipe.readline(MAX_EVENT_BYTES + 1)
-                            if not line:
-                                break
-                        line = {"capture_issue": "One " + channel + " record exceeded the " + str(MAX_EVENT_BYTES) + "-byte capture buffer and was not recorded. Recheck this run's log before accepting; the agent continued running."}
                     while not done.is_set():
                         try:
                             stream.put((channel, line), timeout=0.1)
@@ -328,11 +328,27 @@ class CodexAdapter:
                     update({"progress": line["capture_issue"], "progress_kind": "activity", "event": "capture.warning"})
                     continue
                 if channel == "stderr":
+                    if isinstance(line, Path):
+                        with line.open(encoding="utf-8") as diagnostic:
+                            line = diagnostic.read(1000)
                     errors.append(line.strip()[:1000])
                     errors = errors[-30:]
                     continue
                 try:
-                    e = json.loads(line)
+                    captured_text = None
+                    if isinstance(line, Path):
+                        with_record = WireRecord(line)
+                        try:
+                            if not isinstance(with_record.root, Node):
+                                raise ValueError("invalid event")
+                            e = with_record.root.preview()
+                            original_item = with_record.root.get('item')
+                            if isinstance(original_item, Node):
+                                captured_text = original_item.get('text')
+                        finally:
+                            with_record.close()
+                    else:
+                        e = json.loads(line)
                     if not isinstance(e, dict) or not isinstance(e.get("type"), str):
                         raise ValueError("invalid event")
                 except (ValueError, TypeError):
@@ -359,7 +375,7 @@ class CodexAdapter:
                         malformed += 1
                         continue
                     if typ == "item.completed" and item.get("type") == "agent_message":
-                        final = item.get("text", "")
+                        final = captured_text if captured_text is not None else item.get("text", "")
                     if item.get("type") in ("command_execution", "file_change", "plan_update", "agent_message"):
                         raw = str(item.get("text") or (item.get("type", "Working") + ": " + item.get("status", "updated")))
                         details = message_details(raw) if item.get("type") == "agent_message" else None
@@ -379,6 +395,9 @@ class CodexAdapter:
                 result["handoff_issues"] = issues + result["handoff_issues"][1:]
                 result["execution_verified"] = True
                 return result
+            if plain_report:
+                from .live_agent import report
+                return report(final or "", "completed", captured, set(), cwd)
             try:
                 result = validator(json.loads(final or "null"))
             except (Invalid, ValueError, TypeError) as error:

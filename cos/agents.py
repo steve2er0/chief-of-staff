@@ -1,13 +1,17 @@
 """Direct agent starts and follow-ups; planning is optional, permissions stay frozen."""
 import copy
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import shutil
 import subprocess
+import threading
 
 from .adapter import session_id
 from .safety import Invalid, bounded_text, digest, working_directory
 from .store import now, uid
+from .safety import local_file
+from .wire import Node, RawJSON, WireRecord
 
 
 def git(cwd, *args, input=None, check=True):
@@ -17,8 +21,9 @@ def git(cwd, *args, input=None, check=True):
     return result
 
 
-def isolate_workspace(cwd, destination, branch):
+def isolate_workspace(cwd, destination, branch, file_refs=(), cancel=None):
     """Copy current tracked edits and untracked inputs without modifying the source."""
+    cwd, destination = Path(cwd).resolve(), Path(destination).resolve()
     probe = git(cwd, "rev-parse", "--show-toplevel", check=False)
     if probe.returncode:
         return None
@@ -30,10 +35,41 @@ def isolate_workspace(cwd, destination, branch):
     if (root / ".gitmodules").exists():
         raise Invalid("This repository has submodules. Turn off separate worktrees to use its shared folder.")
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        owned = git(destination, "branch", "--show-current", check=False)
+        common = git(destination, "rev-parse", "--git-common-dir", check=False)
+        source_common = git(root, "rev-parse", "--git-common-dir").stdout.decode().strip()
+        if owned.returncode or owned.stdout.decode().strip() != branch or common.returncode or (destination / common.stdout.decode().strip()).resolve() != (root / source_common).resolve():
+            raise Invalid("An unrelated workspace occupies the preparation destination")
+        git(root, "worktree", "remove", "--force", str(destination))
+        git(root, "branch", "-D", branch)
     patch = git(root, "diff", "--binary", "HEAD").stdout
     untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z").stdout.split(b"\0")
     git(root, "worktree", "add", "-b", branch, str(destination), "HEAD")
     try:
+        def copy_input(source, target):
+            if cancel and cancel.is_set():
+                raise Invalid("Workspace preparation stopped")
+            if source.is_symlink() or not source.resolve().is_relative_to(root):
+                raise Invalid("Cannot copy a linked or external input: " + str(source))
+            if not target.resolve().is_relative_to(destination.resolve()) or target.is_symlink():
+                raise Invalid("Cannot copy an input through a worktree link: " + str(target))
+            if source.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                for child in source.iterdir():
+                    # Git metadata is never an agent input, even for a folder reference.
+                    if child.name != ".git":
+                        copy_input(child, target / child.name)
+            elif source.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with source.open("rb") as src, target.open("wb") as dst:
+                    for chunk in iter(lambda: src.read(1024 * 1024), b""):
+                        if cancel and cancel.is_set():
+                            raise Invalid("Workspace preparation stopped")
+                        dst.write(chunk)
+                shutil.copystat(source, target)
+            else:
+                raise Invalid("Declared input is missing or is not a regular file: " + str(source))
         if patch:
             git(destination, "apply", "--binary", "-", input=patch)
         for entry in untracked:
@@ -45,12 +81,16 @@ def isolate_workspace(cwd, destination, branch):
             # Do not follow links out of the supplied project while copying inputs.
             if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(root):
                 raise Invalid("Cannot copy this untracked input into a worktree: " + str(relative))
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            copy_input(source, target)
+        # Copy only owner-declared ignored inputs, never all ignored files.
+        for ref in file_refs:
+            source = Path(cwd) / ref
+            relative = source.absolute().relative_to(root)
+            copy_input(source, destination / relative)
         folder = destination / offset
         if not folder.is_dir():
             raise Invalid("Selected project subfolder does not exist in the prepared worktree")
-        return {"path": str(destination), "cwd": str(folder), "source": str(root), "branch": branch}
+        return {"path": str(destination), "cwd": str(folder), "source": str(root), "source_cwd": str(cwd), "branch": branch}
     except BaseException:
         # Only discard this newly created copy; the original checkout is untouched.
         git(root, "worktree", "remove", "--force", str(destination), check=False)
@@ -109,32 +149,65 @@ class AgentMixin:
             if approved.get("refreshed"):
                 raise Invalid("Could not capture the current project context")
             launched = self.launch(plan["id"])
-            created = []
-            try:
-                for tid in launched["task_ids"]:
-                    task = self.store.get("task", tid)
-                    task.update(managed_agent=True, agent_id=tid, conversation=[{"id": uid(), "role": "user", "text": task["purpose"], "at": now(), "status": "pending"}])
-                    if config["mode"] == "codex" and plan["isolate"] and task["access"] == "workspace-write":
-                        destination = self.data / "worktrees" / tid
-                        tree = isolate_workspace(task["context"]["cwd"], destination, "codex/cos-" + tid[:8])
-                        if tree:
-                            created.append(tree)
-                            task["worktree"] = tree
-                            task["context"]["cwd"] = tree["cwd"]
-                    task["interactive"] = bool(config["mode"] == "codex" and self.adapter.capabilities.get("app_server") and hasattr(self.adapter, "run_interactive"))
-                    task["progress"] = "Waiting for an agent slot" if task.get("worktree") or task["access"] == "read-only" else "Queued; shared-folder writers run one at a time"
-                    self.store.put("task", task)
-            except BaseException:
-                for tree in created:
-                    git(tree["source"], "worktree", "remove", "--force", tree["path"], check=False)
-                    git(tree["source"], "branch", "-D", tree["branch"], check=False)
-                raise
             self.store.put("agent_start", {"id": key, "plan_id": launched["id"], "fingerprint": fingerprint})
             self.store.audit("agents.started", launched["id"], str(len(launched["task_ids"])) + " owner-started agents")
             return launched
 
+    def prepare_agents(self):
+        """Reserve source folders briefly; Git and input copies run outside store locks."""
+        with self.store.transaction():
+            for task in self.store.all("task"):
+                if task["state"] != "queued" or task.get("workspace_preparation") != "pending":
+                    continue
+                cwd = task["context"]["cwd"]
+                if self._locked(cwd, "read-only"):
+                    continue
+                task.update(workspace_preparation="preparing", progress="Preparing separate checkout", updated=now())
+                self.store.put("task", task)
+                cancel = threading.Event()
+                thread = threading.Thread(target=self._prepare_agent, args=(task, cancel), daemon=True)
+                self.preparations[task["id"]] = {"cancel": cancel, "thread": thread, "cwd": cwd, "access": "read-only"}
+                thread.start()
+
+    def _prepare_agent(self, task, cancel):
+        tree = None
+        try:
+            if cancel.is_set():
+                raise Invalid("Workspace preparation stopped")
+            tree = isolate_workspace(task["context"]["cwd"], self.data / "worktrees" / task["id"],
+                                     "codex/cos-" + task["id"], task["context"].get("file_refs", []), cancel)
+            if cancel.is_set():
+                raise Invalid("Workspace preparation stopped")
+            with self.store.transaction():
+                saved = self.store.get("task", task["id"])
+                if cancel.is_set() or saved["state"] != "queued":
+                    raise Invalid("Workspace preparation stopped")
+                if tree:
+                    tree["workspace_id"] = task["id"]
+                    saved["worktree"] = tree
+                    saved["context"]["cwd"] = tree["cwd"]
+                saved.update(workspace_preparation="ready", progress="Waiting for an agent slot", updated=now())
+                self.store.put("task", saved)
+                tree = None  # Committed checkout is retained for the agent and future turns.
+        except Exception as error:
+            if tree:
+                git(tree["source"], "worktree", "remove", "--force", tree["path"], check=False)
+                git(tree["source"], "branch", "-D", tree["branch"], check=False)
+            with self.store.transaction():
+                saved = self.store.get("task", task["id"])
+                saved.update(state=saved.get("stop_target", "paused") if cancel.is_set() else "failed",
+                             workspace_preparation="pending" if cancel.is_set() else "failed", progress=str(error), updated=now())
+                self.store.put("task", saved)
+        finally:
+            with self.store.transaction():
+                self.preparations.pop(task["id"], None)
+
     def agent_prompt(self, task):
-        return ("Work toward the owner's instructions. Own routine implementation, checks and recovery. "
+        scoped = "Handle the subtasks yourself within this one assignment. Do not spawn or delegate to other agents. " if task.get("assignment_scope") == "project" else ""
+        network = ("The owner explicitly approved public web research for this assignment, including public source downloads inside the project. Do not upload project files, private content or credentials, use signed-in accounts or send messages. " if task.get("research_access") else "Use local references; ask for permission if public source downloads are essential. ")
+        if task.get("execution_policy") == "yolo":
+            network = "The owner explicitly approved YOLO execution: CLI commands run without sandboxing or command approval prompts, with command network access. Assigned scope still applies. Browser permissions remain separate. "
+        return (scoped + network + "Work toward the owner's instructions. Own routine implementation, checks and recovery. "
                 "Keep progress concise and report meaningful changes of activity. Stay within the chosen project and execution permissions. "
                 "Read selected references without modifying imported originals. Project planning and dependencies are background guidance. "
                 "Ask only when a meaningful owner decision or essential permission is needed. Use the live user-input tool when available; "
@@ -143,6 +216,7 @@ class AgentMixin:
                 "Return a readable summary of changes, checks, limitations and the next useful action. "
                 "You may return the completion JSON, but plain text is also valid. If using JSON, list delivered files relative to cwd in artifacts.\n" +
                 json.dumps({"instructions": task["purpose"], "follow_up": task.get("continuation_note", ""),
+                            "assignment": {k: task.get(k) for k in ("goal", "purpose", "criteria", "expected_outputs", "continuation_note", "resume_context", "execution_policy", "research_access", "time_limit")},
                             "project": self.reference_context(task["context"]), "execution": {k: task.get(k) for k in ("access", "execution_policy", "research_access")}}, ensure_ascii=False))
 
     def reply_agent(self, tid, text="", request_id=None, confirmed_stopped=False, fresh=False):
@@ -209,6 +283,8 @@ class AgentMixin:
                          state="queued", created=now(), updated=now(), last_activity_at=now(), progress="Follow-up queued for the same agent",
                          continuation_note=text, history=[], output_links=[], decisions_needed=[], handoff_issues=[],
                          snapshot_limits=[], delivery_notes=[], live_requests=[], session_id=None if fresh else task.get("session_id"), attempt=0)
+        if next_task.get("workspace_preparation") in ("pending", "preparing", "failed") and not next_task.get("worktree"):
+            next_task["workspace_preparation"] = "pending"
         self.store.put("task", previous)
         self.store.put("task", next_task)
         if next_task.get("work_item_id"):
@@ -228,19 +304,30 @@ class AgentMixin:
             self._continue_agent(task, "\n\n".join(m["text"] for m in pending))
 
     def respond_agent(self, tid, rid, raw, request_id=None):
-        with self.store.transaction():
+        with self.store.transaction(), ExitStack() as captures:
             task = self.store.get("task", tid)
             request = next((r for r in task.get("live_requests", []) if r["id"] == rid and r["status"] == "pending"), None)
             if not request or tid not in self.active or not task.get("interactive"):
                 raise Invalid("This request is no longer waiting in the active session")
             params, method = request["params"], request["method"]
+            record = captures.enter_context(WireRecord(self.live_capture(tid, request["capture_name"]))) if request.get("capture_name") else None
+            full_params = record.root.get("params") if record else None
             if method == "item/tool/requestUserInput":
                 answers = raw.get("answers", {})
-                if not isinstance(answers, dict) or set(answers) != {q["id"] for q in params["questions"]}:
+                questions = list(params["questions"]) if not record else full_params.get("questions")
+                get = lambda q, key: q.get(key)
+                if not isinstance(answers, dict) or any(get(q, "id") not in answers for q in questions) or sum(1 for _ in questions) != len(answers):
                     raise Invalid("Answer each question in this request")
-                response = {"answers": {q["id"]: {"answers": [bounded_text(answers[q["id"]], "answer", 6000)]} for q in params["questions"]}}
-                secret = any(q.get("isSecret") for q in params["questions"])
-                text = "Answered the agent's question." if secret else "\n".join(q["question"] + "\n" + answers[q["id"]] for q in params["questions"])
+                response = {"answers": {key: {"answers": [bounded_text(answer, "answer", 6000)]} for key, answer in answers.items()}}
+                text = "Answered the agent's question."
+                if not any(q.get("isSecret") for q in questions):
+                    text = ""
+                    for q in questions:
+                        entry = str(q.get("question", ""))[:300] + "\n" + answers[q.get("id")] + "\n"
+                        text += entry[:max(0, 8192-len(text))]
+                        if len(text) >= 8192:
+                            text += "\nAdditional answers were sent in this response."
+                            break
             elif method in ("item/commandExecution/requestApproval", "item/fileChange/requestApproval"):
                 decision = raw.get("decision")
                 if decision not in ("accept", "acceptForSession", "decline", "cancel"):
@@ -250,7 +337,8 @@ class AgentMixin:
                 if raw.get("decision") not in ("accept", "decline"):
                     raise Invalid("Choose allow or decline for this permission request")
                 allow = raw.get("decision") == "accept"
-                response = {"permissions": params.get("permissions", {}) if allow else {}, "scope": "turn"}
+                permission = full_params.get("permissions") if record else params.get("permissions", {})
+                response = {"permissions": RawJSON(permission) if allow and isinstance(permission, Node) else permission if allow else {}, "scope": "turn"}
                 text = "Permission request: " + ("allowed for this turn" if allow else "declined")
             else:
                 # MCP elicitation is relayed, never automatically granted.
@@ -271,8 +359,14 @@ class AgentMixin:
             self.store.audit("agent.response", tid, method)
             return task
 
+    def live_capture(self, tid, name):
+        task = self.store.get("task", tid)
+        if not any(r.get("capture_name") == name for r in task.get("live_requests", []) + task.get("conversation", [])):
+            raise Invalid("Unknown agent capture")
+        return local_file(self.data / "outputs" / tid / "wire", name, max_bytes=None)
+
     def answer_and_continue(self, pid, rid, raw, request_id=None):
-        with self.store.transaction():
+        with self.config_lock, self.store.transaction():
             project = self.store.get("project", pid)
             record = next((r for r in project["records"] if r["id"] == rid), None)
             if not record or not record.get("user_request_task_id"):

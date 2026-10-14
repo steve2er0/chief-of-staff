@@ -56,34 +56,38 @@ class SetupReviewMixin:
                 self.store.put("setup_review", review)
 
     def _start_project_reviews(self):
-        # Preflight can run subprocess help checks; don't hold the database lock
-        # while doing that. Creation commits before the scheduler reaches here.
-        with self.config_lock:
-            if self.config()["mode"] != "codex":
-                return
-            for review in self.store.all("setup_review"):
-                if review["state"] != "pending":
-                    continue
+        # CLI help can be slow. Reserve no config/store lock until it finishes.
+        if self.shutdown.is_set() or self.config()["mode"] != "codex":
+            return
+        for review in self.store.all("setup_review"):
+            if review["state"] != "pending":
+                continue
+            with self.store.transaction():
                 project = self.store.get("project", review["project_id"])
                 if (self.slots_full() or self._locked(project["cwd"], "read-only") or
                         any(j["project_id"] == project["id"] and j["state"] == "running" for j in self.store.all("job"))):
                     continue
-                try:
-                    if self.adapter.capabilities is None:
-                        self.preflight()
-                    with self.store.transaction():
-                        # Recheck current context after the help check; the owner
-                        # may have edited the project while it was pending.
-                        project = self.store.get("project", review["project_id"])
-                        if self._locked(project["cwd"], "read-only"):
-                            continue
-                        job = self._coordinator(project, "intake", project["vision"], "Automatic project setup review")
-                        review.update(state="running", job_id=job["id"], based_on_version=project["version"],
-                                      progress="Your CoS is getting oriented to the project.", updated=now())
-                        self.store.put("setup_review", review)
-                except Exception as error:
-                    review.update(state="failed", progress=str(error), updated=now())
+            try:
+                if self.adapter.capabilities is None:
+                    self.preflight()
+                with self.config_lock, self.store.transaction():
+                    review = self.store.get("setup_review", review["id"])
+                    if self.shutdown.is_set() or review["state"] != "pending" or self.config()["mode"] != "codex":
+                        continue
+                    project = self.store.get("project", review["project_id"])
+                    if (self.slots_full() or self._locked(project["cwd"], "read-only") or
+                            any(j["project_id"] == project["id"] and j["state"] == "running" for j in self.store.all("job"))):
+                        continue
+                    job = self._coordinator(project, "intake", project["vision"], "Automatic project setup review")
+                    review.update(state="running", job_id=job["id"], based_on_version=project["version"],
+                                  progress="Your CoS is getting oriented to the project.", updated=now())
                     self.store.put("setup_review", review)
+            except Exception as error:
+                with self.store.transaction():
+                    review = self.store.get("setup_review", review["id"])
+                    if review["state"] == "pending":
+                        review.update(state="failed", progress=str(error), updated=now())
+                        self.store.put("setup_review", review)
 
     def _finish_project_review(self, job):
         if job["kind"] != "intake":
