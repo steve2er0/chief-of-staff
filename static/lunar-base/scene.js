@@ -157,7 +157,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     teststand:{pivot:[905.5,683],distanceScale:.9,stationScale:.9,offset:[120,-100]},
     garage:{ground:[1388,650],pivot:[1388,650],distanceScale:.65,stationScale:.65,artScale:1.5,offset:[-38,-350]},
     greenhouse:{ground:[1800,300],pivot:[1800,300],stationScale:1/.65,artScale:1.5,offset:[-234,350]},
-    rover:{ground:[1430,300],distanceScale:.65,artScale:1.5,offset:[-380,0]},
+    rover:{ground:[1430,300],distanceScale:.65,artScale:1.8,offset:[-380,0]},
     communications:{ground:[480,983],offset:[-20,-550]}
   };
   for(const object of objects){
