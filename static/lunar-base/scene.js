@@ -168,6 +168,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
   const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = baseLayout.orders.miscellaneous.length;
+  const infrastructureChoices={habitat:'Habitat',console:'Exterior console',lander:'Lander',hologram:'Holographic model',teststand:'Engine test stand'};
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
     analysis:{label:'Analysis · holographic model',asset:'hologram'},
@@ -301,7 +302,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
+    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null),overrides:Object.create(null),automaticCrew:Object.create(null),suits:Object.create(null)};
     if (!saved || ![1,2,3].includes(saved.version)) return registry;
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
@@ -320,6 +321,11 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       const slot=saved.version===2?Math.floor(oldSlot/10)*WORKERS_PER_PAGE+oldSlot%10:oldSlot;
       if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
     }
+    if(saved.version===3){
+      for(const [id,area] of Object.entries(saved.overrides||{}))if(id.length<=250&&typeof area==='string'&&Object.prototype.hasOwnProperty.call(infrastructureChoices,area))registry.overrides[id]=area;
+      for(const [id,slot] of Object.entries(saved.automaticCrew||{}))if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0)registry.automaticCrew[id]=slot;
+      for(const [id,suit] of Object.entries(saved.suits||{}))if(id.length<=250&&[0,1].includes(suit))registry.suits[id]=suit;
+    }
     return registry;
   }
   function assign(slots, ids) {
@@ -327,16 +333,38 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     for (const id of [...ids].sort()) if (!Object.prototype.hasOwnProperty.call(slots, id)) slots[id] = next++;
   }
   function projectPosition() { return {x:0,y:0}; }
-  function assignCrew(slots, workers, byProject) {
+  function assignCrew(registry, workers, byProject) {
+    const slots=registry.crew;
     const occupied=new Set(Object.values(slots)),canonical=baseLayout.orders.miscellaneous;
     for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))) {
-      if(Object.prototype.hasOwnProperty.call(slots,worker.key))continue;
+      const previous=slots[worker.key],area=registry.overrides[worker.key];
+      const manual=typeof area==='string'&&Object.prototype.hasOwnProperty.call(infrastructureChoices,area);
+      if(Number.isSafeInteger(previous)&&(!manual||baseLayout.stations[canonical[previous%WORKERS_PER_PAGE]].area===area))continue;
+      if(Number.isSafeInteger(previous))occupied.delete(previous);
       const type=workType(worker.raw),project=byProject.get(worker.projectId);
-      const order=baseLayout.orders[type.matched?type.type:project.infrastructure.type]||canonical;
+      const order=manual?canonical.filter(name=>baseLayout.stations[name].area===area):baseLayout.orders[type.matched?type.type:project.infrastructure.type]||canonical;
+      const available=page=>order.map(name=>page*WORKERS_PER_PAGE+canonical.indexOf(name)).find(value=>!occupied.has(value));
       let page=0,slot;
-      do {slot=order.map(name=>page*WORKERS_PER_PAGE+canonical.indexOf(name)).find(value=>!occupied.has(value));page++;} while(slot===undefined);
+      if(manual&&Number.isSafeInteger(previous))slot=available(Math.floor(previous/WORKERS_PER_PAGE));
+      while(slot===undefined)slot=available(page++);
       slots[worker.key]=slot;occupied.add(slot);
     }
+  }
+  function setInfrastructure(view,registry,key,area='') {
+    if(!view.workers.some(worker=>worker.key===key))throw new Error('This astronaut is no longer in the live view.');
+    if(area!==''&&(typeof area!=='string'||!Object.prototype.hasOwnProperty.call(infrastructureChoices,area)))throw new Error('Choose Automatic or an existing piece of infrastructure.');
+    const current=registry.overrides[key]||'';
+    if(current===area)return false;
+    if(area){
+      if(!current)registry.automaticCrew[key]=registry.crew[key];
+      registry.overrides[key]=area;
+    } else {
+      delete registry.overrides[key];
+      const original=registry.automaticCrew[key];delete registry.automaticCrew[key];
+      delete registry.crew[key];
+      if(Number.isSafeInteger(original)&&!Object.values(registry.crew).includes(original))registry.crew[key]=original;
+    }
+    return true;
   }
   function workerPosition(project, slot) {
     const visibleSlot = slot % WORKERS_PER_PAGE;
@@ -400,10 +428,12 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       p.attentionCount=p.ownerRequests.length+p.assignments.reduce((n,a)=>n+a.status.attention.items.filter(i=>a.status.attentionPending&&!i.answered).length,0);
       p.attentionHeld=p.assignments.some(a=>a.status.attentionPending);
     }
-    assignCrew(registry.crew,workers,byProject);
+    for(const worker of workers)if(registry.suits[worker.key]===undefined&&Number.isSafeInteger(registry.crew[worker.key]))registry.suits[worker.key]=registry.crew[worker.key]%2;
+    assignCrew(registry,workers,byProject);
     for(const worker of workers){
       const owner=byProject.get(worker.projectId);
       worker.slot=registry.crew[worker.key];worker.position=workerPosition(owner,worker.slot);
+      registry.suits[worker.key]??=worker.slot%2;worker.suit=registry.suits[worker.key]?'amber':'teal';
       const station=baseLayout.orders.miscellaneous[worker.position.station];
       worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.slot*.73,sharedProject:owner.id};
       worker.visual.label=roles[worker.visual.key].label;
@@ -436,7 +466,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureChoices,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,setInfrastructure,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -461,6 +491,8 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause</button><span id="motion-state" hidden></span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">Home</button><button id="attention-replay" hidden>Replay local attention cycle</button></div></div>
       <nav id="live-projects" class="entities" aria-label="Project filters"></nav>
       <div class="live-crew-heading"><span id="live-crew-heading">Recorded crew</span><div><button id="live-page-prev" aria-label="Previous crew page">←</button><span id="live-crew-page"></span><button id="live-page-next" aria-label="Next crew page">→</button></div></div>
+      <p id="live-placement-note" class="live-placement-note" hidden>Station choices are saved in this browser.</p>
+      <p id="live-placement-status" class="live-placement-note" role="status" aria-live="polite" hidden></p>
       <nav id="live-workers" class="entities" aria-label="Agents"></nav>
       <section class="details live-details" aria-labelledby="detail-title" ${embedded?'hidden':''}><div><p class="eyebrow" id="detail-kicker">LIVE CONNECTION</p><h2 id="detail-title">Your projects, in place.</h2><p id="detail-body">Select an astronaut to follow its work.</p><div id="live-detail-fields"></div></div><div class="detail-note"><span id="detail-status">Connecting</span><p id="live-source"></p></div></section>
       <p id="attention-announcement" class="attention-summary" role="status" aria-live="polite" hidden></p>
@@ -547,19 +579,31 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     function projectPick(id) {
       if(id&&!view.projects.some(p=>p.id===id))return;
       projectFilter=id;selectedProject=id;selectedWorker='';crewPage=pages()[0];
+      element('live-placement-status').hidden=true;
       dirty=true;renderLists();renderDetail();options.onFilter?.(id);
     }
     function workerPick(key) {
       const worker=view.workers.find(w=>w.key===key);if(!worker)return;
       selectedProject=worker.projectId;selectedWorker=key;crewPage=worker.position.page;
+      element('live-placement-status').hidden=true;
       dirty=true;renderLists();renderDetail();
       if(options.onWorker)options.onWorker(worker);
     }
+    function infrastructurePick(key,area) {
+      try {
+        if(!model.setInfrastructure(view,registry,key,area))return;
+        selectedWorker=key;reconcile();
+        const worker=view.workers.find(w=>w.key===key);selectedProject=worker.projectId;crewPage=worker.position.page;
+        dirty=true;renderLists();renderDetail();
+        text('live-placement-status',root.AgentModel.title({title:worker.name})+' · '+(area?model.infrastructureChoices[area]:'Automatic')+' · '+element('live-crew-page').textContent);
+      } catch(error){text('live-placement-status',error.message);}
+      element('live-placement-status').hidden=false;
+    }
     function renderLists() {
       const availablePages=pages();if(!availablePages.includes(crewPage))crewPage=availablePages[0];
-      const signature=JSON.stringify([projectFilter,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.workers.length,p.assignments.length,p.attentionCount]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.status.label,w.status.freshness,w.position.page])]);
+      const signature=JSON.stringify([projectFilter,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.workers.length,p.assignments.length,p.attentionCount]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.status.label,w.status.freshness,w.slot,registry.overrides[w.key]||''])]);
       if(signature===listsSignature)return;listsSignature=signature;
-      const focused=document.activeElement,focusFilter=focused?.id==='live-project-filter',focusWorker=focused?.dataset?.liveWorker;
+      const focused=document.activeElement,focusFilter=focused?.id==='live-project-filter',focusWorker=focused?.dataset?.liveWorker,focusInfrastructure=focused?.dataset?.liveInfrastructure;
       const projectList=element('live-projects'),workerList=element('live-workers');
       projectList.replaceChildren();workerList.replaceChildren();
       const label=document.createElement('label');label.className='live-project-filter';label.textContent='Project';
@@ -573,22 +617,34 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       element('live-crew-page').parentElement.hidden=availablePages.length<=1;
       element('live-page-prev').disabled=pageIndex===0;
       element('live-page-next').disabled=pageIndex>=availablePages.length-1;
+      element('live-placement-note').hidden=!workers.length;
+      text('live-placement-note',storageAvailable?'Station choices are saved in this browser.':'Station choices are temporary in this browser.');
       // The list retains every filtered agent, including other display pages.
       for(const worker of workers) {
         const owner=view.projects.find(p=>p.id===worker.projectId);
+        const card=document.createElement('div');card.className='live-worker-card';
         const button=document.createElement('button');button.setAttribute('aria-pressed',String(worker.key===selectedWorker));button.dataset.liveWorker=worker.key;
-        button.title=worker.name+' · '+owner.name;
+        button.title=worker.name+' · '+owner.name+' · '+(model.infrastructureChoices[worker.position.area]||'Base paths');
         const dot=document.createElement('i');dot.style.backgroundColor=worker.status.colour;
         const name=document.createElement('span');name.textContent=root.AgentModel.title({title:worker.name});
         const project=document.createElement('small');project.className='live-worker-project';project.textContent=owner.name;name.append(project);
         const status=document.createElement('small');status.textContent=worker.status.label;
-        button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));workerList.append(button);
+        button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));card.append(button);
+        const placement=document.createElement('label');placement.className='live-infrastructure-control';placement.textContent='Work at';
+        const choice=document.createElement('select');choice.dataset.liveInfrastructure=worker.key;
+        choice.setAttribute('aria-label','Infrastructure for '+root.AgentModel.title({title:worker.name}));
+        for(const [value,label] of [['','Automatic'],...Object.entries(model.infrastructureChoices)]){
+          const option=document.createElement('option');option.value=value;option.textContent=label;choice.append(option);
+        }
+        choice.value=registry.overrides[worker.key]||'';choice.addEventListener('change',()=>infrastructurePick(worker.key,choice.value));
+        placement.append(choice);card.append(placement);workerList.append(card);
       }
       if(!workers.length){const note=document.createElement('p');note.className='live-no-workers';note.textContent=projectFilter?'No agents in this project yet. Start one in its folder.':'Your base is ready. Start agents in any project folder.';workerList.append(note);}
       text('live-outpost','Shared lunar base');
       text('live-caption','ONE SHARED BASE · CONNECTING PATHS · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
       if(focusFilter)select.focus();
-      if(focusWorker)[...workerList.children].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
+      if(focusWorker)[...workerList.querySelectorAll('[data-live-worker]')].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
+      if(focusInfrastructure)[...workerList.querySelectorAll('[data-live-infrastructure]')].find(s=>s.dataset.liveInfrastructure===focusInfrastructure)?.focus();
     }
     function renderConnection() {
       const context=currentContext();
@@ -607,7 +663,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     }
     function renderDetail() {
       const p=selected(),worker=view.workers.find(w=>w.key===selectedWorker);
-      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.status.category,worker?.status.reason,worker?.status.freshness,selectedProject,selectedWorker,connected]);
+      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.slot,worker&&registry.overrides[worker.key],worker?.status.category,worker?.status.reason,worker?.status.freshness,selectedProject,selectedWorker,connected]);
       if(signature===detailSignature)return;detailSignature=signature;
       element('live-detail-fields').replaceChildren();
       if (!p) {
@@ -632,7 +688,9 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
           }
           field('Response boundary',isDemo?'All questions, answers and resolution in this view are scripted.':'Replies continue with the captured permissions. Tool permissions use the exact request controls in the agent panel.');
         }else if(['needs_input','waiting_for_input'].includes(status.sourceState))field('Request unavailable','The exact request text and type were not supplied.');field('Recorded lifecycle',status.sourceState);field('Agent-reported blocker',status.sourceReported);
-        field('Base infrastructure','Habitat, exterior console, lander, model platform and engine test stand');field('Primary work area',p.infrastructure.label);field('Work area choice',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
+        field('Base infrastructure','Habitat, exterior console, lander, model platform and engine test stand');
+        field('Astronaut work area',model.infrastructureChoices[worker.position.area]||'Base paths');field('Station assignment',registry.overrides[worker.key]?'Chosen in this browser':'Automatic');
+        field('Automatic preference',p.infrastructure.label);field('Automatic preference basis',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
         field('Illustrative work pose',worker.visual.label);field('Pose choice',worker.visual.basis);
         field('Illustration boundary',isDemo?'Entirely scripted demo; no worker process or session.':'Pose is a visual metaphor. Current activity is only the reported lifecycle/tool event below.');
         field('What this means',status.reason);field('Last CoS activity',date(status.lastActivity));
@@ -748,7 +806,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
           const role=model.roles[worker.visual.key],workFlip=working && worker.visual.key!=='console' && track.x>center;
           ctx.save();ctx.translate(position.x,position.y-track.height*scale);ctx.scale(scale*(attending?1:working?(workFlip?-1:1):(track.flip?-1:1)),scale*track.squash);
           if(!worker.status.animate && !attending)ctx.globalAlpha=.80;
-          const sprite=worker.slot%2?images.amber:images.teal;
+          const sprite=images[worker.suit];
           if(attending){
             const pose=root.LunarAttention.phase(track.attentionPhase||0,!paused&&worker.status.attentionAnimate);
             crewFrame(sprite,'attention',pose.frame,pose.row);
@@ -820,8 +878,8 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     element('live-zoom-in').addEventListener('click',()=>zoom(1.25));
     element('live-zoom-out').addEventListener('click',()=>zoom(.8));
     element('live-overview').addEventListener('click',overview);
-    element('live-page-prev').addEventListener('click',()=>{const available=pages();crewPage=available[Math.max(0,available.indexOf(crewPage)-1)];selectedWorker='';dirty=true;renderLists();renderDetail();});
-    element('live-page-next').addEventListener('click',()=>{const available=pages();crewPage=available[Math.min(available.length-1,available.indexOf(crewPage)+1)];selectedWorker='';dirty=true;renderLists();renderDetail();});
+    element('live-page-prev').addEventListener('click',()=>{const available=pages();crewPage=available[Math.max(0,available.indexOf(crewPage)-1)];selectedWorker='';element('live-placement-status').hidden=true;dirty=true;renderLists();renderDetail();});
+    element('live-page-next').addEventListener('click',()=>{const available=pages();crewPage=available[Math.min(available.length-1,available.indexOf(crewPage)+1)];selectedWorker='';element('live-placement-status').hidden=true;dirty=true;renderLists();renderDetail();});
     canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);drag={x:event.clientX,y:event.clientY,camera:{...camera},moved:false};});
     canvas.addEventListener('pointermove',event=>{
       if(!drag)return;const rect=canvas.getBoundingClientRect(),dx=(event.clientX-drag.x)*768/rect.width,dy=(event.clientY-drag.y)*512/rect.height;

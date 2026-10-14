@@ -18,6 +18,8 @@
       <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause</button><span id="motion-state" hidden></span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">Home</button><button id="attention-replay" hidden>Replay local attention cycle</button></div></div>
       <nav id="live-projects" class="entities" aria-label="Project filters"></nav>
       <div class="live-crew-heading"><span id="live-crew-heading">Recorded crew</span><div><button id="live-page-prev" aria-label="Previous crew page">←</button><span id="live-crew-page"></span><button id="live-page-next" aria-label="Next crew page">→</button></div></div>
+      <p id="live-placement-note" class="live-placement-note" hidden>Station choices are saved in this browser.</p>
+      <p id="live-placement-status" class="live-placement-note" role="status" aria-live="polite" hidden></p>
       <nav id="live-workers" class="entities" aria-label="Agents"></nav>
       <section class="details live-details" aria-labelledby="detail-title" ${embedded?'hidden':''}><div><p class="eyebrow" id="detail-kicker">LIVE CONNECTION</p><h2 id="detail-title">Your projects, in place.</h2><p id="detail-body">Select an astronaut to follow its work.</p><div id="live-detail-fields"></div></div><div class="detail-note"><span id="detail-status">Connecting</span><p id="live-source"></p></div></section>
       <p id="attention-announcement" class="attention-summary" role="status" aria-live="polite" hidden></p>
@@ -104,19 +106,31 @@
     function projectPick(id) {
       if(id&&!view.projects.some(p=>p.id===id))return;
       projectFilter=id;selectedProject=id;selectedWorker='';crewPage=pages()[0];
+      element('live-placement-status').hidden=true;
       dirty=true;renderLists();renderDetail();options.onFilter?.(id);
     }
     function workerPick(key) {
       const worker=view.workers.find(w=>w.key===key);if(!worker)return;
       selectedProject=worker.projectId;selectedWorker=key;crewPage=worker.position.page;
+      element('live-placement-status').hidden=true;
       dirty=true;renderLists();renderDetail();
       if(options.onWorker)options.onWorker(worker);
     }
+    function infrastructurePick(key,area) {
+      try {
+        if(!model.setInfrastructure(view,registry,key,area))return;
+        selectedWorker=key;reconcile();
+        const worker=view.workers.find(w=>w.key===key);selectedProject=worker.projectId;crewPage=worker.position.page;
+        dirty=true;renderLists();renderDetail();
+        text('live-placement-status',root.AgentModel.title({title:worker.name})+' · '+(area?model.infrastructureChoices[area]:'Automatic')+' · '+element('live-crew-page').textContent);
+      } catch(error){text('live-placement-status',error.message);}
+      element('live-placement-status').hidden=false;
+    }
     function renderLists() {
       const availablePages=pages();if(!availablePages.includes(crewPage))crewPage=availablePages[0];
-      const signature=JSON.stringify([projectFilter,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.workers.length,p.assignments.length,p.attentionCount]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.status.label,w.status.freshness,w.position.page])]);
+      const signature=JSON.stringify([projectFilter,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.workers.length,p.assignments.length,p.attentionCount]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.status.label,w.status.freshness,w.slot,registry.overrides[w.key]||''])]);
       if(signature===listsSignature)return;listsSignature=signature;
-      const focused=document.activeElement,focusFilter=focused?.id==='live-project-filter',focusWorker=focused?.dataset?.liveWorker;
+      const focused=document.activeElement,focusFilter=focused?.id==='live-project-filter',focusWorker=focused?.dataset?.liveWorker,focusInfrastructure=focused?.dataset?.liveInfrastructure;
       const projectList=element('live-projects'),workerList=element('live-workers');
       projectList.replaceChildren();workerList.replaceChildren();
       const label=document.createElement('label');label.className='live-project-filter';label.textContent='Project';
@@ -130,22 +144,34 @@
       element('live-crew-page').parentElement.hidden=availablePages.length<=1;
       element('live-page-prev').disabled=pageIndex===0;
       element('live-page-next').disabled=pageIndex>=availablePages.length-1;
+      element('live-placement-note').hidden=!workers.length;
+      text('live-placement-note',storageAvailable?'Station choices are saved in this browser.':'Station choices are temporary in this browser.');
       // The list retains every filtered agent, including other display pages.
       for(const worker of workers) {
         const owner=view.projects.find(p=>p.id===worker.projectId);
+        const card=document.createElement('div');card.className='live-worker-card';
         const button=document.createElement('button');button.setAttribute('aria-pressed',String(worker.key===selectedWorker));button.dataset.liveWorker=worker.key;
-        button.title=worker.name+' · '+owner.name;
+        button.title=worker.name+' · '+owner.name+' · '+(model.infrastructureChoices[worker.position.area]||'Base paths');
         const dot=document.createElement('i');dot.style.backgroundColor=worker.status.colour;
         const name=document.createElement('span');name.textContent=root.AgentModel.title({title:worker.name});
         const project=document.createElement('small');project.className='live-worker-project';project.textContent=owner.name;name.append(project);
         const status=document.createElement('small');status.textContent=worker.status.label;
-        button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));workerList.append(button);
+        button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));card.append(button);
+        const placement=document.createElement('label');placement.className='live-infrastructure-control';placement.textContent='Work at';
+        const choice=document.createElement('select');choice.dataset.liveInfrastructure=worker.key;
+        choice.setAttribute('aria-label','Infrastructure for '+root.AgentModel.title({title:worker.name}));
+        for(const [value,label] of [['','Automatic'],...Object.entries(model.infrastructureChoices)]){
+          const option=document.createElement('option');option.value=value;option.textContent=label;choice.append(option);
+        }
+        choice.value=registry.overrides[worker.key]||'';choice.addEventListener('change',()=>infrastructurePick(worker.key,choice.value));
+        placement.append(choice);card.append(placement);workerList.append(card);
       }
       if(!workers.length){const note=document.createElement('p');note.className='live-no-workers';note.textContent=projectFilter?'No agents in this project yet. Start one in its folder.':'Your base is ready. Start agents in any project folder.';workerList.append(note);}
       text('live-outpost','Shared lunar base');
       text('live-caption','ONE SHARED BASE · CONNECTING PATHS · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
       if(focusFilter)select.focus();
-      if(focusWorker)[...workerList.children].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
+      if(focusWorker)[...workerList.querySelectorAll('[data-live-worker]')].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
+      if(focusInfrastructure)[...workerList.querySelectorAll('[data-live-infrastructure]')].find(s=>s.dataset.liveInfrastructure===focusInfrastructure)?.focus();
     }
     function renderConnection() {
       const context=currentContext();
@@ -164,7 +190,7 @@
     }
     function renderDetail() {
       const p=selected(),worker=view.workers.find(w=>w.key===selectedWorker);
-      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.status.category,worker?.status.reason,worker?.status.freshness,selectedProject,selectedWorker,connected]);
+      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.slot,worker&&registry.overrides[worker.key],worker?.status.category,worker?.status.reason,worker?.status.freshness,selectedProject,selectedWorker,connected]);
       if(signature===detailSignature)return;detailSignature=signature;
       element('live-detail-fields').replaceChildren();
       if (!p) {
@@ -189,7 +215,9 @@
           }
           field('Response boundary',isDemo?'All questions, answers and resolution in this view are scripted.':'Replies continue with the captured permissions. Tool permissions use the exact request controls in the agent panel.');
         }else if(['needs_input','waiting_for_input'].includes(status.sourceState))field('Request unavailable','The exact request text and type were not supplied.');field('Recorded lifecycle',status.sourceState);field('Agent-reported blocker',status.sourceReported);
-        field('Base infrastructure','Habitat, exterior console, lander, model platform and engine test stand');field('Primary work area',p.infrastructure.label);field('Work area choice',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
+        field('Base infrastructure','Habitat, exterior console, lander, model platform and engine test stand');
+        field('Astronaut work area',model.infrastructureChoices[worker.position.area]||'Base paths');field('Station assignment',registry.overrides[worker.key]?'Chosen in this browser':'Automatic');
+        field('Automatic preference',p.infrastructure.label);field('Automatic preference basis',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
         field('Illustrative work pose',worker.visual.label);field('Pose choice',worker.visual.basis);
         field('Illustration boundary',isDemo?'Entirely scripted demo; no worker process or session.':'Pose is a visual metaphor. Current activity is only the reported lifecycle/tool event below.');
         field('What this means',status.reason);field('Last CoS activity',date(status.lastActivity));
@@ -305,7 +333,7 @@
           const role=model.roles[worker.visual.key],workFlip=working && worker.visual.key!=='console' && track.x>center;
           ctx.save();ctx.translate(position.x,position.y-track.height*scale);ctx.scale(scale*(attending?1:working?(workFlip?-1:1):(track.flip?-1:1)),scale*track.squash);
           if(!worker.status.animate && !attending)ctx.globalAlpha=.80;
-          const sprite=worker.slot%2?images.amber:images.teal;
+          const sprite=images[worker.suit];
           if(attending){
             const pose=root.LunarAttention.phase(track.attentionPhase||0,!paused&&worker.status.attentionAnimate);
             crewFrame(sprite,'attention',pose.frame,pose.row);
@@ -377,8 +405,8 @@
     element('live-zoom-in').addEventListener('click',()=>zoom(1.25));
     element('live-zoom-out').addEventListener('click',()=>zoom(.8));
     element('live-overview').addEventListener('click',overview);
-    element('live-page-prev').addEventListener('click',()=>{const available=pages();crewPage=available[Math.max(0,available.indexOf(crewPage)-1)];selectedWorker='';dirty=true;renderLists();renderDetail();});
-    element('live-page-next').addEventListener('click',()=>{const available=pages();crewPage=available[Math.min(available.length-1,available.indexOf(crewPage)+1)];selectedWorker='';dirty=true;renderLists();renderDetail();});
+    element('live-page-prev').addEventListener('click',()=>{const available=pages();crewPage=available[Math.max(0,available.indexOf(crewPage)-1)];selectedWorker='';element('live-placement-status').hidden=true;dirty=true;renderLists();renderDetail();});
+    element('live-page-next').addEventListener('click',()=>{const available=pages();crewPage=available[Math.min(available.length-1,available.indexOf(crewPage)+1)];selectedWorker='';element('live-placement-status').hidden=true;dirty=true;renderLists();renderDetail();});
     canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);drag={x:event.clientX,y:event.clientY,camera:{...camera},moved:false};});
     canvas.addEventListener('pointermove',event=>{
       if(!drag)return;const rect=canvas.getBoundingClientRect(),dx=(event.clientX-drag.x)*768/rect.width,dy=(event.clientY-drag.y)*512/rect.height;

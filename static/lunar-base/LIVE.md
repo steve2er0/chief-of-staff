@@ -27,6 +27,14 @@ scanning and inspection positions; the habitat, model, lander and test stand als
 have three distinct poses each. Repeated task wording does not give everyone the
 same pose. Additional agents do not add consoles or other infrastructure.
 
+Use **Work at** beneath an astronaut's card to choose Habitat, Exterior console,
+Lander, Holographic model or Engine test stand. **Automatic** is the default and
+restores automatic assignment when selected again. Choices follow the persistent
+agent across continuations and reloads in this browser. Moving an astronaut keeps
+its suit and everyone else's position. Each choice uses a free existing crew
+position and its animation; if that structure is full, the map opens another crew
+page. This is a visual preference and does not change the agent's folder or task.
+
 Each agent keeps one astronaut across continuations. The current turn uses the
 same `agent_id`, suit, browser-local slot and selection. Old turns remain history
 and results. Active or recovery-locked coordinator calls are separate crew;
@@ -87,6 +95,7 @@ python3 static/lunar-base/source/build_scene.py
 node static/lunar-base/source/test_live_model.cjs
 node static/lunar-base/source/test_attention_model.cjs
 node static/lunar-base/source/test_shared_crew.cjs
+node static/lunar-base/source/test_manual_infrastructure.cjs
 python3 -B -m unittest discover -s tests -q
 ```
 

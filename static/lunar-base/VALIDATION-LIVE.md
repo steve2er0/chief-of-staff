@@ -31,6 +31,34 @@ The client has no independent external-agent inventory, measured progress or tok
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
 
+## Manual infrastructure choices (2026-10-14)
+
+Every live astronaut card now offers **Work at**, with **Automatic** as the
+default and all five existing structures as manual choices. Preferences are
+browser-local and follow persistent agents across continuations. Moving an agent
+retains its suit and preserves other crew positions. Full structures use existing
+positions on another display page, retaining distinct poses and safe spacing.
+Returning to Automatic restores the original station when free, otherwise uses
+normal allocation without displacing another astronaut.
+
+- The isolated Git delivery snapshot passed **348 tests**; the combined working
+  checkout passed 349 during integration. Manual-choice regressions cover all
+  five targets, default/reset behavior, reload/continuation
+  persistence, identity and suit stability, immutable operational records,
+  crowded structures, occupied original stations and invalid saved preferences.
+- All **30 JavaScript/CJS files** passed syntax checks. The scene and both styles
+  rebuild byte for byte, and the whitespace check passed.
+- An isolated read-only browser fixture checked all five selectors, reload and
+  Automatic reset. Eight agents assigned to the lander occupied three crew pages.
+  Project filtering and the existing conversation panel still worked. The fixture
+  used **120 GET requests**, no POST requests or provider calls, and stopped with
+  its operational store unchanged. Browser warning/error logs were empty.
+- The operational live app was reconnected and displayed Work at for its two
+  existing finished agents, both retaining Automatic and their stations. No real
+  agent was launched, stopped or sent instructions; no service restart was needed.
+  Its browser warning/error logs were empty. This verifies graphical assignment,
+  not agent work or engineering results.
+
 ## Shared equipment and separated crew positions
 
 Each of the five existing structures now has three spaced crew positions with

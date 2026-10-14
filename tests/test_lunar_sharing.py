@@ -19,6 +19,12 @@ class SharedCrewTests(unittest.TestCase):
     def test_shared_infrastructure_and_persistent_crew(self):
         self.fixture()
 
+    def test_manual_infrastructure_choices(self):
+        node=shutil.which('node')
+        if not node:self.skipTest('Node unavailable')
+        result=subprocess.run([node,str(ROOT/'static/lunar-base/source/test_manual_infrastructure.cjs')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_all_sprite_frames_attention_and_labels_have_clearance(self):
         try:from PIL import Image
         except ImportError:self.skipTest('Pillow required for artwork clearance validation')

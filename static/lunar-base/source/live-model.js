@@ -5,6 +5,7 @@
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
   const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = baseLayout.orders.miscellaneous.length;
+  const infrastructureChoices={habitat:'Habitat',console:'Exterior console',lander:'Lander',hologram:'Holographic model',teststand:'Engine test stand'};
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
     analysis:{label:'Analysis · holographic model',asset:'hologram'},
@@ -138,7 +139,7 @@
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
+    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null),overrides:Object.create(null),automaticCrew:Object.create(null),suits:Object.create(null)};
     if (!saved || ![1,2,3].includes(saved.version)) return registry;
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
@@ -157,6 +158,11 @@
       const slot=saved.version===2?Math.floor(oldSlot/10)*WORKERS_PER_PAGE+oldSlot%10:oldSlot;
       if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
     }
+    if(saved.version===3){
+      for(const [id,area] of Object.entries(saved.overrides||{}))if(id.length<=250&&typeof area==='string'&&Object.prototype.hasOwnProperty.call(infrastructureChoices,area))registry.overrides[id]=area;
+      for(const [id,slot] of Object.entries(saved.automaticCrew||{}))if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0)registry.automaticCrew[id]=slot;
+      for(const [id,suit] of Object.entries(saved.suits||{}))if(id.length<=250&&[0,1].includes(suit))registry.suits[id]=suit;
+    }
     return registry;
   }
   function assign(slots, ids) {
@@ -164,16 +170,38 @@
     for (const id of [...ids].sort()) if (!Object.prototype.hasOwnProperty.call(slots, id)) slots[id] = next++;
   }
   function projectPosition() { return {x:0,y:0}; }
-  function assignCrew(slots, workers, byProject) {
+  function assignCrew(registry, workers, byProject) {
+    const slots=registry.crew;
     const occupied=new Set(Object.values(slots)),canonical=baseLayout.orders.miscellaneous;
     for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))) {
-      if(Object.prototype.hasOwnProperty.call(slots,worker.key))continue;
+      const previous=slots[worker.key],area=registry.overrides[worker.key];
+      const manual=typeof area==='string'&&Object.prototype.hasOwnProperty.call(infrastructureChoices,area);
+      if(Number.isSafeInteger(previous)&&(!manual||baseLayout.stations[canonical[previous%WORKERS_PER_PAGE]].area===area))continue;
+      if(Number.isSafeInteger(previous))occupied.delete(previous);
       const type=workType(worker.raw),project=byProject.get(worker.projectId);
-      const order=baseLayout.orders[type.matched?type.type:project.infrastructure.type]||canonical;
+      const order=manual?canonical.filter(name=>baseLayout.stations[name].area===area):baseLayout.orders[type.matched?type.type:project.infrastructure.type]||canonical;
+      const available=page=>order.map(name=>page*WORKERS_PER_PAGE+canonical.indexOf(name)).find(value=>!occupied.has(value));
       let page=0,slot;
-      do {slot=order.map(name=>page*WORKERS_PER_PAGE+canonical.indexOf(name)).find(value=>!occupied.has(value));page++;} while(slot===undefined);
+      if(manual&&Number.isSafeInteger(previous))slot=available(Math.floor(previous/WORKERS_PER_PAGE));
+      while(slot===undefined)slot=available(page++);
       slots[worker.key]=slot;occupied.add(slot);
     }
+  }
+  function setInfrastructure(view,registry,key,area='') {
+    if(!view.workers.some(worker=>worker.key===key))throw new Error('This astronaut is no longer in the live view.');
+    if(area!==''&&(typeof area!=='string'||!Object.prototype.hasOwnProperty.call(infrastructureChoices,area)))throw new Error('Choose Automatic or an existing piece of infrastructure.');
+    const current=registry.overrides[key]||'';
+    if(current===area)return false;
+    if(area){
+      if(!current)registry.automaticCrew[key]=registry.crew[key];
+      registry.overrides[key]=area;
+    } else {
+      delete registry.overrides[key];
+      const original=registry.automaticCrew[key];delete registry.automaticCrew[key];
+      delete registry.crew[key];
+      if(Number.isSafeInteger(original)&&!Object.values(registry.crew).includes(original))registry.crew[key]=original;
+    }
+    return true;
   }
   function workerPosition(project, slot) {
     const visibleSlot = slot % WORKERS_PER_PAGE;
@@ -237,10 +265,12 @@
       p.attentionCount=p.ownerRequests.length+p.assignments.reduce((n,a)=>n+a.status.attention.items.filter(i=>a.status.attentionPending&&!i.answered).length,0);
       p.attentionHeld=p.assignments.some(a=>a.status.attentionPending);
     }
-    assignCrew(registry.crew,workers,byProject);
+    for(const worker of workers)if(registry.suits[worker.key]===undefined&&Number.isSafeInteger(registry.crew[worker.key]))registry.suits[worker.key]=registry.crew[worker.key]%2;
+    assignCrew(registry,workers,byProject);
     for(const worker of workers){
       const owner=byProject.get(worker.projectId);
       worker.slot=registry.crew[worker.key];worker.position=workerPosition(owner,worker.slot);
+      registry.suits[worker.key]??=worker.slot%2;worker.suit=registry.suits[worker.key]?'amber':'teal';
       const station=baseLayout.orders.miscellaneous[worker.position.station];
       worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.slot*.73,sharedProject:owner.id};
       worker.visual.label=roles[worker.visual.key].label;
@@ -273,7 +303,7 @@
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureChoices,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,setInfrastructure,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);
