@@ -1,7 +1,13 @@
 /* One coherent placement review, entirely synthetic and separate from live state. */
 (function(root){
  'use strict';
- const {width,height,objects,paths}=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
+ const base=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
+ // This unshipped historical review retains its composition independently of
+ // the live foreground layout. Only the sprite geometry comes from the base.
+ const original={habitat:[136,140,341,447],console:[103,319,90,446],lander:[815,214,930,516],hologram:[342,450,454,729],teststand:[763,523,905,727]};
+ const width=1152,height=768,objects=base.objects.slice(0,5).map(object=>{
+  const [x,y,labelX,labelY]=original[object.id];return {...object,x,y,labelX,labelY,width:object.nativeSize[0],height:object.nativeSize[1],scale:1,groundDepth:y+Math.max(...object.contacts.map(c=>c[1]))};
+ }),paths=[[[546,382],[589,421],[621,449],[710,477],[812,473]],[[710,477],[712,585],[637,635],[617,685]],[[712,585],[747,621],[742,675]]];
  const circuit=[{x:621,y:449},{x:710,y:477},{x:712,y:585},{x:637,y:635},{x:617,y:685}];
  const crew=[
   {id:'operator',x:127,y:426,role:'console',colour:'teal',area:'console',label:'Exterior console operation'},

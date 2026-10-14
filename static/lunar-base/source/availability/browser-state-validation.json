@@ -1,0 +1,114 @@
+{
+  "stateChecks": [
+    {
+      "action": "Explicit wait",
+      "expected": "waiting",
+      "actual": "waiting",
+      "x": 200,
+      "y": 458,
+      "height": 0
+    },
+    {
+      "action": "Running solve",
+      "expected": "thinking",
+      "actual": "thinking",
+      "x": 200.16399769956223,
+      "y": 457.95690571398364,
+      "height": 0.2697708884688105
+    },
+    {
+      "action": "Needs you",
+      "expected": "attention",
+      "actual": "attention",
+      "x": 201.84560488045815,
+      "y": 457.5150235350621,
+      "height": 0
+    },
+    {
+      "action": "Interrupt",
+      "expected": "held",
+      "actual": "held",
+      "x": 201.84560488045815,
+      "y": 457.5150235350621,
+      "height": 0
+    },
+    {
+      "action": "Stale",
+      "expected": "held",
+      "actual": "held",
+      "x": 201.84560488045815,
+      "y": 457.5150235350621,
+      "height": 0
+    },
+    {
+      "action": "Disconnect",
+      "expected": "held",
+      "actual": "held",
+      "x": 201.84560488045815,
+      "y": 457.5150235350621,
+      "height": 0
+    },
+    {
+      "action": "Recover",
+      "expected": "working",
+      "actual": "working",
+      "x": 201.84560488045815,
+      "y": 457.5150235350621,
+      "height": 0
+    }
+  ],
+  "pauseFrozen": true,
+  "reducedMotion": "Fixture-injected MediaQueryList matching reduced motion; Mac settings unchanged",
+  "reducedBefore": [
+    {
+      "key": "task:a",
+      "x": 127,
+      "y": 906,
+      "height": 0,
+      "frame": 0,
+      "mode": "waiting",
+      "phase": 0,
+      "restTime": 0,
+      "journey": false,
+      "routeBlocked": false
+    },
+    {
+      "key": "task:b",
+      "x": 337,
+      "y": 902,
+      "height": 0,
+      "frame": 0,
+      "mode": "working",
+      "phase": 0.73,
+      "restTime": 0,
+      "journey": false,
+      "routeBlocked": false
+    }
+  ],
+  "reducedAfter": [
+    {
+      "key": "task:a",
+      "x": 127,
+      "y": 906,
+      "height": 0,
+      "frame": 0,
+      "mode": "waiting",
+      "phase": 0,
+      "restTime": 0,
+      "journey": false,
+      "routeBlocked": false
+    },
+    {
+      "key": "task:b",
+      "x": 337,
+      "y": 902,
+      "height": 0,
+      "frame": 0,
+      "mode": "available",
+      "phase": 0.73,
+      "restTime": 0,
+      "journey": true,
+      "routeBlocked": false
+    }
+  ]
+}

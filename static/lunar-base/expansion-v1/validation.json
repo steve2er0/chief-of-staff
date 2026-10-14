@@ -11,5 +11,5 @@
     "Placement: every sprite fits wholly inside the review viewport"
   ],
   "status": "passed",
-  "existing_application": "Not imported, rebuilt, integrated or modified by this pack"
+  "existing_application": "Asset acceptance only; live integration is validated separately in VALIDATION-LIVE.md"
 }

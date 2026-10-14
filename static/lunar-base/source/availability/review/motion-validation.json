@@ -1,0 +1,41 @@
+{
+  "source": "Actual Mac Chrome Canvas samples, real animation timers",
+  "sample_count": 119,
+  "unique_actual_frames": 56,
+  "gif_frames": 57,
+  "duration_ms": 23960,
+  "moving_samples": 48,
+  "peak_bound_height": 11.978744257088847,
+  "start": {
+    "key": "task:b",
+    "x": 337,
+    "y": 902,
+    "height": 0,
+    "frame": 0,
+    "mode": "working",
+    "phase": 2.6682000000000006,
+    "restTime": 1.9382000000000026,
+    "journey": false,
+    "routeBlocked": false
+  },
+  "finish": {
+    "key": "task:b",
+    "x": 352,
+    "y": 990,
+    "height": 0,
+    "frame": 0,
+    "mode": "available",
+    "phase": 25.75309999999997,
+    "restTime": 12.145000000000001,
+    "journey": false,
+    "routeBlocked": false
+  },
+  "checks": [
+    "Real timer-driven Mac Chrome frames, no reconstructed simulation",
+    "Completed turn returns and arrives at rest",
+    "Explicit waiting astronaut stays at work area",
+    "No character overlap",
+    "Pause and reduced-motion MediaQueryList fixture verified separately"
+  ],
+  "fixture_note": "All agent records are synthetic; no real jobs, operational API calls or worker telemetry."
+}

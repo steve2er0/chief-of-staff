@@ -1,0 +1,10 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-10-14",
+  "references": [
+    "frame-contact-sheet.png",
+    "reference/exec-1d86c474-b31e-440d-9933-77bf65ee4a72.png"
+  ],
+  "prompt": "Create a transparent four-cell horizontal strip of the exact chunky white astronaut from the current frame contact sheet and approved Library art board: neutral relaxed standing, seated on ground, looking up toward Earth with glove shading visor, gentle overhead stretch. Dark navy glossy visor, teal suit patches, compact backpack, tiny short limbs. Four isolated complete figures, same helmet/character scale and foot baseline, no background, shadows, text, props or companions. Intended 64x64 registered cells with foot anchor (32,58).",
+  "original_generation_file": "exec-aef947d7-6485-42f8-9657-e18351d1e986.png"
+}

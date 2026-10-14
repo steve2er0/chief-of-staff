@@ -1,7 +1,9 @@
 # Lunar Base expansion 01
 
-Five future assets in the existing ivory/slate, amber/cyan pixel-art style.
-This directory is independent of the MVP, demos, live scene and backend.
+Five reusable assets in the existing ivory/slate, amber/cyan pixel-art style.
+The live shared lunar base uses four of the 3× sprites with assignable astronaut
+stations on open terrain; the launch pad stays in the art pack. The standalone previews in this directory remain asset
+studies with no agents or backend connection.
 
 | Sprite | Logical canvas | Ground anchor |
 | --- | --- | --- |

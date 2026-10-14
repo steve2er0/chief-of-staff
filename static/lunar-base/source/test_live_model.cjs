@@ -94,9 +94,9 @@ console.log('PASS: persistent astronaut identity and position, completed results
 
 // Full scenery is independent of crew count; every astronaut has a recorded identity.
 const scenery=model.baseLayout,placement=require('./placement-model.js');
-assert.deepEqual(scenery.objects,placement.objects);
-assert.deepEqual(scenery.paths,placement.paths);
-assert.deepEqual(scenery.objects.map(o=>o.asset).sort(),['console','habitat','hologram','lander','teststand']);
+assert.deepEqual(scenery.objects.slice(0,5).map(o=>[o.id,o.asset,o.nativeSize]),placement.objects.map(o=>[o.id,o.asset,o.nativeSize]));
+assert(scenery.paths.every(path=>path.length>=2),'foreground layout retains connecting routes');
+assert.deepEqual(scenery.objects.map(o=>o.asset).sort(),['communications','console','garage','greenhouse','habitat','hologram','lander','rover','teststand']);
 assert.equal(model.build({projects:[{id:'empty'}],tasks:[],jobs:[]},model.cleanRegistry(null),context).workers.length,0);
 for(const type of Object.keys(scenery.orders)){
  const project={...model.projectPosition(0),infrastructure:{type}};
@@ -140,7 +140,7 @@ const empty=model.build({projects:[],tasks:[],jobs:[]},model.cleanRegistry(null)
 assert.deepEqual(empty.base,sharedView.base);assert.equal(empty.workers.length,0,'empty workspace retains scenery without inventing astronauts');
 const legacy=model.cleanRegistry({version:1,projects:{a:0,b:1},workers:{a:{'task:one':0},b:{'task:two':0}}});
 const migrated=model.build({projects:[{id:'a'},{id:'b'}],tasks:[real({id:'one',project_id:'a'}),real({id:'two',project_id:'b'})],jobs:[]},legacy,context);
-assert.equal(legacy.version,3);assert.notEqual(migrated.workers[0].slot,migrated.workers[1].slot);
+assert.equal(legacy.version,5);assert.notEqual(migrated.workers[0].slot,migrated.workers[1].slot);
 const sparse=model.build({...shared,tasks:shared.tasks.filter(t=>t.project_id==='test')},sharedRegistry,context);
 assert.deepEqual(model.crewPages(sparse),[...new Set(sparse.workers.map(w=>w.position.page))].sort((a,b)=>a-b),'paging skips unused historical slots');
 console.log('PASS: all-project crew separation, immutable filters, persistent identities, one empty base, legacy layout migration and sparse display paging.');

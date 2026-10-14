@@ -53,6 +53,19 @@ class LunarBaseTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.request('/lunar-base/' + path)[0], 404)
 
+    def test_expansion_only_exposes_authenticated_runtime_sprites(self):
+        before=list(self.service.store.db.iterdump())
+        for name in ['rover-garage','greenhouse','communications-dish','launch-pad','rover']:
+            path='/lunar-base/expansion-v1/sprites-3x/'+name+'.png'
+            self.assertEqual(self.request(path,False)[0],401)
+            code,data,kind=self.request(path)
+            self.assertEqual(code,200)
+            self.assertTrue(kind.startswith('image/png'))
+            self.assertTrue(data.startswith(b'\x89PNG\r\n\x1a\n'))
+        for path in ['index.html','manifest.json','source/prompts.json','source/masters/rover.png','sprites-3x/missing.png','sprites/rover.png']:
+            self.assertEqual(self.request('/lunar-base/expansion-v1/'+path)[0],404)
+        self.assertEqual(list(self.service.store.db.iterdump()),before)
+
     def test_live_workspace_does_not_mutate_state_and_controls_remain(self):
         before = self.service.snapshot()
         before.pop('local_time')

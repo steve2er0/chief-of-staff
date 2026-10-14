@@ -5,12 +5,16 @@
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
   const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = baseLayout.orders.miscellaneous.length;
-  const infrastructureChoices={habitat:'Habitat',console:'Exterior console',lander:'Lander',hologram:'Holographic model',teststand:'Engine test stand'};
+  const infrastructureChoices={habitat:'Habitat',console:'Exterior console',lander:'Lander',hologram:'Holographic model',teststand:'Engine test stand',garage:'Rover garage',greenhouse:'Greenhouse',communications:'Communications dish',rover:'Utility rover'};
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
     analysis:{label:'Analysis · holographic model',asset:'hologram'},
     test:{label:'Test data · engine stand',asset:'teststand'},
-    miscellaneous:{label:'Miscellaneous · habitat + exterior console',asset:'habitat'}
+    miscellaneous:{label:'Miscellaneous · habitat + exterior console',asset:'habitat'},
+    garage:{label:'Fabrication / maintenance · rover garage',asset:'garage'},
+    greenhouse:{label:'Plant systems · greenhouse',asset:'greenhouse'},
+    communications:{label:'Communications · dish',asset:'communications'},
+    rover:{label:'Surface mobility · utility rover',asset:'rover'}
   };
   const roles = {
     console:{label:'Console operation',row:null,rate:3.5},
@@ -26,6 +30,11 @@
     const outputs=Array.isArray(record?.expected_outputs)?record.expected_outputs:[];
     const text=fields.map(k=>String(record?.[k]||'')).concat(outputs.map(v=>typeof v==='string'?v:v?.name||'')).join(' ').toLowerCase();
     const matches=[
+      ['garage',/\b(rover garage|garage|workshop|fabrication)\b/],
+      ['greenhouse',/\b(greenhouse|hydroponics|plant systems|botany)\b/],
+      ['communications',/\b(communications|comms|radio|antenna|signal routing)\b/],
+      ['flight',/\b(launch pad|launch operations|countdown)\b/],
+      ['rover',/\b(rover|surface mobility|surface traverse)\b/],
       ['test',/\b(test data|test stand|test campaign|engine test|ground test|hot[ -]?fire|qualification|bench test)\b/],
       ['flight',/\b(flight data|telemetry|lander|landing|trajectory|orbital|avionics)\b/],
       ['analysis',/\b(analysis|analyse|analyze|analytical|simulation|modelling|modeling|rocket model|hologram)\b/]
@@ -35,7 +44,7 @@
   }
   function projectInfrastructure(raw,assignments) {
     const direct=workType(raw);if(direct.matched)return direct;
-    const counts={test:0,flight:0,analysis:0};
+    const counts=Object.fromEntries(Object.keys(infrastructureTypes).filter(type=>type!=='miscellaneous').map(type=>[type,0]));
     for(const a of assignments) {const type=workType(a.raw).type;if(type in counts)counts[type]++;}
     const type=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b))[0];
     return counts[type]?{type,matched:null,basis:'Most common work type in this project’s task metadata'}:direct;
@@ -139,8 +148,14 @@
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null),overrides:Object.create(null),automaticCrew:Object.create(null),suits:Object.create(null)};
-    if (!saved || ![1,2,3].includes(saved.version)) return registry;
+    const registry = {version:5, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null),overrides:Object.create(null),automaticCrew:Object.create(null),suits:Object.create(null)};
+    if (!saved || ![1,2,3,4,5].includes(saved.version)) return registry;
+    const migrateSlot=slot=>{
+      const capacity=saved.version===2?10:saved.version<4?16:saved.version===4?31:WORKERS_PER_PAGE;
+      const index=slot%capacity;
+      if(saved.version===4&&index>=25&&index<=27)return null; // Removed pad stations return to Automatic.
+      return Math.floor(slot/capacity)*WORKERS_PER_PAGE+(saved.version===4&&index>=28?index-3:index);
+    };
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
       if (id.length <= 200 && Number.isSafeInteger(slot) && slot >= 0 && slot < 100000 && !usedProjects.has(slot)) {registry.projects[id] = slot;usedProjects.add(slot);}
@@ -155,13 +170,19 @@
     const usedCrew=new Set();
     for(const [id,oldSlot] of Object.entries(saved.version>=2?saved.crew||{}:{})) {
       if(!Number.isSafeInteger(oldSlot)||oldSlot<0)continue;
-      const slot=saved.version===2?Math.floor(oldSlot/10)*WORKERS_PER_PAGE+oldSlot%10:oldSlot;
-      if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
+      if(id.length<=250)registry.suits[id]=oldSlot%2;
+      const slot=migrateSlot(oldSlot);
+      if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;registry.suits[id]=oldSlot%2;usedCrew.add(slot);}
     }
-    if(saved.version===3){
+    if(saved.version>=3){
       for(const [id,area] of Object.entries(saved.overrides||{}))if(id.length<=250&&typeof area==='string'&&Object.prototype.hasOwnProperty.call(infrastructureChoices,area))registry.overrides[id]=area;
-      for(const [id,slot] of Object.entries(saved.automaticCrew||{}))if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0)registry.automaticCrew[id]=slot;
+      for(const [id,slot] of Object.entries(saved.automaticCrew||{}))if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0&&Number.isSafeInteger(migrateSlot(slot)))registry.automaticCrew[id]=migrateSlot(slot);
       for(const [id,suit] of Object.entries(saved.suits||{}))if(id.length<=250&&[0,1].includes(suit))registry.suits[id]=suit;
+      for(const [id,area] of Object.entries(saved.overrides||{}))if(area==='launchpad'){
+        const original=registry.automaticCrew[id];
+        if(!Number.isSafeInteger(registry.crew[id])&&Number.isSafeInteger(original)&&!usedCrew.has(original)){registry.crew[id]=original;usedCrew.add(original);}
+        delete registry.automaticCrew[id];
+      }
     }
     return registry;
   }
@@ -209,20 +230,21 @@
     const station=baseLayout.stations[order[visibleSlot]];
     return {work:{x:project.x+station.work[0],y:project.y+station.work[1]},
       home:{x:project.x+station.home[0],y:project.y+station.home[1]},
-      page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot,area:station.area};
+      page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot,area:station.area,scale:baseLayout.crewScale*(baseLayout.objects.find(o=>o.id===station.area)?.distanceScale||1)};
   }
   function workerAnchor(worker,illustrative=false) {
     if(!illustrative)return worker.position.work;
     return worker.status.animate&&worker.status.area!=='workspace'?worker.position.work:worker.position.home;
   }
-  function workerLabelWidth(worker,crew) {
-    const point=worker.position.work;
-    let width=Math.min(150,2*(point.x-8),2*(baseLayout.width-point.x-8));
+  function workerLabelWidth(worker,crew,positionOf=worker=>worker.position.work) {
+    const point=positionOf(worker),scale=worker.position.scale;
+    let width=Math.min(150*scale,2*(point.x-8),2*(baseLayout.width-point.x-8));
     for(const other of crew){
       if(other.key===worker.key||other.position.page!==worker.position.page)continue;
-      if(Math.abs(other.position.work.y-point.y)<114)width=Math.min(width,Math.abs(other.position.work.x-point.x)-8);
+      const nearby=positionOf(other);
+      if(Math.abs(nearby.y-point.y)<114*Math.max(scale,other.position.scale))width=Math.min(width,Math.abs(nearby.x-point.x)-8);
     }
-    return Math.max(48,width);
+    return Math.max(48,width/scale);
   }
   function project(raw, registry) {
     const slot = registry.projects[raw.id], position = projectPosition(slot);

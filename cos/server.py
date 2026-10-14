@@ -119,6 +119,9 @@ class Handler(BaseHTTPRequestHandler):
             }
             for name in ("terrain", "habitat", "console", "astronaut-teal", "astronaut-amber"):
                 lunar_files["/lunar-base/assets/" + name + ".png"] = ("assets/" + name + ".png", "image/png")
+            for name in ("rover-garage", "greenhouse", "communications-dish", "launch-pad", "rover"):
+                relative = "expansion-v1/sprites-3x/" + name + ".png"
+                lunar_files["/lunar-base/" + relative] = (relative, "image/png")
             if u.path in lunar_files:
                 name, content_type = lunar_files[u.path]
                 return self.send(200, (self.server.static / "lunar-base" / name).read_bytes(), content_type)

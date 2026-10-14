@@ -1,0 +1,66 @@
+{
+  "source": "Built-in imagegen, 2026-10-14",
+  "master": "idle-original.png",
+  "master_sha256": "31a6f67fb2568c0acaf0aaa1ed680de9be65df1b0ea4c468c1ba86f0ad6e6b48",
+  "reference": "Existing unchanged approved Library board libfile_5ba266f111c08191aeb9f47b7ab6f7dc and frame-contact-sheet.png",
+  "logical_cell": [
+    64,
+    64
+  ],
+  "scale": 3,
+  "frames": [
+    {
+      "pose": "neutral",
+      "bbox": [
+        52,
+        24,
+        140,
+        174
+      ],
+      "foot_anchor": [
+        96,
+        174
+      ]
+    },
+    {
+      "pose": "seated",
+      "bbox": [
+        41,
+        55,
+        151,
+        174
+      ],
+      "foot_anchor": [
+        96,
+        174
+      ]
+    },
+    {
+      "pose": "earth",
+      "bbox": [
+        46,
+        24,
+        146,
+        174
+      ],
+      "foot_anchor": [
+        96,
+        174
+      ]
+    },
+    {
+      "pose": "stretch",
+      "bbox": [
+        49,
+        22,
+        142,
+        174
+      ],
+      "foot_anchor": [
+        96,
+        174
+      ]
+    }
+  ],
+  "processing": "Alpha threshold, shared scale, foot baseline, emitter dimming, amber trim recolour. No generated work or walk frames replaced."
+}

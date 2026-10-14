@@ -12,11 +12,11 @@ body[data-agent-workspace] main.agent-workspace{margin:0 auto;padding:12px 28px 
 .workspace-actions [data-view=review] span:not(:empty){background:var(--gold);color:var(--paper)}
 .workspace-footer{border:0;display:flex;justify-content:space-between;gap:15px;margin-top:12px;color:var(--muted);font-size:11px}
 .workspace-footer #mode-label{padding:0;border:0;display:inline;color:inherit;font-size:11px;letter-spacing:0}
-#lunar-host{--ink:#e4eaf2;--muted:#9daec3;--edge:#2b3c52;--teal:#62dce4;--amber:#ffbd66;max-width:min(1240px,calc((100dvh - 320px)*1.5));margin:auto;line-height:1.5;background:var(--paper);font-family:var(--font-ui);container-type:inline-size}
+#lunar-host{--ink:#e4eaf2;--muted:#9daec3;--edge:#2b3c52;--teal:#62dce4;--amber:#ffbd66;max-width:min(1240px,calc((100dvh - 320px)*16/9));margin:auto;line-height:1.5;background:var(--paper);font-family:var(--font-ui);container-type:inline-size}
 #lunar-host button{border-radius:8px;background:var(--white);border-color:var(--line);font-family:var(--font-ui)}
 #lunar-host button:hover{background:var(--surface-2);border-color:#536b87}
 #lunar-host .viewport{border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 44px #0003}
-#lunar-host #world{display:block;width:100%;height:auto;aspect-ratio:3/2;image-rendering:auto;background:var(--paper)}
+#lunar-host #world{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:auto;background:var(--paper)}
 #lunar-host .scene-title{top:18px;left:20px;background:#0b1220cc;border:1px solid #2b3c5277;border-radius:7px;padding:8px 12px;text-shadow:none}
 #lunar-host .scene-title p{font:600 13px var(--font-ui);letter-spacing:0;margin:0;color:var(--ink)}
 #lunar-host .scene-title h1,#lunar-host .title-rule{display:none}

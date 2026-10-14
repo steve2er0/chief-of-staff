@@ -37,4 +37,4 @@ sheet=Image.new('RGB',(1600,420),'#e8e2d8');d=ImageDraw.Draw(sheet)
 for i,(name,item) in enumerate(m['assets'].items()):
     sprite=Image.open(ROOT/item['display_path']).convert('RGBA');sprite.thumbnail((290,310),Image.Resampling.LANCZOS);x=i*320+15;y=50+(310-sprite.height)//2;sheet.paste(sprite,(x,y),sprite);d.text((x,385),name,fill='#172335')
 sheet.save(ROOT/'previews/alpha-check-light.png')
-report={'checks':results,'status':'passed','existing_application':'Not imported, rebuilt, integrated or modified by this pack'};(ROOT/'validation.json').write_text(json.dumps(report,indent=2)+'\n');print('\n'.join(results))
+report={'checks':results,'status':'passed','existing_application':'Asset acceptance only; live integration is validated separately in VALIDATION-LIVE.md'};(ROOT/'validation.json').write_text(json.dumps(report,indent=2)+'\n');print('\n'.join(results))

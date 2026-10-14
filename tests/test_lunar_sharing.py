@@ -25,6 +25,12 @@ class SharedCrewTests(unittest.TestCase):
         result=subprocess.run([node,str(ROOT/'static/lunar-base/source/test_manual_infrastructure.cjs')],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
+    def test_expansion_assets_paths_and_saved_station_migration(self):
+        node=shutil.which('node')
+        if not node:self.skipTest('Node unavailable')
+        result=subprocess.run([node,str(ROOT/'static/lunar-base/source/test_expansion_model.cjs')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_all_sprite_frames_attention_and_labels_have_clearance(self):
         try:from PIL import Image
         except ImportError:self.skipTest('Pillow required for artwork clearance validation')
@@ -51,13 +57,13 @@ class SharedCrewTests(unittest.TestCase):
                 x=max(rect[0],min(circle[0],rect[2]));y=max(rect[1],min(circle[1],rect[3]))
                 return math.hypot(circle[0]-x,circle[1]-y)<circle[2]
             return aa[0]<bb[2] and aa[2]>bb[0] and aa[1]<bb[3] and aa[3]>bb[1]
-        for zoom in [.18,.4,.5,440/768,1.5]:
+        for zoom in [.18,.4,.5,min(720/2048,440/1152),1.5]:
             shapes={}
             for worker in crew:
-                point=worker['position']['work'];x,y=point['x'],point['y'];font=max(7,10*zoom)
-                r=max(7,10*zoom)/zoom;half=worker['labelWidth']/2
-                shapes[worker['key']]=[('rect',(x-radius,y+top,x+radius,y+bottom)),('circle',(x,y-68,r))]
-                if zoom>=.5:shapes[worker['key']].append(('rect',(x-half,y+8,x+half,y+8+(font+4)/zoom)))
+                point=worker['position']['work'];x,y=point['x'],point['y'];distance=worker['position']['scale'];scale=zoom*distance;font=max(7,10*scale)
+                r=max(7,10*scale)/zoom;half=worker['labelWidth']*distance/2
+                shapes[worker['key']]=[('rect',(x-radius*distance,y+top*distance,x+radius*distance,y+bottom*distance)),('circle',(x,y-68*distance,r))]
+                if scale>=.5:shapes[worker['key']].append(('rect',(x-half,y+8*distance,x+half,y+8*distance+(font+4)/zoom)))
             for i,a in enumerate(crew):
                 for b in crew[i+1:]:
                     if a['position']['page']!=b['position']['page']:continue

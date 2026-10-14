@@ -1,4 +1,20 @@
-# Live workspace validation · 2026-10-13
+# Live workspace validation · 2026-10-14
+
+## Saved lunar base delivery (2026-10-14)
+
+The final combined layout and availability changes passed **356 tests**, syntax
+checks for all **35 JavaScript/CJS files**, the expansion preview inline script
+and **24 Python files**, and the expansion asset validator. Scene and CSS outputs
+rebuilt byte-for-byte identically. Scaled labels use actual walking/rest positions;
+the shared-crew fixture checks their spacing at the larger astronaut scale.
+
+The refreshed operational live page remained connected with both actual agents,
+the enlarged garage, nine infrastructure choices and open terrain without paths
+or a landing pad. Browser warning/error logs were empty. This delivery check
+reloaded static assets; it did not restart the service or instruct real agents.
+Earlier motion recordings and synthetic fixture evidence are described below.
+
+## Initial workspace integration (2026-10-13)
 
 The full suite passed **302 tests** after the integration. Focused model and HTTP
 checks cover one astronaut per persistent agent, position continuity across turns,
@@ -30,6 +46,237 @@ Two minutes of activity silence means stale, not proof that a process stopped.
 The client has no independent external-agent inventory, measured progress or token
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
+
+## Landing-pad removal and centered rover facilities (2026-10-14)
+
+Garage-size follow-up: its width and height increased by 50% at the same ground
+anchor, with native proportions and the existing crew depth scale retained.
+Side crew positions moved outside the larger footprint. All 26 lunar checks,
+generated-asset reproducibility and changed-source syntax checks passed; the
+operational live browser showed the larger garage with no warning/error logs.
+
+The landing pad and its three crew stations are removed from the live scenery,
+Work at choices and automatic placement. Launch-related metadata now prefers the
+lander. The utility rover moved 380 logical units left and the garage moved 310
+left, keeping their existing depth scale. No visible paths were reintroduced.
+The original landing-pad artwork remains in the saved art pack.
+
+Version-5 browser registries use 28 positions per display page across nine work
+areas. Migration preserves surviving stations, page identities, suits and valid
+manual/Automatic choices from 31-position version-4 layouts and earlier formats.
+Retired pad choices return to Automatic, restoring their previous station when
+free; full pages safely overflow. This is display paging, not an execution cap.
+
+The full suite passed **356 tests**. Fixtures include two full old display pages,
+retired automatic/manual pad occupants, retained rover choices and suits, valid
+Automatic restoration, occupied positions and stable reloads. All-frame shared
+crew clearance covers 112 astronauts across four pages. All **35 JavaScript/CJS
+files** passed syntax checks and generated assets rebuilt identically.
+
+A read-only 28-astronaut browser fixture showed nine choices and no pad. Choosing
+the full garage opened a second display page, persisted after reload, and
+Automatic restored the original station. The fixture's store remained unchanged.
+The operational live tab showed the centered facilities and retained actual
+agents. Both browser warning/error logs were empty. No service restart, new agent
+or operational instruction was needed.
+
+## Garage and greenhouse swap (2026-10-14)
+
+The garage and greenhouse exchanged ground positions. The garage now uses the
+distant row's 65% depth factor; the greenhouse occupies the nearer right side.
+Their crew positions, support shadows and internal movement hints follow them,
+while persistent station IDs and manual infrastructure choices stay intact.
+Left-side crew positions keep clear of the rover and test stand.
+
+All **26 lunar checks** passed, including mixed-depth crew/attention/label
+clearance, sprite proportions and movement routes. Generated assets rebuilt
+identically; changed-source syntax/diff checks passed. An isolated read-only
+31-astronaut fixture and the operational live tab verified the swapped scenery
+with no browser warnings/errors. No real agent was started or sent instructions.
+
+## Open terrain without visible paths (2026-10-14)
+
+Crew-size follow-up: the base astronaut scale increased from 1.2 to 1.4 (about
+17% larger), retaining the existing per-area depth factors. Rest spacing, labels,
+shadows, selection and yielding already share that scale. The hologram sensor
+and lander inspection spots moved slightly apart to preserve pose/request-marker
+clearance. All 26 lunar checks passed, including all-frame clearance across
+124 crew on four display pages. A read-only 31-astronaut browser fixture and the
+operational live view verified the larger crew with no warning/error logs.
+Generated assets reproduced exactly and changed-source syntax checks passed.
+
+Test-stand placement follow-up: moved 120 logical units right and 100 back, with
+90% depth scale for the stand and crew positions. Its support contacts and
+internal movement approach follow the new footprint. All 26 lunar checks passed;
+generated assets reproduced exactly and changed-source syntax checks passed.
+The operational live browser verified the centered, more distant placement.
+
+The live renderer no longer paints connecting lines or floor guides. Its canvas
+description and open-ground crew labels match the scene. Internal waypoint data
+remains available to the obstacle-avoiding movement code; stations and scenery
+are unchanged. This supersedes earlier visible-path descriptions below.
+
+All **26 lunar checks** passed, including movement routes and crew clearance.
+Generated assets rebuilt identically; changed-source syntax and diff checks
+passed. The operational live view showed open terrain between every structure,
+with no browser warnings/errors and no service restart or agent instructions.
+
+## Background landing pad and service-row clearance (2026-10-14)
+
+The garage moved right by half its width (178 logical units). The greenhouse
+moved 140 units left, clear of the rock mound. The landing pad moved farther
+back and uses 80% depth scale for both scenery and station positions; crew size
+retains the same distance factor. The lander keeps its prior lower-right
+position. Connecting approaches follow all three moved work areas; saved station
+IDs and infrastructure choices remain intact.
+
+All **26 lunar checks** passed, including mixed-scale crew/attention/label
+clearance, connected paths and safe rest routes. Generated assets reproduced
+identically and changed-source syntax/diff checks passed. A read-only browser
+fixture displayed all 31 astronauts with clear spacing. Its store remained
+unchanged; fixture and operational live browser warning/error logs were empty.
+No operational agent instructions or service restart were needed.
+
+## Hologram slide and flight-area swap (2026-10-14)
+
+Subsequent tuning: the Hub is another 20% larger (1.656 times its native logical
+size), with its sensor station clear on the right flank. The lander and its crew
+moved 120 logical units left. Both approaches follow the revised footprints;
+the Hub's ground anchor, hologram and landing pad stay in place. All 26 lunar
+checks, generated-asset reproducibility and changed-source syntax checks passed.
+The operational live browser showed the new composition with empty error logs.
+
+The holographic platform and its crew moved 120 logical units right. The lander
+and landing pad exchanged ground positions, with their station identities, poses
+and shadows following them. Connected approaches reach the new footprints, and
+the pad's front crew position stays clear of the engine stand.
+
+All **26 lunar checks** passed, covering all-frame crew/attention/label clearance,
+connected paths, unchanged sprite hashes, saved choices and safe rest routes.
+Generated scene/styles reproduced identically; changed JavaScript syntax and
+diff checks passed. A read-only browser fixture displayed all 31 astronauts with
+clear spacing at the relocated areas. Its operational store remained unchanged,
+and both fixture and live browser warning/error logs were empty. The operational
+live view showed the new composition without a service restart or new agent work.
+
+## Foreground scale tuning (2026-10-14)
+
+Hub follow-up: the habitat itself is another 20% larger than the first scale
+tuning below (1.38 times its native logical size). Its ground anchor stays fixed;
+the approach follows the larger airlock and the sensor station moves to the left
+flank. The hologram and astronaut sizes are retained. All **26 lunar checks**
+passed, generated assets reproduced exactly, syntax/diff checks passed, and the
+operational browser showed the larger Hub with no warning/error logs.
+
+The Hub, attached console and holographic platform are 15% larger; astronauts are
+20% larger while retaining relative distance scaling. Uniform transforms keep
+native sprite proportions, contact shadows and crew stations aligned. The
+platform has slightly more horizontal room, paths follow the enlarged footprints,
+labels fit available spacing, and resting anchors and yielding distances account
+for the larger crew. The shared request beacon follows the Hub's current roof.
+
+The full suite passed **356 tests**, including all-frame work/attention/label
+clearance across 124 synthetic agents, station migration and obstacle-safe rest
+routes. All **35 JavaScript/CJS files** passed syntax checks and generated assets
+rebuilt identically. A read-only browser fixture showed 31 working astronauts,
+then a completed crew with an explicit request, without browser warnings/errors.
+The operational live tab displayed the larger assets and crew. No service
+restart or agent instructions were needed; raster artwork was unchanged.
+
+## Foreground Hub and holographic platform (2026-10-14)
+
+The Hub and its adjacent console now occupy the lower-left foreground. The
+holographic platform sits lower toward the center, with the dish behind them.
+Area offsets move their scenery, support shadows and crew positions together;
+the paths approach the new footprints around the structures. Saved station IDs,
+manual preferences, suit identities and the distant greenhouse/rover remain.
+This supersedes the position-preservation notes in the earlier audit below.
+
+The full suite passed **356 tests**, including all-frame crew/attention clearance,
+work/home separation, connected routes, migration and obstacle-safe rest routes.
+All **34 JavaScript/CJS files** passed syntax checks; scene/styles rebuilt byte
+for byte. A read-only browser fixture displayed all 31 crew positions without
+overlap. Its 40 requests were GET-only and its store remained unchanged. The
+operational live tab displayed the new foreground composition with no browser
+warnings/errors. No service restart, new agent instruction or permission change
+was needed. The unshipped historical placement fixture keeps its old composition
+separately from the live layout.
+
+## Perspective and ground-contact audit (2026-10-14)
+
+The apparent scale mismatch came from depth cues and ground contact. The new
+sprites already retained their native aspect ratios. Tiny rounding differences
+in the original habitat and console heights are now removed as well.
+
+| Finding | Correction |
+| --- | --- |
+| Small greenhouse and rover occupied foreground positions beside much larger nearby structures | Move both behind the habitat into a distant service row; keep their apparent size close to the previous size and scale their station crew to 65% |
+| One oval shadow used the padded image bottom, missing visible supports at different heights | Measure support contacts from each sprite silhouette; draw small contact shadows beneath all scenery and crew |
+| Sprite height rounding introduced minor native-aspect differences | Derive both dimensions from native logical geometry with one uniform scale |
+
+The garage and communications dish were repositioned to balance the foreground.
+The original five structure positions, first sixteen crew indices and original
+three path segments remain; connected branches follow the moved areas. This is
+an authored 2D depth arrangement, not a physical camera calibration. Raster art
+was not edited.
+
+The full suite passed **354 tests**, including native image aspect ratios,
+support-shadow contact with opaque pixels, far-site crew scale, connected paths
+and all-frame crew clearance across 124 synthetic agents. All **34 JavaScript/CJS
+files** passed syntax checks; generated scene/styles rebuilt byte for byte and
+`git diff --check` passed.
+
+A separate read-only browser fixture displayed 31 astronauts at all ten work
+areas. Greenhouse and rover assignments persisted after reload and returned to
+Automatic. Its 73 requests were GET-only, all five expansion sprites loaded,
+warning/error logs were empty, and its operational store remained unchanged at
+shutdown. The operational live tab also displayed the new placement and contact
+shadows while an actual agent continued working. No service restart, agent
+instruction, session change or operational write was made for this audit.
+
+## Expansion artwork in the live shared base (2026-10-14)
+
+Framing follow-up: the live canvas now uses a 16:9 logical frame and uniform
+terrain scaling, cropping the unused foreground instead of stretching artwork.
+The map can use more horizontal space. Home includes the lowest crew positions;
+pan, zoom, hit testing and display scaling share the new logical dimensions.
+The 22 lunar checks passed, scene/styles rebuilt identically, and the operational
+browser verified all ten work areas, astronaut hit selection, zoom and Home with
+no warning/error logs. Agent stations and path geometry were unchanged.
+
+The live map now renders the rover garage, greenhouse, communications dish,
+launch pad and parked utility rover alongside the five original structures.
+The original placements and three paths remain unchanged; new branches connect
+every expansion area to the same path network. All ten work areas appear in
+Work at and support three separated positions with distinct existing work poses.
+Automatic remains the default and recognizes descriptive cues for the new areas.
+
+- **352 tests passed**, including 124 synthetic agents across four 31-position
+  crew pages, cross-project sharing, ten manual choices, Automatic reset,
+  overflow, continuation persistence, all-frame crew/attention/label clearance,
+  unchanged original geometry, connected paths and exact imported sprite hashes.
+- Version-4 browser registries migrate ten- and sixteen-slot layouts while
+  retaining original station indices, display pages, suit colors, manual choices
+  and remembered Automatic positions. No execution limit was introduced.
+- All **31 JavaScript/CJS files** and Python sources passed syntax checks.
+  Generated scene/styles reproduce byte for byte. Existing raster files were
+  reused unchanged. The five new runtime PNG routes require authentication;
+  pack sources, masters, manifests and preview pages remain outside the runtime
+  asset allowlist.
+- The isolated read-only browser fixture exercised all five new choices,
+  persistence after reload, Automatic reset and four astronauts sharing the
+  rover across two crew pages. A full 31-agent scene showed three positions at
+  each work area. It used **140 GET requests**, loaded all five new sprites and
+  stopped with its operational store unchanged. Browser warning/error logs were
+  empty.
+- The operational service was refreshed while idle at the same loopback address
+  to activate its new asset routes. Project, task, job, configuration and session
+  records were compared before/after and remained unchanged; CLI readiness was
+  restored. The live browser displayed all ten structures and connecting paths.
+  Assigning an existing astronaut to the garage and returning to Automatic
+  worked. Both actual agents retained Automatic, their original stations and
+  saved results. No agent was launched or sent instructions. Browser logs were
+  empty. The parked rover and work poses are graphical illustrations.
 
 ## Projects panel and expansion artwork delivery (2026-10-14)
 

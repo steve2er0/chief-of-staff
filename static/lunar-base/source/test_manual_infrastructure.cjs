@@ -50,7 +50,7 @@ model.setInfrastructure(cv,crowded,key,'');cv=build(crowded);
 assert.equal(find(cv,'task:agent-0').slot,occupied.slot,'returning to Automatic never steals an occupied station');
 assert.notEqual(find(cv,key).slot,occupied.slot);
 assert.equal(new Set(cv.workers.map(w=>w.slot)).size,8);
-for(const invalid of ['missing','paths',['console'],{},null]){
+for(const invalid of ['missing','launchpad','paths',['console'],{},null]){
  const before=JSON.stringify(crowded);assert.throws(()=>model.setInfrastructure(cv,crowded,key,invalid),/existing piece/);assert.equal(JSON.stringify(crowded),before);
 }
 assert.throws(()=>model.setInfrastructure(cv,crowded,'task:missing','lander'),/no longer/);
@@ -58,4 +58,4 @@ const dirty=model.cleanRegistry({version:3,projects:{},workers:{},crew:{},
  overrides:{a:'console',b:['console'],c:'missing'},automaticCrew:{a:0,b:-1,c:'0'},suits:{a:0,b:2,c:true}});
 assert.deepEqual(Object.keys(dirty.overrides),['a']);assert.deepEqual(Object.keys(dirty.automaticCrew),['a']);assert.deepEqual(Object.keys(dirty.suits),['a']);
 assert.deepEqual(snapshot,source,'manual map assignments cannot change instructions, projects, permissions or execution records');
-console.log('PASS: Automatic default, all five manual targets, reload/turn persistence, stable suits and peers, safe overflow, occupied reset and invalid-choice rejection.');
+console.log('PASS: Automatic default, all nine manual targets, reload/turn persistence, stable suits and peers, safe overflow, occupied reset and invalid-choice rejection.');

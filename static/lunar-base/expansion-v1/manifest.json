@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "purpose": "Future expansion assets only; no MVP/app integration",
+  "purpose": "Reusable expansion artwork; 3x exports used by the live shared lunar base",
   "display_scale": 3,
   "anchor_units": "logical pixels; bottom-centre ground baseline",
   "generation": "Built-in image_gen, one call per asset; unchanged generated masters",

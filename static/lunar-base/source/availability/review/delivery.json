@@ -1,0 +1,57 @@
+{
+  "result": "implemented",
+  "project": "/Users/stephenwells/Documents/DevOps/chief-of-staff",
+  "our_changed_paths": [
+    "static/lunar-base/source/availability-model.js",
+    "static/lunar-base/source/availability-assets.js",
+    "static/lunar-base/source/availability",
+    "static/lunar-base/source/test_availability_model.cjs",
+    "tests/test_lunar_availability.py",
+    "static/lunar-base/AVAILABILITY.md",
+    "static/lunar-base/source/live-view.js",
+    "static/lunar-base/source/build_scene.py",
+    "static/lunar-base/scene.js"
+  ],
+  "shared_with_layout": [
+    "static/lunar-base/source/live-view.js",
+    "static/lunar-base/scene.js"
+  ],
+  "separation": "Only behavior-specific renderer hooks. No writes by this task to CSS, viewport/camera geometry, infrastructure/station coordinates, backend fields or layout models. Current shared files were reread before targeted patches; latest layout edits preserved.",
+  "tests": {
+    "full_suite": "356 passed",
+    "final_lunar_suite": "26 passed",
+    "pure_state_routes": "all states and all 31 station routes pass",
+    "browser": "Mac Chrome actual return/arrival frames; supported state changes, pause freeze, emulated reduced-motion initialization; existing live app Connected and Projects panel functional, no app console errors"
+  },
+  "unsupported": [
+    "No session-ended lifecycle signal; completed turns rest outside the hab.",
+    "No distinct inter-agent dependency wait field; generic waits retain source meaning."
+  ],
+  "limitations": [
+    "Crowded paths yield to occupied positions and can temporarily hold a journey.",
+    "Character perspective remains governed by the concurrent layout module.",
+    "Reduced-motion was tested with a fixture-injected MediaQueryList, not by changing Mac accessibility settings."
+  ],
+  "safety": {
+    "real_jobs_launched": false,
+    "live_service_restarted": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "review_url": "http://127.0.0.1:8907/",
+  "live_url": "http://127.0.0.1:60360/#live",
+  "library": [
+    {
+      "name": "astronaut-availability-review.gif",
+      "library_file_id": "libfile_e7589275118c81918c9142b30837f580",
+      "file_id": "file_000000008f8881f59750d3d266b5185d",
+      "version": 0
+    },
+    {
+      "name": "availability-browser-review.jpg",
+      "library_file_id": "libfile_b1d330efd9ec81918b259f518fd11976",
+      "file_id": "file_00000000af0882308ac97ce910d3a420",
+      "version": 0
+    }
+  ]
+}

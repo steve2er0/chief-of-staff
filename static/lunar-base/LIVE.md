@@ -15,20 +15,40 @@ Results collects every returned turn, including partial work and file snapshots.
 Acceptance is optional and does not gate continuation.
 
 All projects share one complete base: habitat, adjacent console, lander, holographic
-model platform, engine test stand and the original connecting floor guides. Home
-centers that base. Project names label the astronauts and crew list; the Project
+model platform, engine test stand, rover garage, greenhouse, communications dish
+and parked utility rover on open lunar terrain. Visible paths and
+floor guides are removed; internal movement waypoints still help astronauts
+route around the structures. Home
+centers that base in a wide 16:9 frame, cropping excess foreground while keeping
+the terrain and sprites in proportion. Project names label the astronauts and crew list; the Project
 filter shows one project's agents in place. Filters and agent selection do not move
 the camera or create scenery. Descriptive metadata prefers workstations, allocated
 globally so workers from different projects never share a station on the same crew
 page. The base is present even before the first project or agent exists.
+The Hub and holographic platform anchor the lower foreground, closer to the
+viewer. Their crew positions and shadows move with them; the
+communications dish sits behind them. The rover garage and utility rover sit in a
+distant service row near the center, behind the habitat.
+The lander occupies the lower-right flight area; the landing pad has been removed. The
+greenhouse occupies the nearer right side, and the garage clears the rear rock mound.
+Their astronauts follow the
+structures, while the holographic platform sits just right of the foreground center.
+The foreground Hub/console and holographic platform use a slightly larger scale,
+and astronauts are larger throughout the base for readability. Distant crew keep
+their relative depth scale, with room around work stations and resting spots.
+Their astronauts use the same distance scale, so the smaller scenery reads as
+farther away. Sprites retain their native proportions; shadows meet the visible
+wheels, feet and supports. This is an authored 2D composition, not a calibrated
+physical camera or a statement of real infrastructure dimensions.
 Each structure has three spaced crew positions with different existing animations,
 shared by agents from any project. The original console has one operator plus
 scanning and inspection positions; the habitat, model, lander and test stand also
-have three distinct poses each. Repeated task wording does not give everyone the
+have three distinct poses each, as do all four expansion work areas. Repeated task wording does not give everyone the
 same pose. Additional agents do not add consoles or other infrastructure.
 
-Use **Work at** beneath an astronaut's card to choose Habitat, Exterior console,
-Lander, Holographic model or Engine test stand. **Automatic** is the default and
+Use **Work at** beneath an astronaut's card to choose any of the nine work areas,
+including Rover garage, Greenhouse, Communications dish and Utility
+rover. **Automatic** is the default and
 restores automatic assignment when selected again. Choices follow the persistent
 agent across continuations and reloads in this browser. Moving an astronaut keeps
 its suit and everyone else's position. Each choice uses a free existing crew
@@ -67,10 +87,12 @@ leave attention markers behind.
 Drag to pan, use arrow keys with the canvas focused, and zoom, or use Home to center
 the shared base. Pause and Space freeze illustration while state polling continues.
 Reduced motion starts paused. Positions stay in `cos.lunar.layout.v1` in this
-browser; they do not alter the operational store. Crew display pages hold sixteen astronauts across all projects; the list retains every
+browser; they do not alter the operational store. Crew display pages hold twenty-eight astronauts across all projects; the list retains every
 filtered agent and selecting one shows its page. Display paging does not cap agent
-execution. Earlier per-project and ten-slot shared registries migrate to the
-expanded shared crew registry, retaining the original station indices and pages.
+execution. Earlier per-project, ten-slot, sixteen-slot and thirty-one-slot registries
+migrate to version 5. Surviving station identities and display pages, suit colors,
+manual choices and valid Automatic reset positions are preserved. Former landing-pad
+assignments return to Automatic, restoring their earlier station when it is free.
 Project labels shorten to fit the space between crew and hide when zoomed far out;
 full project names remain in the agent list and project filter.
 
@@ -84,7 +106,7 @@ recovery locks and file conflict protection remain in place.
 ## Source and verification
 
 `static/agent-model.js` is the shared immutable agent/result selector.
-`source/base-layout.js` supplies the original scenery and connecting paths;
+`source/base-layout.js` supplies the scenery, crew positions and internal movement waypoints;
 `source/live-model.js` maps state and agent stations; `source/attention-model.js` maps
 explicit requests; `source/live-view.js` renders the scene; `static/agents.js`
 supplies the operational panels. Source demos remain developer fixtures and are
@@ -96,6 +118,7 @@ node static/lunar-base/source/test_live_model.cjs
 node static/lunar-base/source/test_attention_model.cjs
 node static/lunar-base/source/test_shared_crew.cjs
 node static/lunar-base/source/test_manual_infrastructure.cjs
+node static/lunar-base/source/test_expansion_model.cjs
 python3 -B -m unittest discover -s tests -q
 ```
 
