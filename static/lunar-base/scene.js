@@ -153,10 +153,10 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     habitat:{pivot:[341,764/3+140],groupScale:1.15,artScale:1.44,offset:[35,480]},
     console:{pivot:[341,764/3+140],groupScale:1.15,offset:[35,480]},
     hologram:{pivot:[454.5,695],groupScale:1.15,offset:[565,320]},
-    lander:{offset:[801.5,486]},
-    teststand:{pivot:[905.5,683],distanceScale:.9,stationScale:.9,offset:[120,-100]},
+    lander:{artScale:1.5,offset:[741.5,486]},
+    teststand:{pivot:[905.5,683],distanceScale:.9,stationScale:.9,offset:[-20,-100]},
     garage:{ground:[1388,650],pivot:[1388,650],distanceScale:.65,stationScale:.65,artScale:1.5,offset:[-38,-350]},
-    greenhouse:{ground:[1800,300],pivot:[1800,300],stationScale:1/.65,artScale:1.5,offset:[-234,350]},
+    greenhouse:{ground:[1800,300],pivot:[1800,300],stationScale:1/.65,artScale:2.25,offset:[-234,280]},
     rover:{ground:[1430,300],distanceScale:.65,artScale:1.8,offset:[-380,0]},
     communications:{ground:[480,983],offset:[-20,-550]}
   };
@@ -177,11 +177,11 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   // Optional movement waypoints remain internal; the live terrain has no drawn paths.
   const paths=[[[715,854],[760,929],[760,700],[710,700],[710,477]],
     [[760,929],[650,1110],[1020,1110],[1020,1015]],
-    [[710,700],[850,650],[865,580],[900,580]],
-    [[710,477],[1130,477],[1130,700],[1535,727],[1566,650]],
+    [[710,700],[710,650],[725,580],[760,580]],
+    [[710,477],[1130,477],[1130,700],[1535,657],[1566,580]],
     [[1130,477],[1050,385],[1050,300]],
     [[1050,385],[1390,350],[1350,300]],
-    [[1130,700],[1500,930],[1733,1010],[1733,945]],
+    [[1130,700],[1440,930],[1673,1010],[1673,945]],
     [[710,477],[650,510],[460,510],[460,433]]];
   const stations={
     console:{area:'console',role:'console',work:[127,426],home:[127,490]},
@@ -225,7 +225,14 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   stations.garageLeft.work=[1140,170];stations.garageLeft.home=[1140,170];
   stations.garageRight.work=[1555,250];stations.garageRight.home=[1555,250];
   stations.garageFront.work=[1390,350];stations.garageFront.home=[1390,350];
-  stations.greenhouseLeft.work=[1295,470];stations.greenhouseLeft.home=[1295,470];
+  // Keep work poses outside the enlarged lander and greenhouse silhouettes.
+  stations.landerLeft.work=[1455,959];stations.landerLeft.home=[1455,1027];
+  stations.landerRight.work=[1925,976];stations.landerRight.home=[1925,1034];
+  stations.landerInspect.work=[1925,781];stations.landerInspect.home=[1925,781];
+  // The left spot stays below the rover crew while the greenhouse moves back.
+  stations.greenhouseLeft.work=[1140,440];stations.greenhouseLeft.home=[1140,440];
+  stations.greenhouseRight.work=[1990,534];stations.greenhouseRight.home=[1990,534];
+  stations.greenhouseFront.work=[1535,710];stations.greenhouseFront.home=[1535,710];
   const expansion=['garageFront','garageLeft','garageRight','greenhouseLeft','greenhouseRight','greenhouseFront','dishLeft','dishRight','dishInspect','roverLeft','roverRight','roverInspect'];
   const orders={
     // The original ten indices stay first so saved crew slots can migrate.
