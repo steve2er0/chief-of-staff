@@ -23,6 +23,7 @@ from .live_agent import AgentControl
 DEFAULT_CONFIG = {"id": "settings", "mode": "simulated", "executable": "codex", "entrypoint": "",
                   "model": "5.6-Terra", "concurrency": 0, "timeout_seconds": 900,
                   "default_execution_policy": "sandboxed", "default_time_limit": "none", "default_isolate": False,
+                  "followup_suggestions": True,
                   "briefing_times": ["09:00", "13:00", "16:30"], "schedule_enabled": True}
 SPEC_PROPERTIES = {"title": {"type": "string"}, "goal": {"type": "string"}, "purpose": {"type": "string"},
                    "criteria": {"type": "array", "items": {"type": "string"}},
@@ -160,6 +161,8 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                 raise Invalid("Choose a supported default execution policy and time limit")
             if type(c["default_isolate"]) is not bool:
                 raise Invalid("Separate worktrees must be a boolean")
+            if type(c["followup_suggestions"]) is not bool:
+                raise Invalid("Follow-up suggestions must be a boolean")
             for key, lo, hi in (("timeout_seconds", 5, 14400),):
                 if type(c[key]) is not int or not lo <= c[key] <= hi:
                     raise Invalid(key + " is out of range")

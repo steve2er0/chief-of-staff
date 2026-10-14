@@ -31,14 +31,34 @@
     }
     return hi>0&&lo<1;
   }
-  function route(from,to,layout){
+  function segmentDistance(point,from,to){
+    const dx=to.x-from.x,dy=to.y-from.y,length=dx*dx+dy*dy;
+    const t=length?Math.max(0,Math.min(1,((point.x-from.x)*dx+(point.y-from.y)*dy)/length)):0;
+    return Math.hypot(point.x-from.x-t*dx,point.y-from.y-t*dy);
+  }
+  function route(from,to,layout,occupied=[]){
     if(distance(from,to)<EPS)return [{x:to.x,y:to.y}];
     const blocks=obstacles(layout).filter(r=>!inside(from,r)&&!inside(to,r));
-    const clear=(a,b)=>!blocks.some(r=>crosses(a,b,r));
+    const circles=occupied.filter(c=>distance(from,c)>=c.radius-EPS);
+    const clear=(a,b)=>!blocks.some(r=>crosses(a,b,r))&&!circles.some(c=>segmentDistance(c,a,b)<c.radius-EPS);
     const nodes=[{x:from.x,y:from.y},{x:to.x,y:to.y}];
     for(const path of layout.paths)for(const [x,y] of path)if(!blocks.some(r=>inside({x,y},r)))nodes.push({x,y});
     for(const r of blocks)for(const x of [r.left,r.right])for(const y of [r.top,r.bottom]){
       if(x>=32&&x<=layout.width-32&&y>=58&&y<=layout.height-8&&!blocks.some(q=>inside({x,y},q)))nodes.push({x,y});
+    }
+    // Circumscribed octagons give blocked walkers room to pass, not just stop.
+    for(const c of circles)for(let n=0;n<8;n++){
+      const angle=n*Math.PI/4,radius=(c.radius+2)/Math.cos(Math.PI/8);
+      const p={x:c.x+Math.cos(angle)*radius,y:c.y+Math.sin(angle)*radius};
+      if(p.x>=32&&p.x<=layout.width-32&&p.y>=58&&p.y<=layout.height-8&&!blocks.some(r=>inside(p,r))&&!circles.some(q=>distance(p,q)<q.radius-EPS))nodes.push(p);
+    }
+    // Retain the free passage between two parked astronauts. Octagon corners
+    // alone can miss a narrow gap even when the actual clearance is sufficient.
+    for(let i=0;i<circles.length;i++)for(let j=i+1;j<circles.length;j++){
+      const a=circles[i],b=circles[j],gap=distance(a,b),radii=a.radius+b.radius;
+      if(gap<radii+EPS||gap>radii*1.6)continue;
+      const p={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      if(!blocks.some(r=>inside(p,r))&&!circles.some(c=>distance(p,c)<c.radius-EPS))nodes.push(p);
     }
     const costs=nodes.map(()=>Infinity),prior=nodes.map(()=>-1),seen=new Set();costs[0]=0;
     while(seen.size<nodes.length){
@@ -55,27 +75,62 @@
   const restCache=new WeakMap();
   function restSpots(layout){
     if(restCache.has(layout))return restCache.get(layout);
-    const scale=layout.crewScale||1,step=Math.ceil(76*scale);
-    const hab=layout.objects.find(o=>o.id==='habitat'),blocks=obstacles(layout,32*scale),stations=Object.values(layout.stations).map(s=>({x:s.work[0],y:s.work[1]}));
+    const scale=layout.crewScale||1,step=Math.round(67*scale);
+    const hab=layout.objects.find(o=>o.id==='habitat'),blocks=obstacles(layout,18*scale);
     const candidates=[],center={x:hab.x+hab.width/2,y:hab.y+hab.height};
-    for(let y=78;y<Math.min(layout.height-12,hab.y+hab.height+600);y+=step)for(let x=48;x<Math.min(layout.width-32,hab.x+hab.width+650);x+=step){
-      const p={x,y};if(!blocks.some(r=>inside(p,r))&&stations.every(q=>distance(p,q)>=68*scale))candidates.push(p);
+    // Stay on the ground beside/in front of the Hub; never spill into the horizon.
+    for(let y=Math.floor(hab.y+hab.height-160*scale);y<=Math.min(layout.height-24,hab.y+hab.height+250);y+=step)for(let x=Math.max(64,Math.round(hab.x+38*scale));x<=Math.min(layout.width-40,hab.x+hab.width+320);x+=step){
+      const p={x,y};if(!blocks.some(r=>inside(p,r)))candidates.push(p);
     }
     candidates.sort((a,b)=>distance(a,center)-distance(b,center)||a.y-b.y||a.x-b.x);
     restCache.set(layout,candidates);return candidates;
   }
-  function destination(worker,behavior,layout){
+  function restClear(point,occupied,scale){
+    // Bounds cover every registered rest/work pose, in either facing direction.
+    return occupied.every(({point:p,scale:s})=>Math.abs(point.x-p.x)>=19*scale+32*s||point.y<=p.y-52*s||point.y-51*scale>=p.y+2*s);
+  }
+  function restTargets(workers,tracks,layout){
+    const result=new Map(),spots=restSpots(layout),scale=layout.crewScale||1;
+    for(const page of new Set(workers.map(w=>w.position.page))){
+      const crew=workers.filter(w=>w.position.page===page),available=crew.filter(w=>intent(w.status,w.raw).mode==='available').sort((a,b)=>a.key.localeCompare(b.key));
+      const occupied=crew.filter(w=>intent(w.status,w.raw).mode!=='available').map(w=>{
+        const track=tracks.get(w.key),held=track&&['held','attention'].includes(intent(w.status,w.raw).mode);
+        return {point:held?track:w.position.work,scale:held?visualScale(w,track,layout):w.position.scale};
+      });
+      const free=spots.filter(p=>restClear(p,occupied,scale)),used=new Set();
+      // Keep existing parked identities stable. Only displaced/new arrivals choose
+      // the nearest free Hub position; empty infrastructure needs no reservation.
+      for(const w of available){
+        const old=tracks.get(w.key)?.restSpot,index=old?free.findIndex(p=>distance(p,old)<EPS):-1;
+        if(index>=0&&!used.has(index)){used.add(index);result.set(w.key,free[index]);}
+      }
+      for(const w of available)if(!result.has(w.key)){
+        const index=free.findIndex((p,i)=>!used.has(i));
+        if(index>=0){used.add(index);result.set(w.key,free[index]);}
+      }
+    }
+    return result;
+  }
+  function destination(worker,behavior,layout,restTarget){
     if(behavior.mode==='available'){
+      if(restTarget)return restTarget;
       const spots=restSpots(layout),index=worker.position.station;
       return spots[index]||worker.position.work;
     }
     return worker.position.work;
   }
-  function sync(track,worker,layout){
-    const behavior=intent(worker.status,worker.raw),target=destination(worker,behavior,layout);
-    if(!track){return {...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target}};}
+  function visualScale(worker,track,layout){
+    const hubScale=layout.crewScale||1,work=worker.position.work;
+    const rest=destination(worker,{mode:'available'},layout,track.restSpot),span=rest.y-work.y;
+    const progress=Math.abs(span)>EPS?Math.max(0,Math.min(1,(track.y-work.y)/span)):track.behavior.mode==='available'?1:0;
+    return worker.position.scale+(hubScale-worker.position.scale)*progress;
+  }
+  function sync(track,worker,layout,restTarget){
+    const behavior=intent(worker.status,worker.raw),target=destination(worker,behavior,layout,restTarget);
+    if(!track){return {...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target},restSpot:behavior.mode==='available'?{...target}:null};}
     const changed=!track.goal||distance(track.goal,target)>EPS;
     const oldMode=track.behavior?.mode;track.behavior=behavior;
+    if(behavior.mode==='available')track.restSpot={...target};
     if(oldMode!==behavior.mode)track.restTime=0;
     if(behavior.mode==='attention'){
       // Explicit request takes priority at the actual current position.
@@ -92,13 +147,45 @@
     track.phase+=seconds;
     if(track.journey){
       const j=track.journey,to=j.points[j.index],next=pose(j.elapsed+seconds,j.from,to,bound);
-      if(!canStep(next))return;
+      if(!canStep(next))return false;
       j.elapsed+=seconds;Object.assign(track,next);
       if(next.done){
         j.index++;if(j.index===j.points.length){track.journey=null;track.height=0;track.squash=1;track.restTime=0;}
         else{j.from={x:track.x,y:track.y};j.elapsed=0;}
       }
     }else track.restTime+=seconds;
+    return true;
+  }
+  function advanceCrew(workers,tracks,seconds,pose,bound,layout){
+    const separation=32*(layout.crewScale||1);
+    for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))){
+      const track=tracks.get(worker.key);if(!track)continue;
+      const peers=workers.filter(other=>other.key!==worker.key&&other.position.page===worker.position.page)
+        .map(other=>({worker:other,track:tracks.get(other.key)})).filter(p=>p.track);
+      let blockers=[];
+      const stepped=advance(track,seconds,pose,bound,next=>{
+        blockers=peers.filter(p=>{
+          const current=distance(track,p.track),future=distance(next,p.track);
+          // A newly appearing/held agent can already be in someone's way.
+          // Permit a planted push-off and movement out of that overlap, never
+          // movement farther into it; otherwise neither can take the first step.
+          return future<separation&&(current>=separation-EPS||future<current-EPS);
+        });
+        return !blockers.length;
+      });
+      if(stepped!==false){track.blockedFor=0;continue;}
+      track.blockedFor=(track.blockedFor||0)+seconds;
+      // One moving astronaut yields by detouring; the other keeps its route.
+      // A stationary/held astronaut is always an obstacle to walk around.
+      const yields=blockers.some(p=>!p.track.journey||!p.track.behavior.motion||worker.key.localeCompare(p.worker.key)>0);
+      if(track.blockedFor<.4||!yields&&track.blockedFor<2)continue;
+      const points=route(track,track.goal,layout,peers.map(p=>({...p.track,radius:separation})));
+      track.blockedFor=0;
+      if(points){
+        track.journey={points,index:0,from:{x:track.x,y:track.y},elapsed:0};
+        track.routeBlocked=false;track.height=0;track.squash=1;track.frame=0;track.detours=(track.detours||0)+1;
+      }
+    }
   }
   function restPose(seconds,seed=0){
     // One short gesture per 28 seconds; seated/neutral remains still otherwise.
@@ -107,6 +194,6 @@
     return seed%2?1:0;
   }
   function tabletFrame(seconds,seed=0){const t=(seconds+seed*1.7)%24;return t>=18&&t<21?Math.floor((t-18)*1.3)%4:null;}
-  const api={intent,obstacles,inside,crosses,route,restSpots,destination,sync,advance,restPose,tabletFrame};
+  const api={intent,obstacles,inside,crosses,segmentDistance,route,restSpots,restClear,restTargets,destination,visualScale,sync,advance,advanceCrew,restPose,tabletFrame};
   root.LunarAvailability=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

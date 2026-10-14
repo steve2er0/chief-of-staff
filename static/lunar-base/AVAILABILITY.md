@@ -5,7 +5,7 @@ physical telemetry, and this update adds no operational actions or backend field
 
 | Supported evidence | Behavior |
 | --- | --- |
-| `completed`, `accepted`, or managed-agent `ready_for_review` without an explicit pending request | Slowly bound to a separate spot outside the habitat; remain available with a dim helmet light. |
+| `completed`, `accepted`, or managed-agent `ready_for_review` without an explicit pending request | Bound to a separate nearby Hub spot; show a green check, Available count and card label, with a dim helmet light. |
 | `queued`, `pending`, `paused`, `waiting`, or `stopping` | Stay at the assigned work area; occasionally check the existing tablet animation. The exact lifecycle label remains visible. |
 | Fresh confirmed `running` with in-progress `fileChange` / `file_change` activity | Existing work pose, only at the assigned work area. |
 | Fresh confirmed `running` without an in-progress file event, including command/MCP/search events or completed tool events | Stay at the work area with occasional tablet checks. A running solve is never treated as finished. |
@@ -23,12 +23,18 @@ look toward Earth or gentle stretch changes the pose; the foot baseline stays fi
 Tablet checks last three seconds per 24 seconds. Existing lunar stride and flight
 timing are unchanged; ground shadows retain a fixed size and opacity during bounds.
 
-Separate resting anchors are derived from the current habitat/infrastructure and
-station coordinates. Infrastructure and viewport geometry are not changed. A
-visibility graph routes around current infrastructure rectangles. Astronauts yield
-when the next sample would overlap another visible character; crowded paths can
-temporarily hold a journey. An unavailable route is held rather than replaced by a
-path through a building. Existing depth order, selection, project identity, pause,
+Resting anchors are bounded to the ground beside and in front of the Hub. They
+never spill toward the horizon. Parking reserves busy work/held poses and retains
+existing parked identities whenever space remains free. Resting crew use the Hub's
+depth scale, with gradual scale changes on the trip to/from distant infrastructure.
+Home frames the last resting row. No scenery or raster artwork changes are needed.
+
+A visibility graph routes around current infrastructure rectangles. Walkers retain
+their clearance, then deterministically detour around occupied astronaut circles
+instead of waiting forever. The graph includes passages between parked neighbors;
+all same-page crew are considered so detours do not repeatedly encounter omitted
+blockers. A genuinely unavailable route is held rather than replaced by a path
+through a building. Existing depth order, selection, project identity, pause,
 reduced-motion initialization, and request details remain intact. An open page
 starts a finished agent at rest instead of replaying a fictitious prior trip.
 
@@ -41,8 +47,9 @@ starts a finished agent at rest instead of replaying a fictitious prior trip.
 - `source/live-view.js`: targeted renderer/animation hooks.
 - `source/build_scene.py`: includes new modules in `scene.js`; normal builds also
   regenerate existing CSS, so coordinate any full build with concurrent layout work.
-- `source/test_availability_model.cjs`, `tests/test_lunar_availability.py`: synthetic
-  states, interruption/reassignment/recovery, routing and asset contracts.
+- `source/test_availability_model.cjs`, `source/test_crew_traffic.cjs`,
+  `tests/test_lunar_availability.py`: synthetic states, head-on/held/crowded traffic,
+  mixed work/parking, interruption/reassignment/recovery, routing and asset contracts.
 
 Run from the project root:
 

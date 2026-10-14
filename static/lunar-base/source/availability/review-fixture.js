@@ -1,6 +1,6 @@
 /* Synthetic supported backend fields only. No API calls/mutations. */
 const observed=new Map(),sync=LunarAvailability.sync,advance=LunarAvailability.advance;
-LunarAvailability.sync=(track,worker,layout)=>{const result=sync(track,worker,layout);observed.set(worker.key,result);return result;};
+LunarAvailability.sync=(...args)=>{const result=sync(...args);observed.set(args[1].key,result);return result;};
 const scene=LunarLiveView.mount({host:document.querySelector('main')});
 let scenario='working',started=Date.now();
 const inspect=()=>[...observed].map(([key,t])=>({key,x:t.x,y:t.y,height:t.height,frame:t.frame,mode:t.behavior.mode,phase:t.phase,restTime:t.restTime,journey:Boolean(t.journey),routeBlocked:Boolean(t.routeBlocked)}));

@@ -1,5 +1,36 @@
 # Live workspace validation · 2026-10-14
 
+## Astronaut placement, Hub parking and traffic (2026-10-14)
+
+Work spots follow rendered structure bounds. Every station serves infrastructure,
+including the former open-ground inspection slot at the Hub. All 28 work anchors
+are outside scenery rectangles and within 160 logical units of their structure;
+shared work/attention frames retain their clearance. No extra console or scenery
+was added, and station identities/manual choices remain stable.
+
+Available agents park on the foreground ground beside/in front of the Hub. Parking
+avoids actual busy/held poses, preserves existing parked identities, and uses a
+consistent Hub crew scale. A green check, visible Available count and card label
+make the finished state clear without changing the recorded lifecycle. Home frames
+the last parking row. Explicit requests and stale/disconnected states take priority.
+
+Regression fixtures reproduce two head-on walkers, reversed input order, held
+blockers, a record appearing at an occupied point, narrow passages, all 28 agents
+finishing/continuing at two frame rates, every single-busy-station parking case,
+stable parking across snapshots, display-page isolation and actual rest-frame/check
+clearance. Moving agents detour around all same-page peers; overlapping new records
+can step out without moving farther into each other. No position teleport is used.
+
+Read-only browser fixtures showed 28 working astronauts at realigned spots, 12
+Available with 16 working, all 28 Available near the Hub, and two continuing without
+a map reset. The operational live tab showed its actual two agents as Available.
+Browser warning/error logs were empty. Real agents were not started or instructed.
+
+Final checks passed: **365 full-suite tests**, **29 lunar tests**, all **27 lunar
+JavaScript/CJS syntax checks**, changed Python syntax, generated scene/style
+reproducibility and `git diff --check`. Browser evidence uses synthetic records
+for crowded transitions; it does not claim live provider execution was exercised.
+
 ## Saved lunar base delivery (2026-10-14)
 
 The final combined layout and availability changes passed **356 tests**, syntax

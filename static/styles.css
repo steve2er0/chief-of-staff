@@ -241,3 +241,11 @@ pre,code{font-family:ui-monospace,SFMono-Regular,monospace}
 .agent-feedback p{margin-bottom:8px}
 .agent-transcript .message{padding:14px 16px}
 .settings-form>details{margin:20px 0}
+
+/* The ghost shares the textarea's font/padding and never intercepts typing. */
+.followup-input{display:block;position:relative}
+.followup-ghost{position:absolute;inset:1px;padding:10px 12px;color:var(--muted);font:400 14px/1.6 var(--font-ui);white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;pointer-events:none}
+#agent-reply-form[data-has-followup] textarea::placeholder{color:transparent}
+.followup-hint{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;font-size:11px;color:var(--muted)}
+.followup-hint [data-accept-followup]{font-size:11px;padding:2px 0;color:var(--accent)}
+.followup-ghost[hidden],.followup-hint[hidden]{display:none}

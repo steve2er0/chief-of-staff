@@ -2,6 +2,8 @@
 body[data-lunar-mode=live] .demo-label b{font-weight:400}
 body[data-lunar-mode=live] .live-connection{display:flex;align-items:center;gap:14px;margin:0 0 15px;font-size:11px;color:#aebacc;flex-wrap:wrap}
 body[data-lunar-mode=live] .live-connection>span{flex:1;min-width:200px}
+body[data-lunar-mode=live] .live-connection>.live-available{flex:0 0 auto;min-width:0;padding:5px 9px;border:1px solid #365e50;border-radius:6px;background:#18352b;color:#a1e8bf;font-weight:600}
+body[data-lunar-mode=live] .live-available[hidden]{display:none}
 body[data-lunar-mode=live] .live-connection a{color:#77c8d1;text-decoration:none}
 body[data-lunar-mode=live] .live-connection button{font-size:10px;padding:7px 10px}
 body[data-lunar-mode=live] .live-empty{position:absolute;inset:24% 12%;display:grid;place-items:center;text-align:center;background:#0a1627e8;border:1px solid #4c657a;color:#d5dee6;padding:24px;font-size:14px;line-height:1.8}

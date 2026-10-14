@@ -72,7 +72,7 @@
     modelRight:{area:'hologram',role:'scan',work:[604,692],home:[604,754]},
     standLeft:{area:'teststand',role:'weld',work:[728,687],home:[728,752]},
     standRight:{area:'teststand',role:'sensor',work:[1078,687],home:[1078,752]},
-    junction:{area:'paths',role:'inspect',work:[640,570],home:[650,640]},
+    junction:{area:'habitat',role:'inspect',work:[650,420],home:[650,420]},
     consoleLeft:{area:'console',role:'scan',work:[42,370],home:[42,370]},
     consoleInspect:{area:'console',role:'inspect',work:[127,575],home:[127,575]},
     habitatService:{area:'habitat',role:'sensor',work:[557,290],home:[557,290]},
@@ -98,20 +98,26 @@
     const pivot=site.pivot||[0,0],scale=site.stationScale||site.groupScale||1;
     for(const key of ['work','home'])station[key]=station[key].map((value,i)=>pivot[i]+(value-pivot[i])*scale+offset[i]);
   }
-  // Keep the sensor position clear of the enlarged Hub's right flank.
-  stations.habitatService.work=[760,850];stations.habitatService.home=[760,850];
-  // Keep the swapped areas' left crew clear of the rover and test stand.
-  stations.garageLeft.work=[1140,170];stations.garageLeft.home=[1140,170];
-  stations.garageRight.work=[1555,250];stations.garageRight.home=[1555,250];
-  stations.garageFront.work=[1390,350];stations.garageFront.home=[1390,350];
-  // Keep work poses outside the enlarged lander and greenhouse silhouettes.
-  stations.landerLeft.work=[1455,959];stations.landerLeft.home=[1455,1027];
-  stations.landerRight.work=[1925,976];stations.landerRight.home=[1925,1034];
-  stations.landerInspect.work=[1925,781];stations.landerInspect.home=[1925,781];
-  // The left spot stays below the rover crew while the greenhouse moves back.
-  stations.greenhouseLeft.work=[1140,440];stations.greenhouseLeft.home=[1140,440];
-  stations.greenhouseRight.work=[1990,534];stations.greenhouseRight.home=[1990,534];
-  stations.greenhouseFront.work=[1535,710];stations.greenhouseFront.home=[1535,710];
+  // Service spots follow the rendered buildings, including later moves/scales.
+  // The old junction ID remains stable, now serving the Hub instead of bare ground.
+  const scenery=Object.fromEntries(objects.map(o=>[o.id,o]));
+  function place(name,x,y,homeDrop=0){stations[name].work=[x,y];stations[name].home=[x,y+homeDrop];}
+  const hub=scenery.habitat,garage=scenery.garage,lander=scenery.lander,greenhouse=scenery.greenhouse,dish=scenery.communications,rover=scenery.rover,terminal=scenery.console;
+  place('junction',hub.x+hub.width-14,hub.y-32);
+  place('habitatService',hub.x+hub.width+46,hub.groundDepth-24);
+  place('consoleInspect',terminal.x+terminal.width+40,terminal.groundDepth+40);
+  place('garageLeft',garage.x-36,garage.groundDepth-130);
+  place('garageRight',garage.x+garage.width+32,garage.groundDepth-120);
+  place('garageFront',garage.x-36,garage.groundDepth+145);
+  place('landerLeft',lander.x-43,lander.groundDepth+14,68);
+  place('landerRight',lander.x+lander.width+78,lander.groundDepth+31,58);
+  place('landerInspect',lander.x+lander.width+78,lander.groundDepth-164);
+  // Keep front/left greenhouse poses clear of the garage and lander silhouettes.
+  place('greenhouseLeft',greenhouse.x-40,greenhouse.groundDepth+90);
+  place('greenhouseRight',greenhouse.x+greenhouse.width+68,greenhouse.groundDepth-46);
+  place('greenhouseFront',greenhouse.x+greenhouse.width*.295,greenhouse.groundDepth+110);
+  place('dishInspect',dish.x+dish.width/2,Math.min(dish.y+dish.height+10,hub.y-2));
+  place('roverLeft',rover.x-32,rover.groundDepth);
   const expansion=['garageFront','garageLeft','garageRight','greenhouseLeft','greenhouseRight','greenhouseFront','dishLeft','dishRight','dishInspect','roverLeft','roverRight','roverInspect'];
   const orders={
     // The original ten indices stay first so saved crew slots can migrate.

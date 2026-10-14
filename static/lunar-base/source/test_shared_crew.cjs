@@ -23,9 +23,10 @@ for(const page of model.crewPages(view)){
  const crew=view.workers.filter(w=>w.position.page===page);
  for(const area of Object.keys(model.infrastructureChoices)){
   const shared=crew.filter(w=>w.position.area===area);
-  assert.equal(shared.length,3,area+' supports three agents on each display page');
-  assert.equal(new Set(shared.map(w=>w.visual.key)).size,3,area+' has three different animations even for identical instructions');
-  assert.equal(new Set(shared.map(w=>w.projectId)).size,3,area+' is shared across projects');
+  const count=area==='habitat'?4:3;
+  assert.equal(shared.length,count,area+' retains its shared stations on each display page');
+  assert.equal(new Set(shared.map(w=>w.visual.key)).size,count,area+' has distinct animations even for identical instructions');
+  assert.equal(new Set(shared.map(w=>w.projectId)).size,count,area+' is shared across projects');
  }
  assert.equal(crew.filter(w=>w.visual.key==='console').length,1,'only the original terminal has a typing operator');
  for(const worker of crew){

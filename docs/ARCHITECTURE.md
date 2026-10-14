@@ -24,6 +24,7 @@ The server and UI use no third-party runtime libraries.
 | `static/attention.js` | Shared attention queue, direct question resolution and reviewed continuation handoffs |
 | `static/path-picker.js` | Working-folder selection, multiple file/folder references and cancellation without changing the project draft |
 | `static/conversation-feedback.js` | Confirmed message receipts, persistent agent status, safe send retries and draft-preserving reply updates |
+| `static/followup-suggestions.js`, `static/composer-suggestions.js` | Conservative local follow-up drafts, stale prediction rejection and draft-only composer acceptance; see [behavior and limits](FOLLOWUP-SUGGESTIONS.md) |
 | `static/reference-files.js` | Native multiple-file selection, draft state, save-time copies and cleanup of unsaved uploads |
 | `tests/test_app.py` | Synthetic safety, persistence, state-machine, scheduling, adapter and loopback HTTP tests |
 | `package_source.py` | Transfer archive creation through a source allowlist |

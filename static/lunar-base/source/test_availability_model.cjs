@@ -25,7 +25,11 @@ const layout=model.baseLayout,spots=behavior.restSpots(layout);
 assert(spots.length>=model.WORKERS_PER_PAGE,'all visible crew have separate rest spots');
 for(const p of spots.slice(0,model.WORKERS_PER_PAGE)){
   assert(!behavior.obstacles(layout,32).some(r=>behavior.inside(p,r)));
-  assert(Object.values(layout.stations).every(s=>Math.hypot(p.x-s.work[0],p.y-s.work[1])>=68));
+}
+const hub=layout.objects.find(o=>o.id==='habitat');
+for(const p of spots.slice(0,model.WORKERS_PER_PAGE)){
+  assert(p.y>=hub.y+hub.height*.45&&p.y<=layout.height-24,'rest stays on foreground ground, never at the horizon');
+  assert(Math.hypot(Math.max(hub.x-p.x,0,p.x-hub.x-hub.width),Math.max(hub.y-p.y,0,p.y-hub.y-hub.height))<450,'every rest spot stays near the Hub');
 }
 for(let i=0;i<model.WORKERS_PER_PAGE;i++){
   const work=model.workerPosition({x:0,y:0},i).work,target=spots[i],route=behavior.route(work,target,layout);

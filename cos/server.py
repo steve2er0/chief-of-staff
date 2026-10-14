@@ -107,7 +107,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(401, {"error": "Open the private launch URL printed by the service."})
             if u.path in ("/", "/lunar-base/"):
                 return self.send(200, (self.server.static / "index.html").read_bytes(), "text/html; charset=utf-8")
-            if u.path in ("/app.js", "/agent-model.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/agents.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
+            if u.path in ("/app.js", "/agent-model.js", "/followup-suggestions.js", "/composer-suggestions.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/agents.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
                 path = self.server.static / u.path[1:]
                 return self.send(200, path.read_bytes(), "text/javascript; charset=utf-8" if path.suffix == ".js" else "text/css; charset=utf-8")
             # Exact private allowlist for the live workspace's map assets.

@@ -40,10 +40,12 @@ Their astronauts use the same distance scale, so the smaller scenery reads as
 farther away. Sprites retain their native proportions; shadows meet the visible
 wheels, feet and supports. This is an authored 2D composition, not a calibrated
 physical camera or a statement of real infrastructure dimensions.
-Each structure has three spaced crew positions with different existing animations,
+Each structure has at least three spaced crew positions with different existing animations,
 shared by agents from any project. The original console has one operator plus
-scanning and inspection positions; the habitat, model, lander and test stand also
-have three distinct poses each, as do all four expansion work areas. Repeated task wording does not give everyone the
+scanning and inspection positions; the habitat has four distinct poses, including
+the former open-ground inspection slot. The model, lander, test stand and four
+expansion work areas have three poses each. Service spots follow the rendered
+building bounds and stay clear of other infrastructure. Repeated task wording does not give everyone the
 same pose. Additional agents do not add consoles or other infrastructure.
 
 Use **Work at** beneath an astronaut's card to choose any of the nine work areas,
@@ -69,15 +71,18 @@ independent CLI windows or external Codex sessions.
 | Native question or exact tool permission request | Waiting for you; amber question marker |
 | Response is being sent | Stationary; response saved / awaiting agent |
 | Queued, paused or stopping | Stationary; lifecycle labeled explicitly |
-| Finished managed-agent result | Finished; available in Results, no acceptance requirement |
+| Finished managed-agent result | Available near the Hub; green check, Available count/card label, result retained |
 | Explicit unresolved structured owner request | Needs you; linked response controls |
 | Failure, blocker or recovery lock | Failure/blocker/unknown; motion held |
 | Simulated managed agent | Simulated label; no real execution motion |
 | Activity silence, stale snapshot or disconnected service | Last-known state; motion held |
 
 Native `commandExecution`, `fileChange`, `mcpToolCall` and `webSearch` events and
-legacy event names are recognized. Tool and lifecycle updates keep astronauts at
-their separate stations, so transitions do not make them cross or overlap. Prose
+legacy event names are recognized. Work/tool updates keep each assigned work spot.
+Finished agents move to separate nearby Hub parking spots and return when continued;
+their displayed scale follows the move from a distant work area. Parking avoids
+currently busy work poses and keeps other parked identities stable. Walkers yield
+and detour around each other, including narrow gaps between parked astronauts. Prose
 never invents activity, requests, measured progress or token usage. Obsolete
 questions linked to superseded/cancelled turns and stopped native requests do not
 leave attention markers behind.

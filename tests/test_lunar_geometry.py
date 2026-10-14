@@ -1,5 +1,6 @@
 """Perspective cues and support shadows use the actual sprite geometry."""
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,6 +13,35 @@ class SceneryGeometryTests(unittest.TestCase):
     def geometry(self):
         result=subprocess.run(['node','-e',"console.log(JSON.stringify(require('./static/lunar-base/source/base-layout.js')))"] ,cwd=ROOT,capture_output=True,text=True,check=True)
         return json.loads(result.stdout)
+
+    def test_work_spots_are_on_open_ground_beside_their_infrastructure(self):
+        base=self.geometry();objects={o['id']:o for o in base['objects']}
+        for name,station in base['stations'].items():
+            with self.subTest(station=name):
+                self.assertIn(station['area'],objects,'every work spot serves actual infrastructure')
+                x,y=station['work'];own=objects[station['area']]
+                gap=math.hypot(max(own['x']-x,0,x-own['x']-own['width']),max(own['y']-y,0,y-own['y']-own['height']))
+                self.assertLess(gap,160,'work spot drifted too far from its infrastructure')
+                for obj in objects.values():
+                    self.assertFalse(obj['x']<x<obj['x']+obj['width'] and obj['y']<y<obj['y']+obj['height'],f"{name} is inside {obj['id']}")
+
+    def test_hub_rest_frames_and_available_markers_have_clearance(self):
+        result=subprocess.run(['node','-e',"const b=require('./static/lunar-base/source/base-layout.js'),a=require('./static/lunar-base/source/availability-model.js');console.log(JSON.stringify(a.restSpots(b).slice(0,28)));"],cwd=ROOT,capture_output=True,text=True,check=True)
+        points=json.loads(result.stdout);base=self.geometry();scale=base['crewScale']
+        manifest=json.loads((ROOT/'static/lunar-base/source/availability/manifest.json').read_text())
+        boxes=[frame['bbox'] for frame in manifest['frames']]
+        left=min(b[0]/3-32 for b in boxes)*scale;right=max(b[2]/3-32 for b in boxes)*scale
+        top=min(b[1]/3-58 for b in boxes)*scale
+        self.assertEqual(len(points),28)
+        for zoom in [.18,.32,.5,1.5]:
+            radius=max(3.5/zoom,5*scale)
+            for i,a in enumerate(points):
+                for b in points[i+1:]:
+                    self.assertFalse(a['x']+left<b['x']+right and a['x']+right>b['x']+left and a['y']+top<b['y'] and a['y']>b['y']+top,'resting sprite envelopes overlap')
+                    for badge,body in [(a,b),(b,a)]:
+                        x=badge['x']+24*scale;y=badge['y']-24*scale
+                        nx=max(body['x']+left,min(x,body['x']+right));ny=max(body['y']+top,min(y,body['y']))
+                        self.assertGreaterEqual(math.hypot(x-nx,y-ny),radius,'Available marker covers another resting astronaut')
 
     def test_native_aspect_and_support_contacts(self):
         try:from PIL import Image

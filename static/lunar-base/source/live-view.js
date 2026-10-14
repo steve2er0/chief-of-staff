@@ -9,7 +9,7 @@
     document.body.dataset.lunarMode='live';
     document.title=isAttention?'Lunar Base · Needs-you demonstration':isDemo?'Lunar Base · Illustrative workshop':'Lunar Base · Agents';
     host.innerHTML=`
-      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
+      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span id="live-available" class="live-available" role="status" aria-live="polite" hidden></span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
       <section class="viewport" aria-label="Live lunar agent map">
         <canvas id="world" width="${viewWidth}" height="${viewHeight}" tabindex="0" aria-label="Live lunar base with ${Object.values(model.infrastructureChoices).join(', ')} on open lunar terrain. Astronauts represent recorded CLI agents from all projects in one shared base. Drag to pan. Select an astronaut for its conversation; project filters keep the same base. Arrow keys pan; Space pauses illustration."></canvas>
         <div class="scene-title"><p id="live-outpost">SHARED LUNAR BASE</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
@@ -75,8 +75,9 @@
       if(selectedProject&&!view.projects.some(p=>p.id===selectedProject))selectedProject='';
       if(!initialFocus){focus();initialFocus=true;}
       if (selectedWorker && !view.workers.some(w=>w.key===selectedWorker)) selectedWorker='';
+      const restTargets=availability.restTargets(view.workers,tracks,layout);
       for (const worker of view.workers) {
-        let track=availability.sync(tracks.get(worker.key),worker,layout);
+        let track=availability.sync(tracks.get(worker.key),worker,layout,restTargets.get(worker.key));
         tracks.set(worker.key,track);
         const identity=root.LunarAttention.identity(worker.status.attention);
         if(identity!==track.attentionIdentity){track.attentionIdentity=identity;track.attentionPhase=0;}
@@ -86,7 +87,7 @@
       dirty=true; renderLists();renderDetail();renderConnection();
     }
     function focus() {
-      const contentBottom=Math.max(...layout.objects.map(o=>o.y+o.height),...Object.values(layout.stations).map(s=>Math.max(s.work[1],s.home[1])+32));
+      const contentBottom=Math.max(...layout.objects.map(o=>o.y+o.height),...Object.values(layout.stations).map(s=>Math.max(s.work[1],s.home[1])+32),...availability.restSpots(layout).map(p=>p.y+32));
       const zoom=Math.min(.75,(viewWidth-48)/layout.width,(viewHeight-64)/contentBottom);
       camera={x:(layout.width-viewWidth/zoom)/2,y:-45/zoom,zoom};dirty=true;
     }
@@ -126,6 +127,8 @@
       for(const p of view.projects){const option=document.createElement('option');option.value=p.id;option.textContent=p.name+(p.attentionCount?' · ? '+p.attentionCount:'');select.append(option);}
       select.value=projectFilter;select.addEventListener('change',()=>projectPick(select.value));label.append(select);projectList.append(label);
       const workers=visibleWorkers(),pageIndex=availablePages.indexOf(crewPage),shown=workers.filter(w=>w.position.page===crewPage).length;
+      const availableCount=workers.filter(w=>availability.intent(w.status,w.raw).mode==='available').length;
+      text('live-available',availableCount+' Available');element('live-available').hidden=!availableCount;
       text('live-crew-heading',workers.length+(isDemo?' scripted character':' agent')+(workers.length===1?'':'s')+(projectFilter?' · '+view.projects.find(p=>p.id===projectFilter).name:' · all projects'));
       text('live-crew-page','Crew '+(pageIndex+1)+' / '+availablePages.length+' · '+shown+' on map');
       element('live-crew-page').parentElement.hidden=availablePages.length<=1;
@@ -142,7 +145,10 @@
         const dot=document.createElement('i');dot.style.backgroundColor=worker.status.colour;
         const name=document.createElement('span');name.textContent=root.AgentModel.title({title:worker.name});
         const project=document.createElement('small');project.className='live-worker-project';project.textContent=owner.name;name.append(project);
-        const status=document.createElement('small');status.textContent=worker.status.label;
+        const status=document.createElement('small');
+        const available=availability.intent(worker.status,worker.raw).mode==='available';
+        status.textContent=available?'Available · '+worker.status.label:worker.status.label;
+        if(available)status.title='Turn finished. Available to continue; resting near the Hub.';
         button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));card.append(button);
         const placement=document.createElement('label');placement.className='live-infrastructure-control';placement.textContent='Work at';
         const choice=document.createElement('select');choice.dataset.liveInfrastructure=worker.key;
@@ -155,7 +161,7 @@
       }
       if(!workers.length){const note=document.createElement('p');note.className='live-no-workers';note.textContent=projectFilter?'No agents in this project yet. Start one in its folder.':'Your base is ready. Start agents in any project folder.';workerList.append(note);}
       text('live-outpost','Shared lunar base');
-      text('live-caption','ONE SHARED BASE · CONNECTING PATHS · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
+      text('live-caption','ONE SHARED BASE · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
       if(focusFilter)select.focus();
       if(focusWorker)[...workerList.querySelectorAll('[data-live-worker]')].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
       if(focusInfrastructure)[...workerList.querySelectorAll('[data-live-infrastructure]')].find(s=>s.dataset.liveInfrastructure===focusInfrastructure)?.focus();
@@ -308,7 +314,7 @@
       for(const worker of crew) {
         if(worker.position.page!==crewPage)continue;
         const track=tracks.get(worker.key);if(!track)continue;
-        const position=screen(track),scale=camera.zoom*worker.position.scale;
+        const position=screen(track),scale=camera.zoom*availability.visualScale(worker,track,layout);
         if(position.x < -80||position.x>viewWidth+80||position.y < -80||position.y>viewHeight+80)continue;
         const owner=view.projects.find(p=>p.id===worker.projectId);
         drawables.push({depth:track.y,draw:()=>{
@@ -345,8 +351,13 @@
             ctx.fillRect(position.x+10*scale,position.y-(track.height+41)*scale,2*scale,2*scale);
           }
           if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
+          if(restful&&!attending){
+            const x=position.x+24*scale,y=position.y-24*scale,radius=Math.max(3.5,5*scale);
+            ctx.fillStyle='#92dfb5';ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+            ctx.strokeStyle='#163829';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x-radius*.5,y);ctx.lineTo(x-radius*.12,y+radius*.38);ctx.lineTo(x+radius*.55,y-radius*.4);ctx.stroke();
+          }
           ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
-          if(scale>=.5){
+          if(scale>=.5&&!restful&&!moving){
             const labelWidthLimit=model.workerLabelWidth(worker,crew,other=>tracks.get(other.key)||other.position.work);
             const font=Math.max(7,10*scale),maxWidth=labelWidthLimit*scale;
             ctx.font=font+'px system-ui, sans-serif';
@@ -386,11 +397,8 @@
           if(!track)continue;
           if(status.attentionAnimate)track.attentionPhase=(track.attentionPhase||0)+elapsed;
           track.behavior=availability.intent(status,worker.raw);
-          availability.advance(track,elapsed,model.pose,bound,next=>!view.workers.some(other=>{
-            if(other.key===worker.key||other.position.page!==worker.position.page)return false;
-            const occupied=tracks.get(other.key);return occupied&&Math.hypot(next.x-occupied.x,next.y-occupied.y)<32*layout.crewScale;
-          }));
         }
+        availability.advanceCrew(view.workers,tracks,elapsed,model.pose,bound,layout);
       }
       if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;}
       requestAnimationFrame(loop);

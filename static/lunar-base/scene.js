@@ -193,7 +193,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     modelRight:{area:'hologram',role:'scan',work:[604,692],home:[604,754]},
     standLeft:{area:'teststand',role:'weld',work:[728,687],home:[728,752]},
     standRight:{area:'teststand',role:'sensor',work:[1078,687],home:[1078,752]},
-    junction:{area:'paths',role:'inspect',work:[640,570],home:[650,640]},
+    junction:{area:'habitat',role:'inspect',work:[650,420],home:[650,420]},
     consoleLeft:{area:'console',role:'scan',work:[42,370],home:[42,370]},
     consoleInspect:{area:'console',role:'inspect',work:[127,575],home:[127,575]},
     habitatService:{area:'habitat',role:'sensor',work:[557,290],home:[557,290]},
@@ -219,20 +219,26 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     const pivot=site.pivot||[0,0],scale=site.stationScale||site.groupScale||1;
     for(const key of ['work','home'])station[key]=station[key].map((value,i)=>pivot[i]+(value-pivot[i])*scale+offset[i]);
   }
-  // Keep the sensor position clear of the enlarged Hub's right flank.
-  stations.habitatService.work=[760,850];stations.habitatService.home=[760,850];
-  // Keep the swapped areas' left crew clear of the rover and test stand.
-  stations.garageLeft.work=[1140,170];stations.garageLeft.home=[1140,170];
-  stations.garageRight.work=[1555,250];stations.garageRight.home=[1555,250];
-  stations.garageFront.work=[1390,350];stations.garageFront.home=[1390,350];
-  // Keep work poses outside the enlarged lander and greenhouse silhouettes.
-  stations.landerLeft.work=[1455,959];stations.landerLeft.home=[1455,1027];
-  stations.landerRight.work=[1925,976];stations.landerRight.home=[1925,1034];
-  stations.landerInspect.work=[1925,781];stations.landerInspect.home=[1925,781];
-  // The left spot stays below the rover crew while the greenhouse moves back.
-  stations.greenhouseLeft.work=[1140,440];stations.greenhouseLeft.home=[1140,440];
-  stations.greenhouseRight.work=[1990,534];stations.greenhouseRight.home=[1990,534];
-  stations.greenhouseFront.work=[1535,710];stations.greenhouseFront.home=[1535,710];
+  // Service spots follow the rendered buildings, including later moves/scales.
+  // The old junction ID remains stable, now serving the Hub instead of bare ground.
+  const scenery=Object.fromEntries(objects.map(o=>[o.id,o]));
+  function place(name,x,y,homeDrop=0){stations[name].work=[x,y];stations[name].home=[x,y+homeDrop];}
+  const hub=scenery.habitat,garage=scenery.garage,lander=scenery.lander,greenhouse=scenery.greenhouse,dish=scenery.communications,rover=scenery.rover,terminal=scenery.console;
+  place('junction',hub.x+hub.width-14,hub.y-32);
+  place('habitatService',hub.x+hub.width+46,hub.groundDepth-24);
+  place('consoleInspect',terminal.x+terminal.width+40,terminal.groundDepth+40);
+  place('garageLeft',garage.x-36,garage.groundDepth-130);
+  place('garageRight',garage.x+garage.width+32,garage.groundDepth-120);
+  place('garageFront',garage.x-36,garage.groundDepth+145);
+  place('landerLeft',lander.x-43,lander.groundDepth+14,68);
+  place('landerRight',lander.x+lander.width+78,lander.groundDepth+31,58);
+  place('landerInspect',lander.x+lander.width+78,lander.groundDepth-164);
+  // Keep front/left greenhouse poses clear of the garage and lander silhouettes.
+  place('greenhouseLeft',greenhouse.x-40,greenhouse.groundDepth+90);
+  place('greenhouseRight',greenhouse.x+greenhouse.width+68,greenhouse.groundDepth-46);
+  place('greenhouseFront',greenhouse.x+greenhouse.width*.295,greenhouse.groundDepth+110);
+  place('dishInspect',dish.x+dish.width/2,Math.min(dish.y+dish.height+10,hub.y-2));
+  place('roverLeft',rover.x-32,rover.groundDepth);
   const expansion=['garageFront','garageLeft','garageRight','greenhouseLeft','greenhouseRight','greenhouseFront','dishLeft','dishRight','dishInspect','roverLeft','roverRight','roverInspect'];
   const orders={
     // The original ten indices stay first so saved crew slots can migrate.
@@ -619,14 +625,34 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     }
     return hi>0&&lo<1;
   }
-  function route(from,to,layout){
+  function segmentDistance(point,from,to){
+    const dx=to.x-from.x,dy=to.y-from.y,length=dx*dx+dy*dy;
+    const t=length?Math.max(0,Math.min(1,((point.x-from.x)*dx+(point.y-from.y)*dy)/length)):0;
+    return Math.hypot(point.x-from.x-t*dx,point.y-from.y-t*dy);
+  }
+  function route(from,to,layout,occupied=[]){
     if(distance(from,to)<EPS)return [{x:to.x,y:to.y}];
     const blocks=obstacles(layout).filter(r=>!inside(from,r)&&!inside(to,r));
-    const clear=(a,b)=>!blocks.some(r=>crosses(a,b,r));
+    const circles=occupied.filter(c=>distance(from,c)>=c.radius-EPS);
+    const clear=(a,b)=>!blocks.some(r=>crosses(a,b,r))&&!circles.some(c=>segmentDistance(c,a,b)<c.radius-EPS);
     const nodes=[{x:from.x,y:from.y},{x:to.x,y:to.y}];
     for(const path of layout.paths)for(const [x,y] of path)if(!blocks.some(r=>inside({x,y},r)))nodes.push({x,y});
     for(const r of blocks)for(const x of [r.left,r.right])for(const y of [r.top,r.bottom]){
       if(x>=32&&x<=layout.width-32&&y>=58&&y<=layout.height-8&&!blocks.some(q=>inside({x,y},q)))nodes.push({x,y});
+    }
+    // Circumscribed octagons give blocked walkers room to pass, not just stop.
+    for(const c of circles)for(let n=0;n<8;n++){
+      const angle=n*Math.PI/4,radius=(c.radius+2)/Math.cos(Math.PI/8);
+      const p={x:c.x+Math.cos(angle)*radius,y:c.y+Math.sin(angle)*radius};
+      if(p.x>=32&&p.x<=layout.width-32&&p.y>=58&&p.y<=layout.height-8&&!blocks.some(r=>inside(p,r))&&!circles.some(q=>distance(p,q)<q.radius-EPS))nodes.push(p);
+    }
+    // Retain the free passage between two parked astronauts. Octagon corners
+    // alone can miss a narrow gap even when the actual clearance is sufficient.
+    for(let i=0;i<circles.length;i++)for(let j=i+1;j<circles.length;j++){
+      const a=circles[i],b=circles[j],gap=distance(a,b),radii=a.radius+b.radius;
+      if(gap<radii+EPS||gap>radii*1.6)continue;
+      const p={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      if(!blocks.some(r=>inside(p,r))&&!circles.some(c=>distance(p,c)<c.radius-EPS))nodes.push(p);
     }
     const costs=nodes.map(()=>Infinity),prior=nodes.map(()=>-1),seen=new Set();costs[0]=0;
     while(seen.size<nodes.length){
@@ -643,27 +669,62 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
   const restCache=new WeakMap();
   function restSpots(layout){
     if(restCache.has(layout))return restCache.get(layout);
-    const scale=layout.crewScale||1,step=Math.ceil(76*scale);
-    const hab=layout.objects.find(o=>o.id==='habitat'),blocks=obstacles(layout,32*scale),stations=Object.values(layout.stations).map(s=>({x:s.work[0],y:s.work[1]}));
+    const scale=layout.crewScale||1,step=Math.round(67*scale);
+    const hab=layout.objects.find(o=>o.id==='habitat'),blocks=obstacles(layout,18*scale);
     const candidates=[],center={x:hab.x+hab.width/2,y:hab.y+hab.height};
-    for(let y=78;y<Math.min(layout.height-12,hab.y+hab.height+600);y+=step)for(let x=48;x<Math.min(layout.width-32,hab.x+hab.width+650);x+=step){
-      const p={x,y};if(!blocks.some(r=>inside(p,r))&&stations.every(q=>distance(p,q)>=68*scale))candidates.push(p);
+    // Stay on the ground beside/in front of the Hub; never spill into the horizon.
+    for(let y=Math.floor(hab.y+hab.height-160*scale);y<=Math.min(layout.height-24,hab.y+hab.height+250);y+=step)for(let x=Math.max(64,Math.round(hab.x+38*scale));x<=Math.min(layout.width-40,hab.x+hab.width+320);x+=step){
+      const p={x,y};if(!blocks.some(r=>inside(p,r)))candidates.push(p);
     }
     candidates.sort((a,b)=>distance(a,center)-distance(b,center)||a.y-b.y||a.x-b.x);
     restCache.set(layout,candidates);return candidates;
   }
-  function destination(worker,behavior,layout){
+  function restClear(point,occupied,scale){
+    // Bounds cover every registered rest/work pose, in either facing direction.
+    return occupied.every(({point:p,scale:s})=>Math.abs(point.x-p.x)>=19*scale+32*s||point.y<=p.y-52*s||point.y-51*scale>=p.y+2*s);
+  }
+  function restTargets(workers,tracks,layout){
+    const result=new Map(),spots=restSpots(layout),scale=layout.crewScale||1;
+    for(const page of new Set(workers.map(w=>w.position.page))){
+      const crew=workers.filter(w=>w.position.page===page),available=crew.filter(w=>intent(w.status,w.raw).mode==='available').sort((a,b)=>a.key.localeCompare(b.key));
+      const occupied=crew.filter(w=>intent(w.status,w.raw).mode!=='available').map(w=>{
+        const track=tracks.get(w.key),held=track&&['held','attention'].includes(intent(w.status,w.raw).mode);
+        return {point:held?track:w.position.work,scale:held?visualScale(w,track,layout):w.position.scale};
+      });
+      const free=spots.filter(p=>restClear(p,occupied,scale)),used=new Set();
+      // Keep existing parked identities stable. Only displaced/new arrivals choose
+      // the nearest free Hub position; empty infrastructure needs no reservation.
+      for(const w of available){
+        const old=tracks.get(w.key)?.restSpot,index=old?free.findIndex(p=>distance(p,old)<EPS):-1;
+        if(index>=0&&!used.has(index)){used.add(index);result.set(w.key,free[index]);}
+      }
+      for(const w of available)if(!result.has(w.key)){
+        const index=free.findIndex((p,i)=>!used.has(i));
+        if(index>=0){used.add(index);result.set(w.key,free[index]);}
+      }
+    }
+    return result;
+  }
+  function destination(worker,behavior,layout,restTarget){
     if(behavior.mode==='available'){
+      if(restTarget)return restTarget;
       const spots=restSpots(layout),index=worker.position.station;
       return spots[index]||worker.position.work;
     }
     return worker.position.work;
   }
-  function sync(track,worker,layout){
-    const behavior=intent(worker.status,worker.raw),target=destination(worker,behavior,layout);
-    if(!track){return {...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target}};}
+  function visualScale(worker,track,layout){
+    const hubScale=layout.crewScale||1,work=worker.position.work;
+    const rest=destination(worker,{mode:'available'},layout,track.restSpot),span=rest.y-work.y;
+    const progress=Math.abs(span)>EPS?Math.max(0,Math.min(1,(track.y-work.y)/span)):track.behavior.mode==='available'?1:0;
+    return worker.position.scale+(hubScale-worker.position.scale)*progress;
+  }
+  function sync(track,worker,layout,restTarget){
+    const behavior=intent(worker.status,worker.raw),target=destination(worker,behavior,layout,restTarget);
+    if(!track){return {...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target},restSpot:behavior.mode==='available'?{...target}:null};}
     const changed=!track.goal||distance(track.goal,target)>EPS;
     const oldMode=track.behavior?.mode;track.behavior=behavior;
+    if(behavior.mode==='available')track.restSpot={...target};
     if(oldMode!==behavior.mode)track.restTime=0;
     if(behavior.mode==='attention'){
       // Explicit request takes priority at the actual current position.
@@ -680,13 +741,45 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     track.phase+=seconds;
     if(track.journey){
       const j=track.journey,to=j.points[j.index],next=pose(j.elapsed+seconds,j.from,to,bound);
-      if(!canStep(next))return;
+      if(!canStep(next))return false;
       j.elapsed+=seconds;Object.assign(track,next);
       if(next.done){
         j.index++;if(j.index===j.points.length){track.journey=null;track.height=0;track.squash=1;track.restTime=0;}
         else{j.from={x:track.x,y:track.y};j.elapsed=0;}
       }
     }else track.restTime+=seconds;
+    return true;
+  }
+  function advanceCrew(workers,tracks,seconds,pose,bound,layout){
+    const separation=32*(layout.crewScale||1);
+    for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))){
+      const track=tracks.get(worker.key);if(!track)continue;
+      const peers=workers.filter(other=>other.key!==worker.key&&other.position.page===worker.position.page)
+        .map(other=>({worker:other,track:tracks.get(other.key)})).filter(p=>p.track);
+      let blockers=[];
+      const stepped=advance(track,seconds,pose,bound,next=>{
+        blockers=peers.filter(p=>{
+          const current=distance(track,p.track),future=distance(next,p.track);
+          // A newly appearing/held agent can already be in someone's way.
+          // Permit a planted push-off and movement out of that overlap, never
+          // movement farther into it; otherwise neither can take the first step.
+          return future<separation&&(current>=separation-EPS||future<current-EPS);
+        });
+        return !blockers.length;
+      });
+      if(stepped!==false){track.blockedFor=0;continue;}
+      track.blockedFor=(track.blockedFor||0)+seconds;
+      // One moving astronaut yields by detouring; the other keeps its route.
+      // A stationary/held astronaut is always an obstacle to walk around.
+      const yields=blockers.some(p=>!p.track.journey||!p.track.behavior.motion||worker.key.localeCompare(p.worker.key)>0);
+      if(track.blockedFor<.4||!yields&&track.blockedFor<2)continue;
+      const points=route(track,track.goal,layout,peers.map(p=>({...p.track,radius:separation})));
+      track.blockedFor=0;
+      if(points){
+        track.journey={points,index:0,from:{x:track.x,y:track.y},elapsed:0};
+        track.routeBlocked=false;track.height=0;track.squash=1;track.frame=0;track.detours=(track.detours||0)+1;
+      }
+    }
   }
   function restPose(seconds,seed=0){
     // One short gesture per 28 seconds; seated/neutral remains still otherwise.
@@ -695,7 +788,7 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     return seed%2?1:0;
   }
   function tabletFrame(seconds,seed=0){const t=(seconds+seed*1.7)%24;return t>=18&&t<21?Math.floor((t-18)*1.3)%4:null;}
-  const api={intent,obstacles,inside,crosses,route,restSpots,destination,sync,advance,restPose,tabletFrame};
+  const api={intent,obstacles,inside,crosses,segmentDistance,route,restSpots,restClear,restTargets,destination,visualScale,sync,advance,advanceCrew,restPose,tabletFrame};
   root.LunarAvailability=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -710,7 +803,7 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     document.body.dataset.lunarMode='live';
     document.title=isAttention?'Lunar Base · Needs-you demonstration':isDemo?'Lunar Base · Illustrative workshop':'Lunar Base · Agents';
     host.innerHTML=`
-      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
+      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span id="live-available" class="live-available" role="status" aria-live="polite" hidden></span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
       <section class="viewport" aria-label="Live lunar agent map">
         <canvas id="world" width="${viewWidth}" height="${viewHeight}" tabindex="0" aria-label="Live lunar base with ${Object.values(model.infrastructureChoices).join(', ')} on open lunar terrain. Astronauts represent recorded CLI agents from all projects in one shared base. Drag to pan. Select an astronaut for its conversation; project filters keep the same base. Arrow keys pan; Space pauses illustration."></canvas>
         <div class="scene-title"><p id="live-outpost">SHARED LUNAR BASE</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
@@ -776,8 +869,9 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
       if(selectedProject&&!view.projects.some(p=>p.id===selectedProject))selectedProject='';
       if(!initialFocus){focus();initialFocus=true;}
       if (selectedWorker && !view.workers.some(w=>w.key===selectedWorker)) selectedWorker='';
+      const restTargets=availability.restTargets(view.workers,tracks,layout);
       for (const worker of view.workers) {
-        let track=availability.sync(tracks.get(worker.key),worker,layout);
+        let track=availability.sync(tracks.get(worker.key),worker,layout,restTargets.get(worker.key));
         tracks.set(worker.key,track);
         const identity=root.LunarAttention.identity(worker.status.attention);
         if(identity!==track.attentionIdentity){track.attentionIdentity=identity;track.attentionPhase=0;}
@@ -787,7 +881,7 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
       dirty=true; renderLists();renderDetail();renderConnection();
     }
     function focus() {
-      const contentBottom=Math.max(...layout.objects.map(o=>o.y+o.height),...Object.values(layout.stations).map(s=>Math.max(s.work[1],s.home[1])+32));
+      const contentBottom=Math.max(...layout.objects.map(o=>o.y+o.height),...Object.values(layout.stations).map(s=>Math.max(s.work[1],s.home[1])+32),...availability.restSpots(layout).map(p=>p.y+32));
       const zoom=Math.min(.75,(viewWidth-48)/layout.width,(viewHeight-64)/contentBottom);
       camera={x:(layout.width-viewWidth/zoom)/2,y:-45/zoom,zoom};dirty=true;
     }
@@ -827,6 +921,8 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
       for(const p of view.projects){const option=document.createElement('option');option.value=p.id;option.textContent=p.name+(p.attentionCount?' · ? '+p.attentionCount:'');select.append(option);}
       select.value=projectFilter;select.addEventListener('change',()=>projectPick(select.value));label.append(select);projectList.append(label);
       const workers=visibleWorkers(),pageIndex=availablePages.indexOf(crewPage),shown=workers.filter(w=>w.position.page===crewPage).length;
+      const availableCount=workers.filter(w=>availability.intent(w.status,w.raw).mode==='available').length;
+      text('live-available',availableCount+' Available');element('live-available').hidden=!availableCount;
       text('live-crew-heading',workers.length+(isDemo?' scripted character':' agent')+(workers.length===1?'':'s')+(projectFilter?' · '+view.projects.find(p=>p.id===projectFilter).name:' · all projects'));
       text('live-crew-page','Crew '+(pageIndex+1)+' / '+availablePages.length+' · '+shown+' on map');
       element('live-crew-page').parentElement.hidden=availablePages.length<=1;
@@ -843,7 +939,10 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
         const dot=document.createElement('i');dot.style.backgroundColor=worker.status.colour;
         const name=document.createElement('span');name.textContent=root.AgentModel.title({title:worker.name});
         const project=document.createElement('small');project.className='live-worker-project';project.textContent=owner.name;name.append(project);
-        const status=document.createElement('small');status.textContent=worker.status.label;
+        const status=document.createElement('small');
+        const available=availability.intent(worker.status,worker.raw).mode==='available';
+        status.textContent=available?'Available · '+worker.status.label:worker.status.label;
+        if(available)status.title='Turn finished. Available to continue; resting near the Hub.';
         button.append(dot,name,status);button.addEventListener('click',()=>workerPick(worker.key));card.append(button);
         const placement=document.createElement('label');placement.className='live-infrastructure-control';placement.textContent='Work at';
         const choice=document.createElement('select');choice.dataset.liveInfrastructure=worker.key;
@@ -856,7 +955,7 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
       }
       if(!workers.length){const note=document.createElement('p');note.className='live-no-workers';note.textContent=projectFilter?'No agents in this project yet. Start one in its folder.':'Your base is ready. Start agents in any project folder.';workerList.append(note);}
       text('live-outpost','Shared lunar base');
-      text('live-caption','ONE SHARED BASE · CONNECTING PATHS · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
+      text('live-caption','ONE SHARED BASE · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENT'+(view.workers.length===1?'':'S')));
       if(focusFilter)select.focus();
       if(focusWorker)[...workerList.querySelectorAll('[data-live-worker]')].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
       if(focusInfrastructure)[...workerList.querySelectorAll('[data-live-infrastructure]')].find(s=>s.dataset.liveInfrastructure===focusInfrastructure)?.focus();
@@ -1009,7 +1108,7 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
       for(const worker of crew) {
         if(worker.position.page!==crewPage)continue;
         const track=tracks.get(worker.key);if(!track)continue;
-        const position=screen(track),scale=camera.zoom*worker.position.scale;
+        const position=screen(track),scale=camera.zoom*availability.visualScale(worker,track,layout);
         if(position.x < -80||position.x>viewWidth+80||position.y < -80||position.y>viewHeight+80)continue;
         const owner=view.projects.find(p=>p.id===worker.projectId);
         drawables.push({depth:track.y,draw:()=>{
@@ -1046,8 +1145,13 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
             ctx.fillRect(position.x+10*scale,position.y-(track.height+41)*scale,2*scale,2*scale);
           }
           if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
+          if(restful&&!attending){
+            const x=position.x+24*scale,y=position.y-24*scale,radius=Math.max(3.5,5*scale);
+            ctx.fillStyle='#92dfb5';ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+            ctx.strokeStyle='#163829';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(x-radius*.5,y);ctx.lineTo(x-radius*.12,y+radius*.38);ctx.lineTo(x+radius*.55,y-radius*.4);ctx.stroke();
+          }
           ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
-          if(scale>=.5){
+          if(scale>=.5&&!restful&&!moving){
             const labelWidthLimit=model.workerLabelWidth(worker,crew,other=>tracks.get(other.key)||other.position.work);
             const font=Math.max(7,10*scale),maxWidth=labelWidthLimit*scale;
             ctx.font=font+'px system-ui, sans-serif';
@@ -1087,11 +1191,8 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
           if(!track)continue;
           if(status.attentionAnimate)track.attentionPhase=(track.attentionPhase||0)+elapsed;
           track.behavior=availability.intent(status,worker.raw);
-          availability.advance(track,elapsed,model.pose,bound,next=>!view.workers.some(other=>{
-            if(other.key===worker.key||other.position.page!==worker.position.page)return false;
-            const occupied=tracks.get(other.key);return occupied&&Math.hypot(next.x-occupied.x,next.y-occupied.y)<32*layout.crewScale;
-          }));
         }
+        availability.advanceCrew(view.workers,tracks,elapsed,model.pose,bound,layout);
       }
       if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;}
       requestAnimationFrame(loop);

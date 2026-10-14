@@ -6,6 +6,13 @@ import subprocess
 import unittest
 
 class LunarAvailabilityTests(unittest.TestCase):
+    def test_crew_traffic_recovers_from_head_on_and_crowded_routes(self):
+        node=shutil.which('node')
+        if not node:self.skipTest('Node unavailable')
+        root=Path(__file__).resolve().parents[1]
+        result=subprocess.run([node,str(root/'static/lunar-base/source/test_crew_traffic.cjs')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_supported_state_and_transition_contract(self):
         node=shutil.which('node')
         if not node:self.skipTest('Node unavailable')
