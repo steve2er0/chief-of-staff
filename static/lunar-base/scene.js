@@ -132,22 +132,29 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   ];
   const paths=[[[546,382],[589,421],[621,449],[710,477],[812,473]],[[710,477],[712,585],[637,635],[617,685]],[[712,585],[747,621],[742,675]]];
   const stations={
-    console:{area:'console',work:[127,426],home:[127,490]},
-    habitat:{area:'habitat',work:[337,422],home:[337,490]},
-    habitatRight:{area:'habitat',work:[548,410],home:[551,490]},
-    landerLeft:{area:'lander',work:[812,473],home:[812,541]},
-    landerRight:{area:'lander',work:[1075,490],home:[1075,548]},
-    modelLeft:{area:'hologram',work:[302,693],home:[276,747]},
-    modelRight:{area:'hologram',work:[604,692],home:[604,754]},
-    standLeft:{area:'teststand',work:[728,687],home:[728,752]},
-    standRight:{area:'teststand',work:[1078,687],home:[1078,752]},
-    junction:{area:'paths',work:[621,449],home:[650,550]}
+    console:{area:'console',role:'console',work:[127,426],home:[127,490]},
+    habitat:{area:'habitat',role:'assemble',work:[337,422],home:[337,490]},
+    habitatRight:{area:'habitat',role:'weld',work:[548,410],home:[551,490]},
+    landerLeft:{area:'lander',role:'sensor',work:[812,473],home:[812,541]},
+    landerRight:{area:'lander',role:'scan',work:[1075,490],home:[1075,548]},
+    modelLeft:{area:'hologram',role:'inspect',work:[302,693],home:[276,747]},
+    modelRight:{area:'hologram',role:'scan',work:[604,692],home:[604,754]},
+    standLeft:{area:'teststand',role:'weld',work:[728,687],home:[728,752]},
+    standRight:{area:'teststand',role:'sensor',work:[1078,687],home:[1078,752]},
+    junction:{area:'paths',role:'inspect',work:[621,449],home:[650,550]},
+    consoleLeft:{area:'console',role:'scan',work:[42,370],home:[42,370]},
+    consoleInspect:{area:'console',role:'inspect',work:[127,575],home:[127,575]},
+    habitatService:{area:'habitat',role:'sensor',work:[557,290],home:[557,290]},
+    landerInspect:{area:'lander',role:'inspect',work:[1078,355],home:[1078,355]},
+    modelSensor:{area:'hologram',role:'sensor',work:[302,575],home:[302,575]},
+    standInspect:{area:'teststand',role:'inspect',work:[885,748],home:[885,748]}
   };
   const orders={
-    miscellaneous:['console','habitat','modelLeft','landerLeft','standLeft','modelRight','landerRight','standRight','habitatRight','junction'],
-    analysis:['modelLeft','modelRight','console','habitat','landerLeft','landerRight','standLeft','standRight','habitatRight','junction'],
-    flight:['landerLeft','landerRight','console','habitat','modelLeft','modelRight','standLeft','standRight','habitatRight','junction'],
-    test:['standLeft','standRight','console','habitat','modelLeft','modelRight','landerLeft','landerRight','habitatRight','junction']
+    // The original ten indices stay first so saved crew slots can migrate.
+    miscellaneous:['console','habitat','modelLeft','landerLeft','standLeft','modelRight','landerRight','standRight','habitatRight','junction','consoleLeft','consoleInspect','habitatService','landerInspect','modelSensor','standInspect'],
+    analysis:['modelLeft','modelRight','modelSensor','console','habitat','landerLeft','landerRight','landerInspect','standLeft','standRight','standInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction'],
+    flight:['landerLeft','landerRight','landerInspect','console','habitat','modelLeft','modelRight','modelSensor','standLeft','standRight','standInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction'],
+    test:['standLeft','standRight','standInspect','console','habitat','modelLeft','modelRight','modelSensor','landerLeft','landerRight','landerInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction']
   };
   const api={width,height,objects,paths,stations,orders};
   root.LunarBaseLayout=api;
@@ -160,7 +167,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   const attention=root.LunarAttention||(typeof require==='function'?require('./attention-model.js'):null);
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
-  const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = 10;
+  const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = baseLayout.orders.miscellaneous.length;
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
     analysis:{label:'Analysis · holographic model',asset:'hologram'},
@@ -197,18 +204,16 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
   }
   function roleFor(record,infrastructure,slot,context={}) {
     if(context.illustrative && roles[record.demo_role])return {key:record.demo_role,basis:'Scripted workshop demo role'};
-    const stationRole=({console:'console',habitat:'assemble',habitatRight:'weld',
-      landerLeft:'sensor',landerRight:'scan',modelLeft:'inspect',modelRight:'inspect',
-      standLeft:'weld',standRight:'sensor',junction:'inspect'})[context.station];
+    const stationRole=baseLayout.stations[context.station]?.role;
     const stationIllustration=()=>({key:stationRole,basis:'Illustration selected for the assigned shared-base station; no physical-activity telemetry'});
+    // Shared equipment has different poses at its separate, spaced positions.
+    if(stationRole)return stationIllustration();
     const text=['title','goal','purpose'].map(k=>String(record[k]||'')).join(' ').toLowerCase();
     for(const [key,pattern] of [['weld',/\bweld\w*\b/],['sensor',/\b(sensor|instrument|attach)\w*\b/],['scan',/\b(scan|laser|survey)\w*\b/],['assemble',/\b(assembl|hammer|fabricat|repair)\w*\b/],['console',/\b(console|terminal)\b/],['inspect',/\b(inspect|review|tablet|analys|analyz|model)\w*\b/]]) {
       const match=text.match(pattern);if(match){
-        if(key==='console'&&stationRole&&stationRole!=='console')return stationIllustration();
         return {key,basis:'Illustration selected from task metadata: '+match[0]};
       }
     }
-    if(stationRole)return stationIllustration();
     // Generic tasks get distinct stable visual roles at shared infrastructure.
     // This is explicitly an illustration, not physical-activity telemetry.
     const choices=infrastructure.type==='flight'?['console','assemble','sensor','scan','inspect']:
@@ -296,8 +301,8 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:2, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
-    if (!saved || ![1,2].includes(saved.version)) return registry;
+    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
+    if (!saved || ![1,2,3].includes(saved.version)) return registry;
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
       if (id.length <= 200 && Number.isSafeInteger(slot) && slot >= 0 && slot < 100000 && !usedProjects.has(slot)) {registry.projects[id] = slot;usedProjects.add(slot);}
@@ -310,8 +315,10 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       registry.workers[pid] = valid;
     }
     const usedCrew=new Set();
-    for(const [id,slot] of Object.entries(saved.version===2?saved.crew||{}:{})) {
-      if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0&&slot<100000&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
+    for(const [id,oldSlot] of Object.entries(saved.version>=2?saved.crew||{}:{})) {
+      if(!Number.isSafeInteger(oldSlot)||oldSlot<0)continue;
+      const slot=saved.version===2?Math.floor(oldSlot/10)*WORKERS_PER_PAGE+oldSlot%10:oldSlot;
+      if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
     }
     return registry;
   }
@@ -338,6 +345,19 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     return {work:{x:project.x+station.work[0],y:project.y+station.work[1]},
       home:{x:project.x+station.home[0],y:project.y+station.home[1]},
       page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot,area:station.area};
+  }
+  function workerAnchor(worker,illustrative=false) {
+    if(!illustrative)return worker.position.work;
+    return worker.status.animate&&worker.status.area!=='workspace'?worker.position.work:worker.position.home;
+  }
+  function workerLabelWidth(worker,crew) {
+    const point=worker.position.work;
+    let width=Math.min(150,2*(point.x-8),2*(baseLayout.width-point.x-8));
+    for(const other of crew){
+      if(other.key===worker.key||other.position.page!==worker.position.page)continue;
+      if(Math.abs(other.position.work.y-point.y)<114)width=Math.min(width,Math.abs(other.position.work.x-point.x)-8);
+    }
+    return Math.max(48,width);
   }
   function project(raw, registry) {
     const slot = registry.projects[raw.id], position = projectPosition(slot);
@@ -385,7 +405,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       const owner=byProject.get(worker.projectId);
       worker.slot=registry.crew[worker.key];worker.position=workerPosition(owner,worker.slot);
       const station=baseLayout.orders.miscellaneous[worker.position.station];
-      worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.roleSlot*.73,sharedProject:owner.id};
+      worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.slot*.73,sharedProject:owner.id};
       worker.visual.label=roles[worker.visual.key].label;
     }
     workers.sort((a,b)=>a.slot-b.slot);
@@ -416,7 +436,7 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,visibleWorkers,crewPages,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -497,12 +517,15 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
       if (selectedWorker && !view.workers.some(w=>w.key===selectedWorker)) selectedWorker='';
       for (const worker of view.workers) {
         let track=tracks.get(worker.key);
-        const destination=worker.status.area==='workspace' && (isDemo||worker.visual.key!=='console')?worker.position.home:worker.position.work;
+        const destination=model.workerAnchor(worker,isDemo);
         if (!track) {
           // Opening the page never replays a fictitious worker journey.
-          const initial=worker.status.animate?destination:worker.position.home;
+          const initial=destination;
           track={x:initial.x,y:initial.y,height:0,squash:1,frame:0,journey:null,target:worker.status.area,phase:worker.visual.phase};
           tracks.set(worker.key,track);
+        } else if(!isDemo) {
+          // Native tool/status updates keep live crew in their separated stations.
+          Object.assign(track,destination,{journey:null,height:0,squash:1});
         } else if (worker.status.animate && !track.journey && (track.target!==worker.status.area || Math.hypot(track.x-destination.x,track.y-destination.y)>.1)) {
           track.journey={from:{x:track.x,y:track.y},to:destination,elapsed:0};
           track.target=worker.status.area;
@@ -706,7 +729,8 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
           lastPainted.push({kind:'base',id:p.id,x:s.x,y:s.y,width:w,height:h,depth:p.y+object.y+object.height});
         }
       }
-      for(const worker of visibleWorkers()) {
+      const crew=visibleWorkers();
+      for(const worker of crew) {
         if(worker.position.page!==crewPage)continue;
         const track=tracks.get(worker.key);if(!track)continue;
         const position=screen(track),scale=camera.zoom;
@@ -735,9 +759,16 @@ window.LunarDisplayAssets={"regions":{"crew":{"x":0,"y":1344,"width":1152,"heigh
           ctx.restore();
           if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
           ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
-          const projectLabel=owner.name.length>22?owner.name.slice(0,21)+'…':owner.name;ctx.font='9px system-ui, sans-serif';
-          const labelWidth=ctx.measureText(projectLabel).width+8;ctx.fillStyle='#0b1220de';ctx.fillRect(position.x-labelWidth/2,position.y+12,labelWidth,14);
-          ctx.fillStyle='#c9d7e8';ctx.textAlign='center';ctx.fillText(projectLabel,position.x,position.y+22);ctx.textAlign='left';
+          if(scale>=.5){
+            const font=Math.max(7,10*scale),maxWidth=model.workerLabelWidth(worker,crew)*scale;
+            ctx.font=font+'px system-ui, sans-serif';
+            let projectLabel=owner.name;
+            while(projectLabel.length>1&&ctx.measureText(projectLabel+'…').width+8>maxWidth)projectLabel=projectLabel.slice(0,-1);
+            if(projectLabel!==owner.name)projectLabel+='…';
+            const labelWidth=Math.min(maxWidth,ctx.measureText(projectLabel).width+8),top=position.y+8*scale;
+            ctx.fillStyle='#0b1220de';ctx.fillRect(position.x-labelWidth/2,top,labelWidth,font+4);
+            ctx.fillStyle='#c9d7e8';ctx.textAlign='center';ctx.fillText(projectLabel,position.x,top+font+1);ctx.textAlign='left';
+          }
         }});
         lastPainted.push({kind:'worker',id:worker.key,x:position.x-25*scale,y:position.y-(track.height+54)*scale,width:50*scale,height:60*scale,depth:track.y});
       }

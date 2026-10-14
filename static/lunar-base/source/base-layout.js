@@ -11,22 +11,29 @@
   ];
   const paths=[[[546,382],[589,421],[621,449],[710,477],[812,473]],[[710,477],[712,585],[637,635],[617,685]],[[712,585],[747,621],[742,675]]];
   const stations={
-    console:{area:'console',work:[127,426],home:[127,490]},
-    habitat:{area:'habitat',work:[337,422],home:[337,490]},
-    habitatRight:{area:'habitat',work:[548,410],home:[551,490]},
-    landerLeft:{area:'lander',work:[812,473],home:[812,541]},
-    landerRight:{area:'lander',work:[1075,490],home:[1075,548]},
-    modelLeft:{area:'hologram',work:[302,693],home:[276,747]},
-    modelRight:{area:'hologram',work:[604,692],home:[604,754]},
-    standLeft:{area:'teststand',work:[728,687],home:[728,752]},
-    standRight:{area:'teststand',work:[1078,687],home:[1078,752]},
-    junction:{area:'paths',work:[621,449],home:[650,550]}
+    console:{area:'console',role:'console',work:[127,426],home:[127,490]},
+    habitat:{area:'habitat',role:'assemble',work:[337,422],home:[337,490]},
+    habitatRight:{area:'habitat',role:'weld',work:[548,410],home:[551,490]},
+    landerLeft:{area:'lander',role:'sensor',work:[812,473],home:[812,541]},
+    landerRight:{area:'lander',role:'scan',work:[1075,490],home:[1075,548]},
+    modelLeft:{area:'hologram',role:'inspect',work:[302,693],home:[276,747]},
+    modelRight:{area:'hologram',role:'scan',work:[604,692],home:[604,754]},
+    standLeft:{area:'teststand',role:'weld',work:[728,687],home:[728,752]},
+    standRight:{area:'teststand',role:'sensor',work:[1078,687],home:[1078,752]},
+    junction:{area:'paths',role:'inspect',work:[621,449],home:[650,550]},
+    consoleLeft:{area:'console',role:'scan',work:[42,370],home:[42,370]},
+    consoleInspect:{area:'console',role:'inspect',work:[127,575],home:[127,575]},
+    habitatService:{area:'habitat',role:'sensor',work:[557,290],home:[557,290]},
+    landerInspect:{area:'lander',role:'inspect',work:[1078,355],home:[1078,355]},
+    modelSensor:{area:'hologram',role:'sensor',work:[302,575],home:[302,575]},
+    standInspect:{area:'teststand',role:'inspect',work:[885,748],home:[885,748]}
   };
   const orders={
-    miscellaneous:['console','habitat','modelLeft','landerLeft','standLeft','modelRight','landerRight','standRight','habitatRight','junction'],
-    analysis:['modelLeft','modelRight','console','habitat','landerLeft','landerRight','standLeft','standRight','habitatRight','junction'],
-    flight:['landerLeft','landerRight','console','habitat','modelLeft','modelRight','standLeft','standRight','habitatRight','junction'],
-    test:['standLeft','standRight','console','habitat','modelLeft','modelRight','landerLeft','landerRight','habitatRight','junction']
+    // The original ten indices stay first so saved crew slots can migrate.
+    miscellaneous:['console','habitat','modelLeft','landerLeft','standLeft','modelRight','landerRight','standRight','habitatRight','junction','consoleLeft','consoleInspect','habitatService','landerInspect','modelSensor','standInspect'],
+    analysis:['modelLeft','modelRight','modelSensor','console','habitat','landerLeft','landerRight','landerInspect','standLeft','standRight','standInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction'],
+    flight:['landerLeft','landerRight','landerInspect','console','habitat','modelLeft','modelRight','modelSensor','standLeft','standRight','standInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction'],
+    test:['standLeft','standRight','standInspect','console','habitat','modelLeft','modelRight','modelSensor','landerLeft','landerRight','landerInspect','habitatRight','habitatService','consoleLeft','consoleInspect','junction']
   };
   const api={width,height,objects,paths,stations,orders};
   root.LunarBaseLayout=api;

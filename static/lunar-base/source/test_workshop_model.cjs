@@ -12,7 +12,7 @@ assert.deepEqual(input,original);assert.equal(flight.infrastructure.type,'flight
 const crew=flight.workers;assert.equal(new Set(crew.map(w=>w.visual.sharedProject)).size,1);
 assert.equal(new Set(crew.map(w=>w.visual.key)).size,5);assert.equal(new Set(crew.map(w=>JSON.stringify(w.position.work))).size,5);
 assert.equal(misc.infrastructure.asset,'habitat');
-assert.deepEqual(misc.workers.map(w=>[w.position.area,w.visual.key]),[['teststand','weld'],['hologram','inspect']],'generic poses follow globally assigned stations across projects');
+assert.deepEqual(misc.workers.map(w=>[w.position.area,w.visual.key]),[['hologram','inspect'],['teststand','weld']],'generic poses follow globally assigned stations across projects');
 const initialLocations=first.projects.map(p=>[p.id,p.x,p.y]),initialWorkers=crew.map(w=>[w.key,w.slot,w.visual.key,JSON.stringify(w.position)]);
 const reordered=structuredClone(input);reordered.projects.reverse();reordered.tasks.reverse();reordered.tasks.push(real('newer'));reordered.projects.push({id:'later',name:'Test data'});
 m.build(reordered,registry,{now,connected:true});const again=m.build(input,m.cleanRegistry(JSON.parse(JSON.stringify(registry))),{now,connected:true});

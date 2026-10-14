@@ -4,7 +4,7 @@
   const attention=root.LunarAttention||(typeof require==='function'?require('./attention-model.js'):null);
   const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const baseLayout=root.LunarBaseLayout||(typeof require==='function'?require('./base-layout.js'):null);
-  const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = 10;
+  const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = baseLayout.orders.miscellaneous.length;
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
     analysis:{label:'Analysis · holographic model',asset:'hologram'},
@@ -41,18 +41,16 @@
   }
   function roleFor(record,infrastructure,slot,context={}) {
     if(context.illustrative && roles[record.demo_role])return {key:record.demo_role,basis:'Scripted workshop demo role'};
-    const stationRole=({console:'console',habitat:'assemble',habitatRight:'weld',
-      landerLeft:'sensor',landerRight:'scan',modelLeft:'inspect',modelRight:'inspect',
-      standLeft:'weld',standRight:'sensor',junction:'inspect'})[context.station];
+    const stationRole=baseLayout.stations[context.station]?.role;
     const stationIllustration=()=>({key:stationRole,basis:'Illustration selected for the assigned shared-base station; no physical-activity telemetry'});
+    // Shared equipment has different poses at its separate, spaced positions.
+    if(stationRole)return stationIllustration();
     const text=['title','goal','purpose'].map(k=>String(record[k]||'')).join(' ').toLowerCase();
     for(const [key,pattern] of [['weld',/\bweld\w*\b/],['sensor',/\b(sensor|instrument|attach)\w*\b/],['scan',/\b(scan|laser|survey)\w*\b/],['assemble',/\b(assembl|hammer|fabricat|repair)\w*\b/],['console',/\b(console|terminal)\b/],['inspect',/\b(inspect|review|tablet|analys|analyz|model)\w*\b/]]) {
       const match=text.match(pattern);if(match){
-        if(key==='console'&&stationRole&&stationRole!=='console')return stationIllustration();
         return {key,basis:'Illustration selected from task metadata: '+match[0]};
       }
     }
-    if(stationRole)return stationIllustration();
     // Generic tasks get distinct stable visual roles at shared infrastructure.
     // This is explicitly an illustration, not physical-activity telemetry.
     const choices=infrastructure.type==='flight'?['console','assemble','sensor','scan','inspect']:
@@ -140,8 +138,8 @@
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
   function cleanRegistry(saved) {
-    const registry = {version:2, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
-    if (!saved || ![1,2].includes(saved.version)) return registry;
+    const registry = {version:3, projects:Object.create(null), workers:Object.create(null), crew:Object.create(null)};
+    if (!saved || ![1,2,3].includes(saved.version)) return registry;
     const usedProjects=new Set();
     for (const [id, slot] of Object.entries(saved.projects || {})) {
       if (id.length <= 200 && Number.isSafeInteger(slot) && slot >= 0 && slot < 100000 && !usedProjects.has(slot)) {registry.projects[id] = slot;usedProjects.add(slot);}
@@ -154,8 +152,10 @@
       registry.workers[pid] = valid;
     }
     const usedCrew=new Set();
-    for(const [id,slot] of Object.entries(saved.version===2?saved.crew||{}:{})) {
-      if(id.length<=250&&Number.isSafeInteger(slot)&&slot>=0&&slot<100000&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
+    for(const [id,oldSlot] of Object.entries(saved.version>=2?saved.crew||{}:{})) {
+      if(!Number.isSafeInteger(oldSlot)||oldSlot<0)continue;
+      const slot=saved.version===2?Math.floor(oldSlot/10)*WORKERS_PER_PAGE+oldSlot%10:oldSlot;
+      if(id.length<=250&&Number.isSafeInteger(slot)&&!usedCrew.has(slot)){registry.crew[id]=slot;usedCrew.add(slot);}
     }
     return registry;
   }
@@ -182,6 +182,19 @@
     return {work:{x:project.x+station.work[0],y:project.y+station.work[1]},
       home:{x:project.x+station.home[0],y:project.y+station.home[1]},
       page:Math.floor(slot/WORKERS_PER_PAGE),station:visibleSlot,area:station.area};
+  }
+  function workerAnchor(worker,illustrative=false) {
+    if(!illustrative)return worker.position.work;
+    return worker.status.animate&&worker.status.area!=='workspace'?worker.position.work:worker.position.home;
+  }
+  function workerLabelWidth(worker,crew) {
+    const point=worker.position.work;
+    let width=Math.min(150,2*(point.x-8),2*(baseLayout.width-point.x-8));
+    for(const other of crew){
+      if(other.key===worker.key||other.position.page!==worker.position.page)continue;
+      if(Math.abs(other.position.work.y-point.y)<114)width=Math.min(width,Math.abs(other.position.work.x-point.x)-8);
+    }
+    return Math.max(48,width);
   }
   function project(raw, registry) {
     const slot = registry.projects[raw.id], position = projectPosition(slot);
@@ -229,7 +242,7 @@
       const owner=byProject.get(worker.projectId);
       worker.slot=registry.crew[worker.key];worker.position=workerPosition(owner,worker.slot);
       const station=baseLayout.orders.miscellaneous[worker.position.station];
-      worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.roleSlot*.73,sharedProject:owner.id};
+      worker.visual={...roleFor(worker.raw,owner.infrastructure,worker.roleSlot,{...context,station}),phase:worker.slot*.73,sharedProject:owner.id};
       worker.visual.label=roles[worker.visual.key].label;
     }
     workers.sort((a,b)=>a.slot-b.slot);
@@ -260,7 +273,7 @@
     const fraction=(start+distance*progress)/length;
     return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction,height,squash,frame,done:false,flip:to.x<from.x};
   }
-  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,visibleWorkers,crewPages,pose};
+  const api={ACTIVITY_STALE_MS,SNAPSHOT_STALE_MS,WORKERS_PER_PAGE,baseLayout,infrastructureTypes,roles,workType,projectInfrastructure,roleFor,definitions,time,classify,proof,cleanRegistry,build,transport,projectPosition,workerPosition,workerAnchor,workerLabelWidth,visibleWorkers,crewPages,pose};
   root.LunarLiveModel=api;
   if (typeof module !== 'undefined') module.exports=api;
 })(typeof window !== 'undefined' ? window : globalThis);

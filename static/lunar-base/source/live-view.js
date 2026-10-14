@@ -74,12 +74,15 @@
       if (selectedWorker && !view.workers.some(w=>w.key===selectedWorker)) selectedWorker='';
       for (const worker of view.workers) {
         let track=tracks.get(worker.key);
-        const destination=worker.status.area==='workspace' && (isDemo||worker.visual.key!=='console')?worker.position.home:worker.position.work;
+        const destination=model.workerAnchor(worker,isDemo);
         if (!track) {
           // Opening the page never replays a fictitious worker journey.
-          const initial=worker.status.animate?destination:worker.position.home;
+          const initial=destination;
           track={x:initial.x,y:initial.y,height:0,squash:1,frame:0,journey:null,target:worker.status.area,phase:worker.visual.phase};
           tracks.set(worker.key,track);
+        } else if(!isDemo) {
+          // Native tool/status updates keep live crew in their separated stations.
+          Object.assign(track,destination,{journey:null,height:0,squash:1});
         } else if (worker.status.animate && !track.journey && (track.target!==worker.status.area || Math.hypot(track.x-destination.x,track.y-destination.y)>.1)) {
           track.journey={from:{x:track.x,y:track.y},to:destination,elapsed:0};
           track.target=worker.status.area;
@@ -283,7 +286,8 @@
           lastPainted.push({kind:'base',id:p.id,x:s.x,y:s.y,width:w,height:h,depth:p.y+object.y+object.height});
         }
       }
-      for(const worker of visibleWorkers()) {
+      const crew=visibleWorkers();
+      for(const worker of crew) {
         if(worker.position.page!==crewPage)continue;
         const track=tracks.get(worker.key);if(!track)continue;
         const position=screen(track),scale=camera.zoom;
@@ -312,9 +316,16 @@
           ctx.restore();
           if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
           ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
-          const projectLabel=owner.name.length>22?owner.name.slice(0,21)+'…':owner.name;ctx.font='9px system-ui, sans-serif';
-          const labelWidth=ctx.measureText(projectLabel).width+8;ctx.fillStyle='#0b1220de';ctx.fillRect(position.x-labelWidth/2,position.y+12,labelWidth,14);
-          ctx.fillStyle='#c9d7e8';ctx.textAlign='center';ctx.fillText(projectLabel,position.x,position.y+22);ctx.textAlign='left';
+          if(scale>=.5){
+            const font=Math.max(7,10*scale),maxWidth=model.workerLabelWidth(worker,crew)*scale;
+            ctx.font=font+'px system-ui, sans-serif';
+            let projectLabel=owner.name;
+            while(projectLabel.length>1&&ctx.measureText(projectLabel+'…').width+8>maxWidth)projectLabel=projectLabel.slice(0,-1);
+            if(projectLabel!==owner.name)projectLabel+='…';
+            const labelWidth=Math.min(maxWidth,ctx.measureText(projectLabel).width+8),top=position.y+8*scale;
+            ctx.fillStyle='#0b1220de';ctx.fillRect(position.x-labelWidth/2,top,labelWidth,font+4);
+            ctx.fillStyle='#c9d7e8';ctx.textAlign='center';ctx.fillText(projectLabel,position.x,top+font+1);ctx.textAlign='left';
+          }
         }});
         lastPainted.push({kind:'worker',id:worker.key,x:position.x-25*scale,y:position.y-(track.height+54)*scale,width:50*scale,height:60*scale,depth:track.y});
       }

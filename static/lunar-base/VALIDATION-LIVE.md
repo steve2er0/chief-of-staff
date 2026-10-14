@@ -31,6 +31,40 @@ The client has no independent external-agent inventory, measured progress or tok
 usage. Visual slots remain browser-local. Raster assets were preserved unchanged
 by this workspace integration.
 
+## Shared equipment and separated crew positions
+
+Each of the five existing structures now has three spaced crew positions with
+three distinct existing animations. There is still one exterior console; its
+other positions scan and inspect. Even identical review instructions retain
+varied poses. Live tool/lifecycle transitions keep astronauts at their stations.
+Project labels fit the available spacing and hide below 0.5 zoom; full names stay
+in the list and filter. Display pages hold sixteen crew, with no execution limit.
+Version-2 browser registries migrate their original ten-slot station/page indices
+to version 3. The original structures, paths and raster artwork are unchanged.
+
+Validation on 2026-10-14:
+
+- **347 tests passed against the latest checkout before Git delivery**; the
+  earlier isolated layout snapshot passed 346. Coverage includes 64 synthetic
+  agents from multiple projects,
+  three workers and distinct poses at every structure on each display page,
+  repeated task wording, preferred equipment, stable continuations, fixed
+  anchors through native tool/status changes, and legacy registry migration.
+- Clearance checks use every work, idle and attention frame from both shipped
+  display atlases, mirrored orientations, padding, attention circles and the
+  maximum project-label bounds at zoom 0.18, 0.4, 0.5, Home and 1.5.
+- All **29 JavaScript/CJS files** passed syntax checks. Scene and styles reproduce
+  byte for byte; the whitespace check passed.
+- The isolated read-only browser fixture showed sixteen agents sharing the
+  unchanged base. With 64 agents, all remained listed across four display pages;
+  selecting the last agent opened its conversation and fourth map page. Filtering
+  Beta retained all twenty of its agents. Writable endpoints and model calls
+  remained disabled. This is synthetic layout validation, not real agent work.
+- The fixture used only 230 GET requests and stopped with its operational store
+  unchanged. The operational app was reconnected and showed its two existing
+  finished agents at their retained stations. No browser warnings/errors were
+  observed; no real agent was started, stopped or sent instructions during QA.
+
 ## One shared base for all projects
 
 The live projection now supplies one shared base, including the five original

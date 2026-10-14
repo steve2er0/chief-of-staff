@@ -55,8 +55,8 @@ const duplicates=model.cleanRegistry({version:1,projects:{a:0,b:0},workers:{a:{o
 assert.equal(Object.keys(duplicates.projects).length,1);assert.equal(Object.keys(duplicates.workers.a).length,1);
 const many={projects:[{id:'project-a'}],tasks:Array.from({length:25},(_,i)=>real({id:'worker-'+i})),jobs:[]};
 const pages=model.build(many,model.cleanRegistry(null),{now,connected:true}).workers;
-assert.equal(new Set(pages.map(w=>w.position.page)).size,3);
-for (let page=0;page<3;page++) {
+assert.equal(new Set(pages.map(w=>w.position.page)).size,Math.ceil(25/model.WORKERS_PER_PAGE));
+for (let page=0;page<Math.ceil(25/model.WORKERS_PER_PAGE);page++) {
   const crew=pages.filter(w=>w.position.page===page);
   for(const a of crew)for(const b of crew)if(a.key!==b.key)assert(Math.hypot(a.position.work.x-b.position.work.x,a.position.work.y-b.position.work.y)>=70);
 }
@@ -140,7 +140,7 @@ const empty=model.build({projects:[],tasks:[],jobs:[]},model.cleanRegistry(null)
 assert.deepEqual(empty.base,sharedView.base);assert.equal(empty.workers.length,0,'empty workspace retains scenery without inventing astronauts');
 const legacy=model.cleanRegistry({version:1,projects:{a:0,b:1},workers:{a:{'task:one':0},b:{'task:two':0}}});
 const migrated=model.build({projects:[{id:'a'},{id:'b'}],tasks:[real({id:'one',project_id:'a'}),real({id:'two',project_id:'b'})],jobs:[]},legacy,context);
-assert.equal(legacy.version,2);assert.notEqual(migrated.workers[0].slot,migrated.workers[1].slot);
+assert.equal(legacy.version,3);assert.notEqual(migrated.workers[0].slot,migrated.workers[1].slot);
 const sparse=model.build({...shared,tasks:shared.tasks.filter(t=>t.project_id==='test')},sharedRegistry,context);
 assert.deepEqual(model.crewPages(sparse),[...new Set(sparse.workers.map(w=>w.position.page))].sort((a,b)=>a-b),'paging skips unused historical slots');
 console.log('PASS: all-project crew separation, immutable filters, persistent identities, one empty base, legacy layout migration and sparse display paging.');
@@ -152,9 +152,9 @@ const pair=model.build({projects:[{id:'a'},{id:'b'}],tasks:[
 assert.deepEqual(pair.workers.map(w=>[w.position.area,w.visual.key]),[['console','console'],['habitat','assemble']]);
 for(const worker of sharedView.workers){
  if(worker.visual.key==='console')assert.equal(worker.position.area,'console','typing is reserved for the original console');
- if(worker.position.area==='hologram')assert.equal(worker.visual.key,'inspect','generic model work uses tablet inspection');
+ if(worker.position.area==='hologram')assert(['inspect','scan','sensor'].includes(worker.visual.key),'shared model work uses varied existing animations');
 }
 assert.equal(model.roleFor({title:'Use the terminal'},{type:'miscellaneous'},0,{station:'habitat'}).key,'assemble','console metadata cannot cause typing on bare ground');
-assert.equal(model.roleFor({title:'Weld a fixture'},{type:'miscellaneous'},0,{station:'habitat'}).key,'weld','specific non-console work cues still apply');
+assert.equal(model.roleFor({title:'Weld a fixture'},{type:'miscellaneous'},0,{station:'habitat'}).key,'assemble','live poses fit their separate station even when task text repeats');
 assert.equal(model.roleFor({demo_role:'scan'},{type:'miscellaneous'},0,{illustrative:true,station:'habitat'}).key,'scan','scripted demos retain explicit poses');
 console.log('PASS: station-specific shared-base animations, one original console, and retained explicit work and demo poses.');
