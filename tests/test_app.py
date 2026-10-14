@@ -132,8 +132,9 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(GOOD,completion(copy.deepcopy(GOOD)))
         for value in [{'status':'completed'},dict(GOOD,status='accepted'),dict(GOOD,artifacts='oops'),dict(GOOD,summary='')]:
             with self.assertRaises(Invalid):completion(value)
-    def test_write_spec_requires_outputs(self):
-        with self.assertRaises(Invalid):normalized_spec({'title':'Write','purpose':'Write generic notes','criteria':['File exists'],'access':'workspace-write'})
+    def test_agent_can_choose_output_paths(self):
+        spec=normalized_spec({'title':'Write','purpose':'Write generic notes','criteria':['Useful notes'],'access':'workspace-write'})
+        self.assertEqual(spec['expected_outputs'],[])
 
 
 class AdapterTests(unittest.TestCase):
@@ -158,7 +159,7 @@ class AdapterTests(unittest.TestCase):
             self.assertEqual(stop.call_count,1)
         return r,updates,self.adapter.popen.call_args
     def test_help_only_preflight(self):
-        self.assertEqual(len(self.calls),4)
+        self.assertEqual(len(self.calls),5)
         self.assertTrue(self.adapter.capabilities['ok'])
         self.assertFalse(self.adapter.capabilities['model_verified'])
         for args,kwargs in self.calls:self.assertIn(args[-1],['--version','--help']);self.assertFalse(kwargs['shell'])
@@ -197,7 +198,7 @@ class AdapterTests(unittest.TestCase):
         self.assertNotIn('--output-schema',self.adapter.argv(self.config,'/tmp','read-only','schema.json'))
         self.assertEqual(self.execute()[0]['status'],'completed')
     def test_malformed_stream_invalidates_completion(self):
-        self.assertEqual(self.execute(['bad JSON']+fixture_events())[0]['status'],'failed')
+        self.assertEqual(self.execute(['bad JSON']+fixture_events())[0]['status'],'blocked')
     def test_unknown_events_tolerated(self):
         self.assertEqual(self.execute([{'type':'future.event','metadata':1}]+fixture_events())[0]['status'],'completed')
     def test_error_event_not_overwritten_by_success_tail(self):
@@ -210,13 +211,13 @@ class AdapterTests(unittest.TestCase):
     def test_missing_session(self):
         self.assertEqual(self.execute(fixture_events()[1:])[0]['status'],'failed')
     def test_bad_final_contract(self):
-        self.assertEqual(self.execute(fixture_events({'status':'completed'}))[0]['status'],'failed')
+        self.assertEqual(self.execute(fixture_events({'status':'completed'}))[0]['status'],'blocked')
     def test_final_blocked_preserved(self):
         self.assertEqual(self.execute(fixture_events(dict(GOOD,status='blocked')))[0]['status'],'blocked')
     def test_cancellation_cleans_process(self):
         event=threading.Event();event.set()
         self.assertEqual(self.execute(cancel=event)[0]['status'],'cancelled')
-    def test_oversized_event_fails(self):
+    def test_invalid_stream_without_a_completed_turn_fails(self):
         self.assertEqual(self.execute(['x'*131074])[0]['status'],'failed')
     def test_timeout_blocked_and_cleanup(self):
         with patch('cos.adapter.time.monotonic',side_effect=[0,901]):
@@ -224,7 +225,7 @@ class AdapterTests(unittest.TestCase):
     def test_invalid_uuid_and_typed_final_fail(self):
         self.assertEqual(self.execute(fixture_events(sid='-'*36))[0]['status'],'failed')
         events=fixture_events();events[2]['item']['text']={'not':'a string'}
-        self.assertEqual(self.execute(events)[0]['status'],'failed')
+        self.assertEqual(self.execute(events)[0]['status'],'blocked')
     def test_posix_tree_cleanup_even_if_root_exited(self):
         p=FakeProcess([])
         with patch('cos.adapter.os.killpg') as kill:
@@ -311,6 +312,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(len(self.s.active),1)
         self.assertEqual(sum(t['state']=='queued' for t in self.s.store.all('task')),2)
     def test_readers_parallel_and_concurrency_limit(self):
+        self.s.settings({'concurrency':2})
         self.launch(4,scenario='slow');self.s.tick();self.assertEqual(len(self.s.active),2)
     def test_overlap_writer_and_reader_locks(self):
         self.s.active['fake']={'cwd':self.p['cwd'],'access':'workspace-write'}
@@ -357,7 +359,7 @@ class ServiceTests(unittest.TestCase):
     def test_file_reference_validation(self):
         with self.assertRaises(Invalid):self.s.project({'name':'X','goal':'X','cwd':str(self.root),'file_refs':['../escape']})
     def test_schedule_configuration_validation(self):
-        for raw in [{'concurrency':0},{'concurrency':True},{'briefing_times':['25:00']},{'timeout_seconds':0},{'schedule_enabled':'true'}]:
+        for raw in [{'concurrency':-1},{'concurrency':True},{'briefing_times':['25:00']},{'timeout_seconds':0},{'schedule_enabled':'true'}]:
             with self.subTest(raw=raw),self.assertRaises(Invalid):self.s.settings(raw)
 
 
@@ -369,15 +371,20 @@ class RealIntegrationMocks(ServiceTests):
         self.p=self.s.project({'id':self.p['id'],'name':self.p['name'],'goal':self.p['goal'],'cwd':str(self.work)},self.p['id'])
         self.s.settings({'mode':'codex'})
     # Avoid inheriting the generic suite a second time.
-    def test_artifact_missing_never_ready(self):
-        self.launch(access='workspace-write');self.drain();self.assertEqual(self.s.store.all('task')[0]['state'],'failed')
+    def test_missing_artifact_is_a_review_limit(self):
+        self.launch(access='workspace-write');self.drain()
+        task=self.s.store.all('task')[0]
+        self.assertEqual(task['state'],'ready_for_review');self.assertTrue(task['handoff_issues'])
+        self.assertEqual(task['delivery_status'],'partial')
     def test_unchanged_artifact_does_not_verify_completion(self):
         (self.work/'result.txt').write_text('Old result');self.launch(access='workspace-write');self.drain()
-        self.assertEqual(self.s.store.all('task')[0]['state'],'failed')
+        task=self.s.store.all('task')[0]
+        self.assertEqual(task['state'],'ready_for_review')
+        self.assertIn('unchanged',task['delivery_notes'][0])
     def test_actual_changed_artifact_validated_and_snapshotted(self):
         self.adapter.writer=lambda p:(p/'result.txt').write_text('Synthetic new evidence')
         plan=self.launch(access='workspace-write');self.drain();t=self.s.store.get('task',plan['task_ids'][0])
-        self.assertEqual(t['state'],'ready_for_review');self.assertEqual(len(t['output_links']),2)
+        self.assertEqual(t['state'],'ready_for_review');self.assertEqual(len(t['output_links']),3)
         self.assertEqual(self.s.output(t['id'],'artifact-00.txt').read_text(),'Synthetic new evidence')
     def test_blocked_partial_files_are_reviewable_but_cannot_be_accepted(self):
         self.adapter.writer=lambda p:(p/'partial.txt').write_text('Partial research only')
@@ -394,13 +401,16 @@ class RealIntegrationMocks(ServiceTests):
         self.adapter.result=dict(GOOD,status='blocked',artifacts=['../escape.txt'],summary='Source unavailable')
         plan=self.launch(access='workspace-write');self.drain();t=self.s.store.get('task',plan['task_ids'][0])
         self.assertEqual(t['state'],'blocked')
-        self.assertEqual(t['progress'],'Source unavailable')
+        self.assertEqual(t['result']['summary'],'Source unavailable')
+        self.assertIn('../escape.txt',t['handoff_issues'][0])
         self.assertTrue(t['snapshot_limits'])
-        self.assertEqual(len(t['output_links']),1) # Only the structured report.
+        self.assertEqual(len(t['output_links']),2) # Original handoff and structured report.
     def test_unexpected_old_artifact_cannot_hide_unchanged_expected(self):
         (self.work/'result.txt').write_text('Old');(self.work/'other.txt').write_text('Other old')
         self.adapter.result=dict(GOOD,artifacts=['other.txt']);self.launch(access='workspace-write');self.drain()
-        self.assertEqual(self.s.store.all('task')[0]['state'],'failed')
+        task=self.s.store.all('task')[0]
+        self.assertEqual(task['state'],'ready_for_review')
+        self.assertIn('unchanged',task['delivery_notes'][0])
     def test_revision_resumes_only_own_session(self):
         plan=self.launch(2);self.drain();first=self.s.store.get('task',plan['task_ids'][0]);second=self.s.store.get('task',plan['task_ids'][1])
         rev=self.s.action(first['id'],'revise','Check evidence again');self.s.approve(rev['id'],rev['revision']);self.s.launch(rev['id']);self.drain()
@@ -468,6 +478,19 @@ for _name in list(ServiceTests.__dict__):
 
 
 class HTTPTests(unittest.TestCase):
+    def test_output_download_decodes_registered_nested_snapshot_name(self):
+        p=self.s.project({'name':'Download fixture','goal':'Test a saved handoff'})
+        plan=self.s.plan(p['id'],'- Inspect fixture','Synthetic fixture')
+        self.s.approve(plan['id'],plan['revision']);plan=self.s.launch(plan['id'])
+        task=self.s.store.get('task',plan['task_ids'][0])
+        folder=self.s.data/'outputs'/task['id']/'recovered-fixture';folder.mkdir(parents=True,exist_ok=True)
+        (folder/'agent-report.txt').write_text('Retained report')
+        task['output_links']=[{'name':'recovered-fixture/agent-report.txt','label':'Original report','sha256':digest(b'Retained report')}]
+        self.s.store.put('task',task)
+        status,body,_=self.request('/api/output/'+task['id']+'/recovered-fixture%2Fagent-report.txt')
+        self.assertEqual(status,200);self.assertEqual(body,b'Retained report')
+        self.assertEqual(self.request('/api/output/'+task['id']+'/%2E%2E%2Fsecret.txt')[0],400)
+
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.s=Service(self.tmp.name,start=False)
         self.server=LocalServer(0,self.s);self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()

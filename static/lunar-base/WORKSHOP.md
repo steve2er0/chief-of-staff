@@ -1,5 +1,8 @@
 # Lunar Base · shared workshop infrastructure
 
+Historical fixture and artwork evidence. Current launch and workflow are in
+[LIVE.md](LIVE.md); the old mode URLs now open the live agent workspace.
+
 In your existing private CoS session, choose **Lunar Base · work types demo**. Its route is `/lunar-base/?mode=workshop`. The original `/lunar-base/` demo still has Astra and Sol; `/lunar-base/?mode=live` remains the optional read-only view.
 
 For a standalone preview from this project:

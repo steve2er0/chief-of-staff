@@ -1,0 +1,173 @@
+{
+  "generation": "Built-in image_gen; transparent-background eight-pose turn/wave request",
+  "original": "exec-c866cfcc-f879-4e4b-ad7d-2b0b0b1f7da6.png",
+  "processing": "Binary alpha; body-connected extraction; nearest-neighbour scale; head and foot registration; trim-only amber palette; existing texture pixels preserved",
+  "selected_source_poses": [
+    0,
+    1,
+    2,
+    5,
+    5,
+    6,
+    5,
+    6
+  ],
+  "excluded": "Left-hand poses 3,4,7 to prevent switching waving arms",
+  "regions": {
+    "turn": [
+      0,
+      1216,
+      256,
+      64
+    ],
+    "wave": [
+      0,
+      1280,
+      256,
+      64
+    ]
+  },
+  "frames": [
+    {
+      "cell": 0,
+      "source_pose": 0,
+      "source_bounds": [
+        97,
+        124,
+        306,
+        485
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 1,
+      "source_pose": 1,
+      "source_bounds": [
+        465,
+        121,
+        674,
+        484
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 2,
+      "source_pose": 2,
+      "source_bounds": [
+        842,
+        121,
+        1058,
+        482
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 3,
+      "source_pose": 5,
+      "source_bounds": [
+        459,
+        568,
+        728,
+        928
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 4,
+      "source_pose": 5,
+      "source_bounds": [
+        459,
+        568,
+        728,
+        928
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 5,
+      "source_pose": 6,
+      "source_bounds": [
+        840,
+        568,
+        1076,
+        928
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 6,
+      "source_pose": 5,
+      "source_bounds": [
+        459,
+        568,
+        728,
+        928
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    },
+    {
+      "cell": 7,
+      "source_pose": 6,
+      "source_bounds": [
+        840,
+        568,
+        1076,
+        928
+      ],
+      "head_axis": 32,
+      "foot_baseline": 58,
+      "height": 50
+    }
+  ],
+  "files": {
+    "source/attention-turn-wave-original.png": {
+      "sha256": "53662f19e2adb3364f3917637e86555266d79d2ff1a60915dd4ea7eb879cb4fa",
+      "size": [
+        1536,
+        1024
+      ]
+    },
+    "source/attention-teal-base.png": {
+      "sha256": "ea9564080619d2364f4616f94a44cfe053515c005d494d2629a40e71675a0dbf",
+      "size": [
+        384,
+        1186
+      ]
+    },
+    "source/attention-amber-base.png": {
+      "sha256": "02bb9c8aa5239050e69d08b7e371f91db6731f0a23b283fe26b4b6fd9e1e8d6f",
+      "size": [
+        384,
+        512
+      ]
+    },
+    "assets/astronaut-attention-teal.png": {
+      "sha256": "b8141e205d2ff7c876601f1887b61695d0688db8773046067d53ea4b1b0f027e",
+      "size": [
+        256,
+        128
+      ]
+    },
+    "assets/astronaut-attention-amber.png": {
+      "sha256": "bbefb179b340e2a03ef14bf350874621d31bed865fd977b4e8f15085c1152cf0",
+      "size": [
+        256,
+        128
+      ]
+    }
+  }
+}

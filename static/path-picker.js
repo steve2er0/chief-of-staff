@@ -20,7 +20,7 @@ function syncReferencePicker() {
 }
 
 async function openPathPicker(mode) {
-  const form=$('#project-form'), cwd=form.elements.cwd.value.trim();
+  const form=$('#start-agent-form')||$('#project-form'), cwd=form.elements.cwd.value.trim();
   if(mode==='references'&&!cwd)throw new Error('Choose a working directory first.');
   const dialog=$('#path-picker');
   pathSelection={mode,form,root:mode==='references'?cwd:'',path:cwd,selected:new Map(),data:null,load:0};
@@ -75,7 +75,7 @@ function applyPickerChoice() {
     const changed=form.elements.cwd.value!==picker.data.path;
     form.elements.cwd.value=picker.data.path;
     syncReferencePicker();
-    if(changed&&lines(form.elements.file_refs.value).length)$('#reference-picker-help').textContent='Working folder changed. Check the existing references before saving.';
+    if(changed&&form.elements.file_refs&&lines(form.elements.file_refs.value).length)$('#reference-picker-help').textContent='Working folder changed. Check the existing references before saving.';
   }else {
     const refs=[...new Set([...lines(form.elements.file_refs.value),...picker.selected.values()])];
     if(refs.length>30)throw new Error('Keep at most 30 file or folder references.');

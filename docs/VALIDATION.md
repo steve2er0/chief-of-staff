@@ -106,12 +106,22 @@ disk. Its last captured project test run passed 145 of 146 tests; the failure
 asserted the previous offline cache identifier after the worker updated it. This
 is incomplete work, not an accepted result or verified engineering delivery.
 
-The revised parser accepts valid tool events above the previous 128 KiB cutoff,
-keeps a 1 MiB record cap and the existing 16 MiB total budget, and limits queued
-records to eight. Tests cover valid large tool output, fatal errors after large
-output, single-record/total-run rejection, UTF-8 byte limits and malformed data.
-No sandbox, research permissions, approval requirements or completion checks are
-changed by this recovery fix.
+The current parser uses a 4 MiB record buffer and eight queued records, without
+cumulative byte or event-count cutoffs. Fixture tests cover runs above 16 MiB and
+20,000 events, UTF-8 byte limits, malformed data and actual CLI failures. Oversized
+records no longer stop the agent; capture omissions leave an explicit incomplete
+handoff while retaining the final report. These are injected streams, not live
+provider validation.
+
+Result tests reproduce a delivery with 40 regular files plus an invalid directory:
+all valid files and the original report survive, the handoff names the bad entry,
+and acceptance remains unavailable. Additional tests cover missing/unsafe entries,
+malformed completion fields, actual CLI failures, a 12 MiB streamed artifact,
+insufficient disk space, preservation after an unexpected capture exception,
+unchanged deliverables from validation-only continuations, escaped correction
+messages, and snapshot integrity checks. Reports distinguish reported checks from
+artifact integrity. Browser QA uses a separate fixture workspace; it does not
+establish engineering correctness of a real project.
 
 Adapter-generated failures also retain the last meaningful agent progress in the
 returned-work view, explicitly labeled as interrupted verification rather than
@@ -152,3 +162,33 @@ new static assets and attention projection were verified through authenticated l
 HTTP. Existing assignments remain sandboxed. No live YOLO job or six simultaneous
 real model calls were launched; platform/browser permission enforcement remains a
 separate validation boundary.
+
+## Saved handoff recovery
+
+Synthetic tests cover matching-session recovery without launching a worker, preservation of the original report and previous capture, supplementary files, refused session mismatches, encoded output-download paths, and follow-up evidence that clears only the resolved checks. Recovery and passing follow-up notes do not accept results or automatically promote them to completion.
+
+## Agent manager
+
+The direct-start and continuation workflow is covered by
+`tests/test_agent_manager.py`. Local subprocess fixtures exercise real two-way
+pipes, mid-turn steering receipts, owner questions, explicit tool responses,
+cancellation and exact-session rejection. Worktree fixtures verify copied
+tracked/untracked owner inputs, preserved source state and concurrent isolated
+writers. HTTP fixtures verify authenticated batch start and reply endpoints,
+including idempotent retries. These checks do not make paid model calls.
+
+## Live Lunar workspace (2026-10-13)
+
+The full repository suite passed 302 tests. The shared projection now verifies
+persistent astronaut identity/position, current-turn selection, complete result
+history, managed queued/simulated labels, native activity/request vocabulary,
+resolved and stopped requests, stale linked questions and private legacy route
+compatibility. Existing security, permission, worktree and subprocess checks pass.
+
+Browser QA used an isolated local JSON-RPC subprocess fixture, exercising batch
+starts, a native question/answer with a preserved draft, direct continuations,
+live steering, earlier-turn results/files, project-preselected launch, exact tool
+permission display/decline, Stop, paused continuation controls, disconnect
+freeze and recovery after an initial state-request failure. The map stays mounted behind panels. This is API/UI integration evidence;
+no real provider/model calls or operational-service restart were performed. See
+`static/lunar-base/VALIDATION-LIVE.md` for the full boundary.

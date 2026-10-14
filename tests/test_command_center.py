@@ -140,7 +140,8 @@ class CommandCenterTests(unittest.TestCase):
             self.s.approve(plan['id'],plan['revision']);self.s.launch(plan['id'])
         self.s.tick();self.assertEqual(len(self.s.active),6)
         self.assertEqual(sum(t['state']=='queued' for t in self.s.store.all('task')),1)
-        with self.assertRaises(Invalid):self.s.settings({'concurrency':7})
+        self.assertEqual(self.s.settings({'concurrency':7})['concurrency'],7)
+        self.s.tick();self.assertEqual(len(self.s.active),7)
         self.adapter.release.set();self.drain()
 
     def test_review_item_leaves_queue_only_after_owner_acceptance(self):
@@ -183,7 +184,7 @@ const c={document:{addEventListener(){}},renderReview(){},esc:x=>String(x??'').r
 vm.createContext(c);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),c);
 assert.ok(c.renderReview().includes('&lt;script&gt;'));assert.ok(!c.renderReview().includes('<script>'));
 const task={state:'blocked',config:{...c.state.config},context:{cwd:'/a'},project_id:'p',session_id:'saved'};
-assert.ok(c.resumeWorkHTML(task).includes('captured CLI session'));assert.ok(c.resumeWorkHTML(task).includes('data-task-action="resume"'));
+assert.ok(c.resumeWorkHTML(task).includes('captured session'));assert.ok(c.resumeWorkHTML(task).includes('data-task-action="resume"'));
 assert.ok(!c.resumeWorkHTML({...task,state:'running'}));
 assert.ok(c.resumeWorkHTML({...task,session_id:null}).includes('id="fresh-session" checked'));
 '''

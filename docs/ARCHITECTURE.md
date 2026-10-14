@@ -8,6 +8,9 @@ The server and UI use no third-party runtime libraries.
 | `cos/server.py` | Loopback HTTP, cookie/CSRF/origin/Host checks, request UUID idempotency and bounded JSON requests |
 | `cos/store.py` | SQLite WAL, durable JSON records, atomic read/modify/write lock, audit history and exclusive service-instance lock |
 | `cos/service.py` | Projects/context, proposals, approval digest, task lifecycle, scheduling, directory locks, artifact validation, simulation and coordinator requests |
+| `cos/agents.py` | Direct batch starts, persistent agent identity, worktree isolation and immediate continuation |
+| `cos/live_agent.py` | Task-scoped app-server transport, live steering, request relay and delivery receipts |
+| `static/agents.js` | Primary agent board, start composer, session conversation and shared Results view |
 | `cos/portfolio.py` | Vision/history, discussion proposals, work maps and dependencies, selective delegation, partial findings, continuity and portfolio advice |
 | `cos/attention.py` | Read-only attention queue derived from plans, tasks, project records and the latest coordinator jobs |
 | `cos/adapter.py` | Capability help preflight, fixed argv, bounded JSONL event parsing, exact session routing and process-tree cleanup |
@@ -26,7 +29,7 @@ The server and UI use no third-party runtime libraries.
 
 The SQLite `objects` table stores typed records (`project`, `plan`, `task`, `job`, `config`, `briefing`, `capabilities`, `request`, `message`, `proposal`, `work_item`, `finding`, `portfolio`, `focus_advice`). Upserts preserve record order. The `audit` table keeps action provenance. All transitions use a reentrant transaction lock; application worker threads do not share a shell.
 
-Project vision and its user-authored revisions are separate from CoS proposals and the adopted brief. Proposals carry their source and project version; adoption refuses stale context. Work-item dependencies form a validated graph within one project. Selection creates linked draft specs with stable identities; editing/removing specs preserves the correct internal work-item/session associations. An assignment result does not complete its work item unless the reviewer explicitly chooses that consequence.
+Project vision and its user-authored revisions are separate from CoS proposals and the adopted brief. Proposals carry their source and project version; adoption refuses stale context. Work-item dependencies form a validated, advisory graph within one project. Selection creates linked draft specs with stable identities; editing/removing specs preserves the correct internal work-item/session associations. An assignment result does not complete its work item unless the reviewer explicitly chooses that consequence.
 
 Discussion, decomposition and portfolio model calls use read-only coordinator jobs, bounded JSON contracts and existing concurrency/cancellation controls. All remain explicit real-call actions. The loopback state snapshot derives local recommendations without model calls. Optional Codex portfolio advice uses a frozen portfolio snapshot; project versions, task lifecycle state, overall vision and time budget determine whether the advice is still current.
 
@@ -40,12 +43,13 @@ running -> ready_for_review -> accepted
 running -> failed / blocked
 queued / running -> paused / cancelled
 crash during work -> interrupted + recovery lock
-revisable state -> superseded + new draft plan -> approval -> explicit launch
+managed-agent follow-up -> superseded + directly queued next turn
+legacy explicit revision -> superseded + new draft plan
 ```
 
 Only the service scheduler starts queued workers. It counts coordinator calls against concurrency and refuses overlapping read/write folder access. A persistent interrupted-work lock covers the uncertain state after a crash. An exclusive OS file lock prevents two app instances from opening the same data folder.
 
-Concurrency supports 1–6 jobs. Attention is a projection, not a second lifecycle:
+Concurrency accepts any nonnegative limit; 0 means unlimited. Attention is a projection, not a second lifecycle:
 approving, launching, answering, accepting or preparing a continuation removes or
 replaces the corresponding item. Superseded tasks and older retried coordinator
 failures do not duplicate attention. Dismissing a finished CoS failure retains its
@@ -59,13 +63,13 @@ launch. Captured session identity remains code-owned; folder/CLI changes require
 fresh session. A failed recovery request does not remove the process cleanup lock.
 
 The per-assignment `execution_policy` defaults to `sandboxed`. `yolo` requires
-workspace-write and an explicit brief approval. The adapter uses the CLI's advertised
+workspace-write and an explicit owner start with that execution choice. The adapter uses the CLI's advertised
 `--dangerously-bypass-approvals-and-sandbox` flag on exec or exec resume, without
 contradictory sandbox/approval/network overrides. CLI file/network restrictions are
 removed; browser tool permissions and CoS scheduling, lifecycle and artifact checks
 remain independent. Coordinator calls always use sandboxed read-only execution.
 
-Codex prompts are stdin data. CLI options come from a fixed code-owned list; no free-form command or flag field exists. Each real call uses its approved cwd/model/sandbox. A worker cannot mark itself accepted. A completed response must have a valid final contract, successful turn and exact captured session. Write task expected artifacts must exist within cwd, be bounded in size and contain a changed expected output. Snapshots, not active project files, are downloaded and accepted. Hash checks detect snapshot tampering; acceptance criteria still need human judgment.
+Codex prompts are stdin data. CLI options come from a fixed code-owned list; no free-form command or flag field exists. Each real call uses its approved cwd/model/sandbox. A worker cannot mark itself accepted. Coordinator/legacy responses use a final JSON contract. Managed-agent responses may be prose; successful transport turns and exact captured sessions are still required. Write task deliverables must resolve to regular files within cwd. Capture checks each entry independently: invalid entries produce actionable handoff issues while valid files and the original report are retained. Unchanged existing deliverables may support a validation-only continuation; they do not prove implementation or successful checks. Snapshots, not active project files, are downloaded and accepted. Hash checks detect snapshot tampering; acceptance criteria still need human judgment.
 
 `research_access` is a strictly boolean, per-spec field defaulting to false. It is
 included in the exact approval payload and copied to the task. Only an approved
@@ -81,16 +85,25 @@ The choice participates in the frozen approval digest. At launch, `none` maps to
 `timeout_seconds=0` in that task's config snapshot, which disables only the
 adapter's wall-clock deadline. Workspace settings retain their bounded default;
 coordinator calls do not inherit the choice. Revisions keep it and require fresh
-approval. Cancellation, event limits, session checks and completion validation
+approval. Cancellation, bounded capture buffering, session checks and completion validation
 remain active without a deadline.
 
-The JSONL reader accepts up to 1 MiB per record, 16 MiB across stdout/stderr
-per run, and 20,000 stdout events. Eight queued records bound buffering; records
-are read with a capped allocation and measured as UTF-8 bytes. Large valid tool
-responses within these bounds are parsed without relaxing the final completion,
-error or session contracts. Limit errors identify the channel and whether the
-single-record or total-run limit was exceeded. Process-tree cleanup still runs,
-and project edits remain on disk for reviewed recovery.
+The JSONL reader uses a 4 MiB individual-record buffer and eight queued records.
+There is no cumulative output budget or event-count cutoff. Oversized records are
+drained without stopping the worker; omitted or malformed capture produces an
+incomplete handoff that identifies the log check needed before acceptance. Exact
+session identity, actual CLI failure and final completion contracts remain checked.
+
+Result capture saves the original agent report before inspecting artifacts. There
+is no artifact-count cap or fixed per-file size cap: copies, downloads and integrity
+hashes stream in 1 MiB chunks. Available disk space is checked for each file with
+5 MiB reserved for report/database storage. A missing, unsafe, directory, changing
+or unreadable entry does not hide other valid snapshots. Capture issues leave the
+task blocked with a specific correction list, even if the agent claimed completion.
+A report download storage error still leaves the text in the task record. Partial
+and failed work retains its report and any valid snapshots. Downloads and human
+acceptance use saved snapshots; hashes establish integrity, not engineering
+validation. A worker cannot accept its own result. Owner-requested handoff recovery requires a stopped current task and its matching captured session. It captures current files in a new output directory, preserves the original report bytes and previous capture metadata, and stays blocked. Supplementary follow-up files are labeled separately from the original report. Follow-up checks retain their source and history, update the correction list, and never accept a result or launch a worker.
 
 Sandboxed headless approval semantics depend on the installed CLI. Current inspected exec source denies approval-required operations for the user reviewer; the adapter never enables automatic review. Windows cancellation uses a Job Object; POSIX uses a separate process group. A crash on POSIX may leave children alive, so recovery asks the user to confirm cleanup instead of blindly killing a stored PID.
 
@@ -140,3 +153,34 @@ from the composer, preserving input, focus, cursor and open history. A running
 read-only conversation/setup job supplies the animated thinking bubble and Stop
 action; terminal states remove it and restore sending. Reduced-motion preferences
 disable animation. No assignment approval, launch or acceptance semantics change.
+
+## Primary agent workflow
+
+Direct starts record the owner action and freeze instructions and permissions in
+one transaction. `agent_id` groups task records across turns. Replying or
+continuing keeps the exact session and execution snapshot without a new approval
+brief. Completed results stay available regardless of acceptance. Planning
+drafts remain optional; starting one refreshes current background context without
+another approval for notes or progress changes.
+
+Managed agents use app-server for live steering and actual question/tool
+responses. The exec adapter remains for read-only coordinator calls and legacy
+CLIs. Session/turn identities, receipts, process cleanup, HTTP security and
+directory locks remain enforced. Separate worktrees allow concurrent Git edits
+without weakening shared-folder conflict locks. See [agent management](AGENT-MANAGER.md).
+
+## Live Lunar Base workspace
+
+The authenticated root page mounts one persistent `LunarLiveView` canvas. Agent
+conversations, launch forms, results, project context and settings use nonmodal
+side panels. Opening panels leaves map selection, camera, positions and polling
+intact. The existing task/plan/record deep links open those same panels. Old Lunar
+mode URLs serve this workspace; demo code is retained only as source fixtures.
+
+`static/agent-model.js` supplies current agent turns, status labels and complete
+result history. The Lunar model uses stable agent IDs for slots and native request
+metadata for attention. Managed queued/simulated agents stay visibly stationary;
+real motion still requires fresh activity and captured process/session evidence.
+Camel-case native tool events and legacy event names share the same work-area
+mapping. Snapshot loss freezes last-known state. All control mutations retain the
+existing API, CSRF, request UUID, exact-session and workspace conflict checks.

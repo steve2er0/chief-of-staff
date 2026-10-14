@@ -46,3 +46,5 @@ body[data-lunar-mode=live] .live-legend span:nth-child(6):before{background:#e9c
  body[data-lunar-mode=live] #motion-state{max-width:90px;font-size:9px}
  body[data-lunar-mode=live] .live-camera button{font-size:10px;padding:7px}
 }
+
+.attention-summary {color:#ffcf8d; font-size:12px; line-height:1.7; margin:15px 0;}

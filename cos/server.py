@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import secrets
 import threading
-from urllib.parse import parse_qs, quote, urlsplit
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .safety import Invalid, docx_text, digest
 from .filesystem import browse_paths
@@ -30,6 +30,20 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         # Do not leak the one-time launch token in HTTP logs.
         pass
+
+    def send_output(self, path):
+        with path.open("rb") as source:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(path.stat().st_size))
+            self.send_header("Content-Disposition", 'attachment; filename="' + path.name + '"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+            self.end_headers()
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                self.wfile.write(chunk)
 
     def send(self, status, data, content_type="application/json; charset=utf-8", cookie=False, attachment=None):
         if content_type.startswith("application/json"):
@@ -71,15 +85,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (self.server.static / "index.html").read_bytes(), "text/html; charset=utf-8", cookie=True)
             if not self.authorized():
                 return self.send(401, {"error": "Open the private launch URL printed by the service."})
-            if u.path == "/":
+            if u.path in ("/", "/lunar-base/"):
                 return self.send(200, (self.server.static / "index.html").read_bytes(), "text/html; charset=utf-8")
-            if u.path in ("/app.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
+            if u.path in ("/app.js", "/agent-model.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/agents.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
                 path = self.server.static / u.path[1:]
                 return self.send(200, path.read_bytes(), "text/javascript; charset=utf-8" if path.suffix == ".js" else "text/css; charset=utf-8")
-            # Optional visual demo: exact private static allowlist, no service calls.
+            # Exact private allowlist for the live workspace's map assets.
             lunar_files = {
-                "/lunar-base/": ("index.html", "text/html; charset=utf-8"),
                 "/lunar-base/lunar.css": ("lunar.css", "text/css; charset=utf-8"),
+                "/lunar-base/workspace.css": ("workspace.css", "text/css; charset=utf-8"),
                 "/lunar-base/simulation.js": ("simulation.js", "text/javascript; charset=utf-8"),
                 "/lunar-base/scene.js": ("scene.js", "text/javascript; charset=utf-8"),
             }
@@ -96,8 +110,8 @@ class Handler(BaseHTTPRequestHandler):
                 file = self.server.service.reference_file(parts[2])
                 return self.send(200, file.read_bytes(), "application/octet-stream", attachment=record["name"])
             if len(parts) == 4 and parts[:2] == ["api", "output"]:
-                p = self.server.service.output(parts[2], parts[3])
-                return self.send(200, p.read_bytes(), "application/octet-stream", attachment=p.name)
+                p = self.server.service.output(parts[2], unquote(parts[3]))
+                return self.send_output(p)
             return self.send(404, {"error": "Not found"})
         except (Invalid, ValueError, FileNotFoundError, OSError) as e:
             self.send(400, {"error": str(e)})
@@ -143,7 +157,16 @@ class Handler(BaseHTTPRequestHandler):
                 if earlier["fingerprint"] != fingerprint:
                     raise Invalid("Request ID already used with different input")
                 return self.send(200, earlier["result"])
-            if path == "/api/project":
+            if path == "/api/start-agents":
+                result = s.start_agents(raw, request_id)
+            elif path == "/api/agent-reply":
+                result = s.reply_agent(raw["id"], raw.get("text", ""), request_id,
+                                       raw.get("confirmed_stopped", False), raw.get("fresh", False))
+            elif path == "/api/agent-response":
+                result = s.respond_agent(raw["id"], raw["request"], raw, request_id)
+            elif path == "/api/answer-and-continue":
+                result = s.answer_and_continue(raw["project_id"], raw["record_id"], raw, request_id)
+            elif path == "/api/project":
                 result = s.project(raw, raw.get("id"))
             elif path == "/api/project-review":
                 result = s.request_project_review(raw["project_id"])
@@ -179,8 +202,14 @@ class Handler(BaseHTTPRequestHandler):
                 result = s.approve(raw["id"], raw["revision"])
             elif path == "/api/launch":
                 result = s.launch(raw["id"])
+            elif path == "/api/delegate-now":
+                result = s.delegate_now(raw["id"], raw["revision"])
             elif path == "/api/action":
                 result = s.action(raw["id"], raw["action"], raw.get("note", ""), raw.get("confirmed_stopped", False), raw.get("fresh", False), raw.get("complete_item", False))
+            elif path == "/api/recover-handoff":
+                result = s.recover_handoff(raw["id"], raw["report"], raw["session_id"], raw["source"], raw.get("extra_files"))
+            elif path == "/api/handoff-checks":
+                result = s.handoff_checks(raw["id"], raw["checks"])
             elif path == "/api/review":
                 result = s.review(raw["id"], raw.get("method", "local"))
             elif path == "/api/stop-job":

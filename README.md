@@ -1,7 +1,7 @@
 # Chief of Staff
 
-A local workspace for turning your vision into ongoing projects, choosing what
-to delegate, and reviewing the results. Built with the Python standard library,
+A local Lunar Base workspace for starting multiple CLI agents, following their
+progress, replying, and collecting their results. Built with the Python standard library,
 SQLite, and plain HTML/CSS/JavaScript. No pip or npm install is required for the app.
 
 ## Start
@@ -34,25 +34,55 @@ elsewhere, pass `--data-dir /path/to/local-state` or, on Windows,
 `--data-dir "$env:LOCALAPPDATA\ChiefOfStaff"`. Use `--no-browser` to print the
 launch URL without opening a browser. Only one service can own a data folder.
 
-## Work with your CoS
+## Manage agents
 
-1. **New project:** describe your vision and optionally name the project.
-   Details such as priority, target date, working folder and references are optional.
-2. **Conversation:** build on your idea with a short **Where we are** note and one
-   **Suggested next step**. Detailed planning stays behind **Delegate work**.
-3. **Delegate work:** prepare one agent task from your vision and conversation.
-   The worker handles its research, implementation and checks inside that task.
-   Use **Detailed planning → Split into separate assignments** when you want
-   independent responsibilities.
-4. **Review the brief:** edit the short goal and completion criteria. Detailed
-   instructions, output paths and captured context are expandable. Review
-   permissions, approve the assignment, then explicitly launch the agent.
-5. **Follow progress and review results:** see the latest meaningful agent update,
-   elapsed time and last activity. Returned work shows changes, reported checks,
-   limits, what needs your judgment and a suggested next step. Inspect output
-   snapshots, record useful partial findings,
-   request revisions or accept results. Completing a linked work piece is a
-   separate choice. Other pieces can stay with you, wait on dependencies or be deferred.
+The previous demo URLs also open the live workspace. Results, project context,
+questions and settings are panels; the map stays in place.
+
+
+The **live Lunar Base** is the starting view. Each project has an outpost and each
+agent keeps one astronaut across its turns. Click **Start agents**, choose an
+existing project or a working folder, and write an instruction. Add another
+agent row for each separate responsibility, then click **Start agents** once.
+No framing proposal, work map, acceptance criteria form, or separate approval
+step is required. Starting records your instructions and execution choices.
+
+Select an astronaut to open its side panel with the latest update, elapsed time
+and status. Use its conversation to send instructions while it runs, answer a question,
+or **Reply & continue** after it finishes. Follow-ups keep the exact session,
+working folder, model and execution permissions. Tool permissions are handled
+in the same conversation when the CLI requests them. A saved result does not
+need to be accepted before you start another agent or send a follow-up.
+
+**Results** opens a drawer over the same map and collects every returned report and captured file, including partial
+work and earlier turns. Changes, reported checks and limitations are shown
+up front; raw reports, files and detailed activity are expandable. Acceptance
+is an optional way to record your judgment, not an execution gate.
+
+Codex agents use the CLI's local **app-server** protocol for two-way communication.
+On older CLIs without app-server, replies queue for the next exact-session turn;
+the conversation labels that behavior. Queued, delivered, failed and uncertain
+message receipts are distinct. A reply with an uncertain receipt is never
+silently resent. No additional login, API key or provider configuration is installed.
+
+Execution options include sandboxed or YOLO access, command networking and a
+time limit. Direct starts run until finished or stopped by default. The selected
+policy is shown before start and remains fixed for follow-ups. Changing workspace
+defaults affects new starts. Live tool permission requests require your actual
+response; ordinary replies do not broaden execution permissions.
+
+For Git projects, editable agents use separate worktrees by default, including
+current tracked changes and untracked inputs. Each agent's edits stay in its own
+checkout; the original folder is untouched and no merge or commit is automatic.
+The result shows the checkout and branch. Worktrees and their edits are retained.
+Repositories without commits use their shared folder, where writers run one at
+a time. Submodule repositories can use shared-folder execution. Independent CLI
+processes and editors are outside the app's directory locks.
+
+Projects retain vision, context, conversation and continuity. Briefings, work maps
+and detailed planning remain available when useful. Dependencies are advisory;
+deferred work pieces stay deferred. See [agent management](docs/AGENT-MANAGER.md)
+for transport, recovery and validation details.
 
 With **Codex mode** configured, creating a project automatically starts a
 read-only setup review of the vision, working folder and selected references.
@@ -82,18 +112,30 @@ closed or asleep.
 **Needs you** is the shared attention queue for assignment approvals and launches,
 open questions and proposed decisions, stopped-work handoffs and returned results.
 Filter it by Approvals, Handoffs or Reviews. Your briefing and Agent activity show
-previews of this same queue. Answering a question records project context; it does
-not steer a running agent or clear an external tool permission.
+previews of this same queue. Answering a question records project context; linked responses can continue their agent. Tool permission requests are separate.
 
-For stopped work, open the handoff, enter what you checked or what should happen
-next, and choose **Resume saved work**. This prepares a continuation brief with the
-previous report and output metadata. Review, approve and launch it. Compatible
-Codex work resumes the exact captured session; a changed folder or CLI/model needs
-a fresh session. Repeated continuations retain the original instructions without
-accumulating retry notes. Interrupted processes still require cleanup confirmation.
+For stopped work, open the agent and choose **Reply & continue**. Its saved
+session and files are reused. If no session was captured, choose **Start a fresh
+session**. After a crash, uncertain processes still require cleanup confirmation.
 
-Settings supports **1–6 concurrent jobs**, including CoS calls. Folder locks still
-serialize overlapping writers. Independent CLI processes are not managed by CoS.
+Settings supports any nonnegative concurrency limit; **0 means unlimited**.
+Coordinator calls count toward the limit. Shared-folder locks serialize
+conflicting writers; separate worktrees allow agents to run concurrently.
+
+## Returned work and handoffs
+
+CoS retains the original agent report and captures valid files individually.
+There is no delivery file-count cap or fixed per-file snapshot size cap; copying
+and downloads stream from disk. One missing file, directory entry or storage
+problem produces **What needs fixing** with the exact path and recovery action.
+The report and other valid snapshots remain available. Incomplete capture is labeled with the affected files; valid snapshots and
+the original report remain available, and **Reply & continue** can fix the handoff.
+Existing unchanged files are allowed for validation-only work and labeled as such.
+
+Long runs have no cumulative output or event-count cutoff. A record too large for
+the 4 MiB capture buffer is omitted while the worker continues; the returned handoff
+asks you to check that log before acceptance. Human review still determines whether
+reported checks and outputs satisfy the assignment.
 
 ## Files and references
 
@@ -149,10 +191,9 @@ by default. Selecting it and approving the brief enables outbound command networ
 access for that worker, including an exact-session resume. It does not change
 other assignments or global CLI settings. Downloads stay in the project folder;
 public-source-only use and no private uploads are worker instructions, not a domain
-allowlist. Read-only calls keep command networking disabled. Browser tools retain
-separate permission checks; CoS cannot grant their origin access or relay an
-interactive CLI approval. To resume a research-blocked task, draft a revision,
-select research access, approve the new brief, then launch.
+allowlist. Read-only coordinator calls keep command networking disabled. Browser tools retain
+separate permission checks. App-server tool approval and question requests are
+relayed to the agent conversation; only an explicit response grants a requested tool action.
 
 The assignment brief also has a **Time limit** choice: the workspace default or
 **No time limit**. This choice is captured in approval and retained on revisions.
@@ -170,7 +211,7 @@ continuations. Read-only assignments cannot select it. Browser permissions remai
 separate, and the assigned scope still applies. Existing tasks stay unchanged;
 switching a draft's policy requires approval again. No automatic reviewer or
 arbitrary flags are enabled. Sandboxed headless CLI builds may reject approval-required
-operations; this app does not provide an interactive approval relay. The installed
+operations; legacy exec runs do not provide an interactive approval relay; managed app-server agents do. The installed
 CLI, trusted configuration, plugins and platform policy remain part of the boundary.
 Read-only limits writes, not necessarily which files a model can read.
 
@@ -179,7 +220,8 @@ readers/writers. They cannot coordinate unrelated terminals, editors or other ap
 Pause/cancel requests process-tree cleanup and preserves history. Partial edits
 from a failed or cancelled write task are not rolled back. After a crash, uncertain
 active calls retain recovery locks until you confirm the old processes stopped.
-Real work queued across restart requires readiness checks and renewed approval.
+Real work queued across restart is paused for an explicit continuation;
+managed agents automatically check CLI readiness without another plan approval.
 
 The service binds only `127.0.0.1`. Its launch URL creates a private HttpOnly,
 SameSite cookie; mutations require the local origin and a CSRF token. Keep the URL
@@ -194,6 +236,7 @@ program already running as the same local user.
 python3 -B -m unittest discover -s tests -v
 node --check static/app.js
 node --check static/workspace.js
+node --check static/agents.js
 node --check static/conversation-feedback.js
 node --check static/path-picker.js
 node --check static/reference-files.js

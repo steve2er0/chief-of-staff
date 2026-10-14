@@ -1,0 +1,16 @@
+{
+  "source": "Actual local Chrome Canvas samples; no reconstructed poses",
+  "captured_size": [
+    384,
+    256
+  ],
+  "presentation_size": [
+    768,
+    512
+  ],
+  "captured_frames": 55,
+  "distinct_canvas_frames": 43,
+  "gif_frames": 43,
+  "duration_seconds": 12.5,
+  "boundary": "Entirely synthetic attention/resolution scenario; no real jobs, answers or approvals. GIF uses measured Chrome Canvas frames; PNG captures paused visible indicators."
+}

@@ -1,6 +1,8 @@
 /* Read-only projection of supported CoS snapshots. No operational state writes. */
 (function (root) {
   'use strict';
+  const attention=root.LunarAttention||(typeof require==='function'?require('./attention-model.js'):null);
+  const agents=root.AgentModel||(typeof require==='function'?require('../../agent-model.js'):null);
   const ACTIVITY_STALE_MS = 120000, SNAPSHOT_STALE_MS = 15000, WORKERS_PER_PAGE = 10;
   const infrastructureTypes = {
     flight:{label:'Flight data · lander',asset:'lander'},
@@ -50,11 +52,12 @@
     return {key:choices[slot%choices.length],basis:'Stable illustrative station role; no physical-activity telemetry'};
   }
   const definitions = {
-    active: {label:'Reported running', colour:'#62dce4'},
+    needs_user: {label:'Needs you', colour:'#ffbd66'},
+    active: {label:'Working', colour:'#62dce4'},
     waiting: {label:'Waiting', colour:'#bac4d4'},
     blocked: {label:'Blocked', colour:'#ffb34d'},
     needs_input: {label:'Needs your review', colour:'#e3b8f5'},
-    completed: {label:'Completed', colour:'#a7dfb4'},
+    completed: {label:'Finished', colour:'#a7dfb4'},
     unknown: {label:'Unknown', colour:'#a0a8b5'},
     stale: {label:'Activity stale', colour:'#e9c895'},
     disconnected: {label:'Disconnected', colour:'#bca6a6'},
@@ -76,6 +79,7 @@
     const lastActivity = record.last_activity_at || record.updated || null;
     const lastMessage = record.latest_update_at || record.finished_at || record.updated || null;
     const sourceState = state, sourceReported = record.reported_status || null;
+    const owner=attention.requests(record),ownerPending=owner.state==='needs_user'&&owner.items.length>0;
     let category = 'unknown', reason = 'Execution state is unavailable.';
     if (['running','stopping'].includes(state)) {
       category = state === 'stopping' ? 'waiting' : 'active';
@@ -84,6 +88,7 @@
       category = 'waiting'; reason = state === 'queued' || state === 'pending' ? 'Waiting; this record does not prove a worker has started.' : 'Worker is paused or waiting.';
     } else if (state === 'ready_for_review' || ['needs_input','waiting_for_input'].includes(state)) {
       category = 'needs_input'; reason = state === 'ready_for_review' ? 'The worker returned a result for your review.' : 'CoS explicitly reports that input is needed.';
+      if(state==='ready_for_review'&&record.managed_agent&&!ownerPending){category='completed';reason='Returned work is saved in Results. Continue whenever you want; acceptance is optional.';}
     } else if (state === 'blocked') { category = 'blocked'; reason = 'CoS records a blocker.'; }
     else if (state === 'failed') { category = 'failed'; reason = 'CoS records a failure.'; }
     else if (['completed','accepted'].includes(state)) { category = 'completed'; reason = state === 'accepted' ? 'The owner accepted this result.' : 'This CoS call completed.'; }
@@ -102,15 +107,25 @@
         category='unknown';reason='CoS reports a run starting, but no process or captured session is confirmed yet.';
       }
     }
+    if(ownerPending){
+      category='needs_user';reason=owner.items.every(i=>i.answered)?'Your response is saved. Waiting for an explicit agent resolution and fresh running state.':'An explicit owner request is pending; ordinary work is held.';
+      const at=time(lastActivity);
+      if(at===null || now-at < -5000){freshness='unknown';reason+=' Activity timing unavailable; attention motion held.';}
+      else if(now-at>ACTIVITY_STALE_MS){freshness='stale';reason+=' Last-known request; activity stale, attention motion held.';}
+    } else if(['needs_input','waiting_for_input'].includes(state)){category='needs_user';reason='Explicit input-needed state; exact request text was not supplied. No question is invented.';}
+    if(owner.state==='resolved' && category==='active' && (time(owner.observed_at)===null||time(lastActivity)<time(owner.observed_at))){category='waiting';reason='Request resolved; waiting for fresh reported running activity.';}
     if (context.snapshotStale) { category = 'stale'; freshness = 'stale'; reason = 'The displayed snapshot is older than 15 seconds. Motion is held.'; }
     if (context.connected === false) { category = 'disconnected'; freshness = 'disconnected'; reason = 'The CoS service could not be reached. This is last-known state.'; }
     if (simulated) reason = 'Simulated CoS assignment; no real worker is represented.';
     const verified = proof(record, context.kind);
     const animate = (context.illustrative || (verified && !simulated)) && category === 'active';
     const activity = String(record.activity || '');
-    const activityKind = /^(command_execution|file_change|plan_update):\s*\w+$/.exec(activity)?.[1] || null;
-    return {category, label:context.illustrative && category==='active'?'Scripted work':definitions[category].label, colour:definitions[category].colour, reason,
+    const native = /^(commandExecution|fileChange|mcpToolCall|webSearch|command_execution|file_change|plan_update):\s*\w+$/.exec(activity)?.[1] || null;
+    const activityKind = ({commandExecution:'command_execution',fileChange:'file_change',mcpToolCall:'mcp_tool_call',webSearch:'web_search'})[native]||native;
+    const label=ownerPending&&freshness!=='current'?'Last-known · needs you':ownerPending&&owner.items.every(i=>i.answered)?'Response saved · awaiting agent':context.illustrative && category==='active'?'Scripted work':record.managed_agent&&!['unknown','stale','disconnected'].includes(category)?agents.status(record):definitions[category].label;
+    return {category, label:simulated&&!context.illustrative?'Simulated · '+label:label, colour:definitions[category].colour, reason,
       sourceState, sourceReported, lastActivity, lastMessage, freshness, simulated, verified, animate,
+      attention:owner,attentionPending:ownerPending,attentionAnimate:ownerPending&&owner.items.some(i=>!i.answered)&&freshness==='current'&&category==='needs_user'&&!record.recovery_lock&&(context.illustrative||(verified&&!simulated)),
       illustrative:context.illustrative===true,activityKind,
       area:context.illustrative ? (record.demo_area==='workspace'?'workspace':'console') : activityKind === 'file_change' ? 'workspace' : 'console'};
   }
@@ -155,17 +170,18 @@
     const byProject = new Map(projects.map(p => [p.id,p]));
     let orphanRecords = 0, unverifiedRecords = 0, simulatedRecords = 0;
     const workers = [];
-    for (const [kind, list] of [['task',snapshot.tasks],['job',snapshot.jobs]]) {
+    const jobs=snapshot.jobs.filter(j=>['queued','running','stopping'].includes(j.state)||j.recovery_lock);
+    for (const [kind, list] of [['task',agents.current(snapshot.tasks)],['job',jobs]]) {
       for (const record of list) {
         if (!record || typeof record.id !== 'string') continue;
         const owner = byProject.get(record.project_id);
         if (!owner) { orphanRecords++; continue; }
         const status = classify(record, {...context,kind});
-        const key = kind + ':' + record.id;
-        const assignment = {key, id:record.id, projectId:owner.id, kind, raw:record, status};
+        const key = kind + ':' + (kind==='task'?agents.identity(record):record.id);
+        const assignment = {key, id:record.id, agentId:kind==='task'?agents.identity(record):null, projectId:owner.id, kind, raw:record, status};
         owner.assignments.push(assignment);
-        if (status.simulated) { simulatedRecords++; if(!context.illustrative)continue; }
-        if (!status.verified) { unverifiedRecords++; if(!context.illustrative)continue; }
+        if (status.simulated) { simulatedRecords++; if(!context.illustrative&&!record.managed_agent)continue; }
+        if (!status.verified&&!status.simulated) { unverifiedRecords++; if(!context.illustrative&&!record.managed_agent)continue; }
         workers.push(assignment); owner.workers.push(assignment);
       }
     }
@@ -182,6 +198,9 @@
         w.visual.label=roles[w.visual.key].label;
       }
       p.workers.sort((a,b) => a.slot - b.slot);
+      p.ownerRequests=attention.projectRequests(snapshot,p);
+      p.attentionCount=p.ownerRequests.length+p.assignments.reduce((n,a)=>n+a.status.attention.items.filter(i=>a.status.attentionPending&&!i.answered).length,0);
+      p.attentionHeld=p.assignments.some(a=>a.status.attentionPending);
     }
     return {projects,workers,orphanRecords,unverifiedRecords,simulatedRecords,fixture:snapshot.lunar_fixture === true,illustrative:context.illustrative===true};
   }

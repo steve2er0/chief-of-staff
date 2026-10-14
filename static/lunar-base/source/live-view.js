@@ -1,39 +1,41 @@
-/* GET-only CoS scene. Visual metadata stays in this browser, outside CoS records. */
+/* Scene projection. Management controls are supplied by the authenticated app. */
 (function (root) {
   'use strict';
   function mount(options={}) {
-    const isDemo=options.demo===true;
+    const isDemo=options.demo===true,isAttention=options.attentionDemo===true;
+    const embedded=Boolean(options.host),host=options.host||document.querySelector('main');
     const model=root.LunarLiveModel, bound=root.LunarSimulation.bound;
     document.body.dataset.lunarMode='live';
-    document.title=isDemo?'Lunar Base · Illustrative workshop':'Lunar Base · Read-only CoS view';
-    document.querySelector('main').innerHTML=`
-      <header class="masthead"><a class="back" href="/">← Chief of Staff</a><span class="demo-label"><span></span><b id="live-kind">READ-ONLY CoS VIEW</b></span></header>
-      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting to this CoS service…</span><button id="live-refresh" type="button">Reconnect / refresh</button><a href="?mode=placement">All infrastructure ↗</a><a href="?mode=workshop">Work types demo ↗</a><a href="?mode=demo">Original demo ↗</a><a id="live-route" href="?mode=live">Read-only live view ↗</a></div>
-      <section class="viewport" aria-label="Read-only lunar project map">
-        <canvas id="world" width="768" height="512" tabindex="0" aria-label="Read-only lunar map of CoS projects and recorded workers. Drag to pan. Select a building or crew member, or use the lists below. Arrow keys pan; Space pauses illustration."></canvas>
+    document.title=isAttention?'Lunar Base · Needs-you demonstration':isDemo?'Lunar Base · Illustrative workshop':'Lunar Base · Agents';
+    host.innerHTML=`
+      <div class="live-connection"><span id="live-connection" role="status" aria-live="polite">Connecting to this CoS service…</span><span class="demo-label"><span></span><b id="live-kind">LIVE AGENTS</b></span><button id="live-refresh" type="button">Refresh</button></div>
+      <section class="viewport" aria-label="Live lunar agent map">
+        <canvas id="world" width="768" height="512" tabindex="0" aria-label="Lunar map of projects and agents. Drag to pan. Select an astronaut to open its conversation or a building for its project. Arrow keys pan; Space pauses illustration."></canvas>
         <div class="scene-title"><p id="live-outpost">YOUR PROJECT OUTPOSTS</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
         <div id="live-empty" class="live-empty" role="status">Waiting for the first supported CoS snapshot.</div>
         <div class="scene-caption" id="live-caption">CoS PROJECTS · RECORDED WORKERS</div>
       </section>
-      <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause illustration</button><span id="motion-state">Only fresh reported activity animates</span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">All outposts</button></div></div>
+      <div class="controls"><div class="motion"><button id="pause" type="button" aria-pressed="false">Pause illustration</button><span id="motion-state">Only fresh reported activity animates</span></div><div class="live-camera"><button id="live-zoom-out" aria-label="Zoom out">−</button><button id="live-zoom-in" aria-label="Zoom in">+</button><button id="live-overview">All outposts</button><button id="attention-replay" hidden>Replay local attention cycle</button></div></div>
       <nav id="live-projects" class="entities" aria-label="Project outposts"></nav>
       <div class="live-crew-heading"><span id="live-crew-heading">Recorded crew</span><div><button id="live-page-prev" aria-label="Previous crew page">←</button><span id="live-crew-page"></span><button id="live-page-next" aria-label="Next crew page">→</button></div></div>
-      <nav id="live-workers" class="entities" aria-label="Recorded workers"></nav>
-      <section class="details live-details" aria-labelledby="detail-title"><div><p class="eyebrow" id="detail-kicker">READ-ONLY CONNECTION</p><h2 id="detail-title">Your projects, in place.</h2><p id="detail-body">This view reads this CoS service. It does not discover independent Codex sessions or launch work.</p><div id="live-detail-fields"></div></div><div class="detail-note"><span id="detail-status">Connecting</span><p id="live-source"></p></div></section>
-      <div class="live-legend" aria-label="Worker states"><span>Running</span><span>Waiting</span><span>Blocked / failed</span><span>Needs review</span><span>Completed</span><span>Unknown / stale</span></div>
-      <footer><b id="view-footer">READ-ONLY CoS VIEW</b><span id="view-metaphor">Task roles are illustrations · no physical activity or token telemetry</span></footer>`;
+      <nav id="live-workers" class="entities" aria-label="Agents"></nav>
+      <section class="details live-details" aria-labelledby="detail-title" ${embedded?'hidden':''}><div><p class="eyebrow" id="detail-kicker">LIVE CONNECTION</p><h2 id="detail-title">Your projects, in place.</h2><p id="detail-body">Select an astronaut to follow its work.</p><div id="live-detail-fields"></div></div><div class="detail-note"><span id="detail-status">Connecting</span><p id="live-source"></p></div></section>
+      <p id="attention-announcement" class="attention-summary" role="status" aria-live="polite"></p><div class="live-legend" aria-label="Agent states"><span>Working</span><span>Needs you · amber ?</span><span>Queued / paused</span><span>Blocked / failed</span><span>Finished</span><span>Unknown / stale</span></div>
+      <footer><b id="view-footer">LIVE AGENTS</b><span id="view-metaphor">Motion reflects fresh activity · poses illustrate work</span></footer>`;
     if(isDemo) {textSetup();}
-    function textSetup(){document.getElementById('view-footer').textContent='ILLUSTRATIVE WORKSHOP DEMO';document.getElementById('view-metaphor').textContent='Eight scripted characters · no real agent activity';document.getElementById('live-refresh').hidden=true;}
-    const canvas=document.querySelector('#world'),ctx=canvas.getContext('2d'),images={},tracks=new Map();
+    function textSetup(){document.getElementById('view-footer').textContent=isAttention?'SCRIPTED ATTENTION DEMO':'ILLUSTRATIVE WORKSHOP DEMO';document.getElementById('view-metaphor').textContent=isAttention?'Five scripted characters · answers and resolution are in memory only':'Eight scripted characters · no real agent activity';document.getElementById('live-refresh').hidden=true;}
+    if(isAttention){elementReplaySetup();}
+    function elementReplaySetup(){const button=document.getElementById('attention-replay');button.hidden=false;button.addEventListener('click',()=>{demoElapsed=0;tracks.clear();refresh();});}
+    const canvas=host.querySelector('#world'),ctx=canvas.getContext('2d'),images={},tracks=new Map();
     const motion=matchMedia('(prefers-reduced-motion: reduce)');
-    const storageKey=isDemo?'cos.lunar.workshop-demo.layout.v1':'cos.lunar.layout.v1';
+    const storageKey=isDemo?(isAttention?'cos.lunar.attention-demo.layout.v1':'cos.lunar.workshop-demo.layout.v1'):'cos.lunar.layout.v1';
     let registry,storageAvailable=true;
     try {registry=model.cleanRegistry(JSON.parse(localStorage.getItem(storageKey)||'null'));} catch {registry=model.cleanRegistry(null);}
     let snapshot=null,view={projects:[],workers:[]},connected=false,lastReceived=0,serverAnchor=0,clientAnchor=0;
     let selectedProject=new URLSearchParams(location.search).get('project')||'',selectedWorker='',fetching=false,requestController=null,connectionError='',initialFocus=false;
-    let paused=motion.matches,previous=0,crewPage=0,drag=null,lastPainted=[],listsSignature='',detailSignature='',demoElapsed=0;
-    let camera={x:0,y:0,zoom:1},assetsReady=false,dirty=true,projectFocus=true;
-    const element=id=>document.getElementById(id);
+    let paused=motion.matches,previous=0,crewPage=0,drag=null,lastPainted=[],listsSignature='',detailSignature='',demoElapsed=0,attentionSignature='',beaconPhase=0;
+    let camera={x:0,y:0,zoom:1},assetsReady=false,dirty=true,projectFocus=true,destroyed=false;
+    const element=id=>host.querySelector('#'+id);
     const text=(id,value)=>{element(id).textContent=value;};
     const date=value=>model.time(value)===null?'Unavailable':new Date(value).toLocaleString();
     function field(label,value,container=element('live-detail-fields')) {
@@ -72,10 +74,14 @@
           track.journey={from:{x:track.x,y:track.y},to:destination,elapsed:0};
           track.target=worker.status.area;
         }
+        const identity=root.LunarAttention.identity(worker.status.attention);
+        if(identity!==track.attentionIdentity){track.attentionIdentity=identity;track.attentionPhase=0;}
         if (!worker.status.animate) {
           track.journey=null;track.height=0;track.squash=1;track.frame=0;
         }
       }
+      const requestState=JSON.stringify(view.projects.map(p=>[p.id,p.attentionCount,p.attentionHeld]));
+      if(requestState!==attentionSignature){attentionSignature=requestState;const count=view.projects.reduce((n,p)=>n+p.attentionCount,0);text('attention-announcement',count?count+' explicit request'+(count===1?'':'s')+' for you · amber markers indicate where.':view.projects.some(p=>p.attentionHeld)?'Owner responses saved · waiting for explicit agent resolution.':'No explicit owner requests in this snapshot.');}
       dirty=true; renderLists();renderDetail();renderConnection();
     }
     function focus(project) {
@@ -90,28 +96,30 @@
       const active=p.workers.find(w=>w.status.animate);
       if (active) crewPage=active.position.page;
       focus(p);renderLists();renderDetail();
+      if(options.onProject)options.onProject(p.id);
     }
     function workerPick(key) {
       const worker=view.workers.find(w=>w.key===key);if(!worker)return;
       selectedProject=worker.projectId;selectedWorker=key;crewPage=worker.position.page;
       focus(selected());renderLists();renderDetail();
+      if(options.onWorker)options.onWorker(worker);
     }
     function renderLists() {
-      const signature=JSON.stringify([selectedProject,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.infrastructure.type,p.workers.length,p.assignments.length]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.position.page])]);
+      const signature=JSON.stringify([selectedProject,selectedWorker,crewPage,view.projects.map(p=>[p.id,p.name,p.infrastructure.type,p.workers.length,p.assignments.length,p.attentionCount]),view.workers.map(w=>[w.key,w.name,w.visual.key,w.status.category,w.status.label,w.status.freshness,w.position.page])]);
       if(signature===listsSignature)return;listsSignature=signature;
       const focused=document.activeElement?.dataset;
       const focusProject=focused?.liveProject,focusWorker=focused?.liveWorker;
       const projectList=element('live-projects'),workerList=element('live-workers');
       projectList.replaceChildren();workerList.replaceChildren();
       for (const p of view.projects) {
-        const button=document.createElement('button');button.textContent=p.name;
+        const button=document.createElement('button');button.textContent=p.name+(p.attentionCount?' · ? '+p.attentionCount:'');
         button.setAttribute('aria-pressed',String(p.id===selectedProject));button.dataset.liveProject=p.id;
         button.addEventListener('click',()=>projectPick(p.id));projectList.append(button);
       }
       const p=selected(),workers=p?.workers||[];
       const pageCount=workers.length?Math.max(...workers.map(w=>w.position.page))+1:1;
       crewPage=Math.min(crewPage,pageCount-1);
-      text('live-crew-heading',workers.length+(isDemo?' scripted character':' recorded worker')+(workers.length===1?'':'s')+(p?' · '+p.name:''));
+      text('live-crew-heading',workers.length+(isDemo?' scripted character':' agent')+(workers.length===1?'':'s')+(p?' · '+p.name:''));
       text('live-crew-page','Crew page '+(crewPage+1)+' / '+pageCount);
       element('live-page-prev').disabled=crewPage===0;
       element('live-page-next').disabled=crewPage>=pageCount-1;
@@ -125,11 +133,11 @@
       }
       if (p && !workers.length) {
         const note=document.createElement('p');note.className='live-no-workers';
-        note.textContent=p.assignments.length?'No confirmed real worker run in these records. Queued, simulated and unverified assignments remain in project details.':'No recorded workers for this project.';
+        note.textContent=p.assignments.length?'No confirmed worker in these earlier assignments. Start an agent to work here.':'No agents here yet. Select this project and start one.';
         workerList.append(note);
       }
       text('live-outpost',p?p.name.toUpperCase():'YOUR PROJECT OUTPOSTS');
-      text('live-caption',(p?.infrastructure.label.toUpperCase()||'PROJECT OUTPOSTS')+' · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' RECORDED WORKERS'));
+      text('live-caption',(p?.infrastructure.label.toUpperCase()||'PROJECT OUTPOSTS')+' · '+(isDemo?'SCRIPTED DEMO':view.workers.length+' AGENTS'));
       if(focusProject)[...projectList.children].find(b=>b.dataset.liveProject===focusProject)?.focus();
       if(focusWorker)[...workerList.children].find(b=>b.dataset.liveWorker===focusWorker)?.focus();
     }
@@ -138,18 +146,18 @@
       const message=!snapshot?(connectionError||'Connecting to this CoS service…'):
         !connected?'Disconnected · showing the last snapshot · '+connectionError:
         context.snapshotStale?'Snapshot stale · motion held':
-        isDemo?'Scripted workshop · eight illustrative characters · no real workers':view.fixture?'QA fixtures connected · no real workers started':'Connected to this CoS service · read-only';
+        isAttention?'Scripted attention demo · five characters · no real workers':isDemo?'Scripted workshop · eight illustrative characters · no real workers':view.fixture?'Local QA fixtures connected':snapshot.config?.mode==='simulated'?'Simulated workers · choose Codex CLI in Settings for real work':'Connected · live agent progress';
       text('live-connection',message+(lastReceived?' · snapshot '+new Date(lastReceived).toLocaleTimeString():''));
-      text('live-kind',isDemo?'ILLUSTRATIVE WORKSHOP DEMO':view.fixture?'READ-ONLY · QA FIXTURES':'READ-ONLY CoS VIEW');
+      text('live-kind',isAttention?'SCRIPTED ATTENTION DEMO':isDemo?'ILLUSTRATIVE WORKSHOP DEMO':view.fixture?'QA FIXTURES':snapshot?.config?.mode==='simulated'?'SIMULATED WORKERS':'LIVE AGENTS');
       const empty=element('live-empty');empty.hidden=Boolean(snapshot && view.projects.length);
       empty.textContent=!snapshot?(connectionError||'Waiting for the first supported CoS snapshot.'):
-        'No CoS projects yet. Create or open projects in Chief of Staff, then return here.';
+        'Your base is ready. Use Start agents to choose a folder and give each agent a task.';
       empty.classList.toggle('connection-error',Boolean(connectionError));
       if (!storageAvailable) text('live-connection',message+' · visual layout storage unavailable');
     }
     function renderDetail() {
       const p=selected(),worker=view.workers.find(w=>w.key===selectedWorker);
-      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.status.category,selectedProject,selectedWorker,connected]);
+      const signature=JSON.stringify([p?.raw,p?.infrastructure,p?.assignments.map(a=>[a.key,a.status.category]),worker?.raw,worker?.visual,worker?.status.category,worker?.status.reason,worker?.status.freshness,selectedProject,selectedWorker,connected]);
       if(signature===detailSignature)return;detailSignature=signature;
       element('live-detail-fields').replaceChildren();
       if (!p) {
@@ -161,10 +169,19 @@
       }
       if (worker) {
         const raw=worker.raw,status=worker.status;
-        text('detail-kicker',worker.kind==='job'?'CoS COORDINATOR CALL':'CoS AGENT ASSIGNMENT');
+        text('detail-kicker',isAttention?'SCRIPTED DEMO ASTRONAUT':worker.kind==='job'?'CoS COORDINATOR CALL':'CoS AGENT ASSIGNMENT');
         text('detail-title',worker.name);text('detail-body',raw.latest_update||raw.result?.summary||raw.progress||'No update text was supplied.');
         text('detail-status',status.label);
-        field('Project',p.name);field('Recorded lifecycle',status.sourceState);field('Agent-reported blocker',status.sourceReported);
+        field('Project',p.name);
+        if(status.attentionPending){
+          field('Attention source',status.attention.source);field('Attention metadata',status.attention.warning);
+          for(const item of status.attention.items){
+            field(item.kind==='approval'?'Approval decision requested':item.kind==='question'?'Exact question':'Decision requested',item.text);
+            if(item.answered)field('Owner response saved',item.owner_answer||item.response_status||'Saved; waiting for explicit agent resolution.');
+            if(!isDemo){const link=document.createElement('a');link.className='live-output';link.textContent=item.answered?'Open CoS handoff / continuation controls ↗':item.record_id?'Open existing CoS response controls ↗':'Open CoS task / continuation controls ↗';link.href=root.LunarAttention.target(p.id,worker.id,item);element('live-detail-fields').append(link);}
+          }
+          field('Response boundary',isDemo?'All questions, answers and resolution in this view are scripted.':'Replies continue with the captured permissions. Tool permissions use the exact request controls in the agent panel.');
+        }else if(['needs_input','waiting_for_input'].includes(status.sourceState))field('Request unavailable','The exact request text and type were not supplied.');field('Recorded lifecycle',status.sourceState);field('Agent-reported blocker',status.sourceReported);
         field('Shared infrastructure',p.infrastructure.label);field('Infrastructure choice',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
         field('Illustrative work pose',worker.visual.label);field('Pose choice',worker.visual.basis);
         field('Illustration boundary',isDemo?'Entirely scripted demo; no worker process or session.':'Pose is a visual metaphor. Current activity is only the reported lifecycle/tool event below.');
@@ -179,11 +196,14 @@
           link.href='/api/output/'+encodeURIComponent(worker.id)+'/'+encodeURIComponent(output.name);link.target='_blank';link.rel='noopener';
           element('live-detail-fields').append(link);
         }
-        text('live-source',(isDemo?'Scripted in-memory workshop demo':view.fixture?'Synthetic QA fixture':'Source: GET /api/state · '+worker.kind+' '+worker.id)+'\nLast snapshot received: '+date(new Date(lastReceived).toISOString())+'\nMotion illustrates state; work poses are not physical telemetry.');
+        text('live-source',(isAttention?'Scripted in-memory attention demo':isDemo?'Scripted in-memory workshop demo':view.fixture?'Synthetic QA fixture':'Source: GET /api/state · '+worker.kind+' '+worker.id)+'\nLast snapshot received: '+date(new Date(lastReceived).toISOString())+'\nMotion illustrates state; work poses are not physical telemetry.');
       } else {
         text('detail-kicker','PROJECT OUTPOST');text('detail-title',p.name);text('detail-body',p.raw.vision||p.raw.goal||'No project description was supplied.');
         text('detail-status',isDemo?'Scripted outpost':!connected?'Disconnected · last known project':'Recorded project');
-        field('Project ID',p.id);field('Project last updated',date(p.raw.updated));field(isDemo?'Scripted characters':'Recorded workers',p.workers.length);
+        field('Project ID',p.id);
+        field('Explicit requests for you',p.attentionCount);
+        for(const assignment of p.assignments.filter(a=>a.status.attentionPending)){for(const item of assignment.status.attention.items){field(assignment.raw.title+' · '+item.kind,item.text);if(!isDemo){const link=document.createElement('a');link.className='live-output';link.href=root.LunarAttention.target(p.id,assignment.id,item);link.textContent='Open CoS controls · '+assignment.raw.title+' ↗';element('live-detail-fields').append(link);}}}
+        for(const request of p.ownerRequests){field(request.kind==='approval'?'Assignment action requested':'Project '+request.kind,request.text);if(!isDemo){const link=document.createElement('a');link.className='live-output';link.href=request.href;link.textContent='Open existing CoS controls ↗';element('live-detail-fields').append(link);}}field('Project last updated',date(p.raw.updated));field(isDemo?'Scripted characters':'Recorded workers',p.workers.length);
         field('Shared infrastructure',p.infrastructure.label);field('Infrastructure choice',p.infrastructure.basis+(p.infrastructure.matched?' · '+p.infrastructure.matched:''));
         field('Assignments and CoS calls',p.assignments.length);
         field('Simulated assignments',p.assignments.filter(a=>a.status.simulated).length);
@@ -192,15 +212,16 @@
           field(assignment.raw.title||'CoS '+(assignment.raw.kind||'call'),(assignment.status.simulated?'Simulated · ':'')+assignment.status.sourceState+' · '+(assignment.raw.latest_update||assignment.raw.progress||assignment.status.reason));
         }
         if(!isDemo) {const link=document.createElement('a');link.className='live-output';link.textContent='Open original CoS project ↗';link.href='/#project/'+encodeURIComponent(p.id);element('live-detail-fields').append(link);}
-        text('live-source',(isDemo?'Scripted in-memory workshop demo':view.fixture?'Synthetic QA fixtures':'Source: GET /api/state · project '+p.id)+'\nLast snapshot received: '+date(new Date(lastReceived).toISOString())+'\nLocations and work roles are visual metadata only.');
+        text('live-source',(isAttention?'Scripted in-memory attention demo':isDemo?'Scripted in-memory workshop demo':view.fixture?'Synthetic QA fixtures':'Source: GET /api/state · project '+p.id)+'\nLast snapshot received: '+date(new Date(lastReceived).toISOString())+'\nLocations and work roles are visual metadata only.');
       }
     }
     async function refresh() {
+      if(embedded){options.onRefresh?.();return;}
       if (fetching) return;
       fetching=true;requestController=new AbortController();
       const timeout=setTimeout(()=>requestController.abort(),8000);
       try {
-        if(isDemo) {snapshot=root.LunarWorkshop.snapshot(demoElapsed);connected=true;lastReceived=clientAnchor=Date.now();serverAnchor=lastReceived;reconcile();return;}
+        if(isDemo) {snapshot=root.LunarWorkshop.snapshot(demoElapsed);if(isAttention)snapshot=root.LunarAttentionDemo.snapshot(demoElapsed);connected=true;lastReceived=clientAnchor=Date.now();serverAnchor=lastReceived;reconcile();return;}
         const response=await fetch('/api/state',{method:'GET',credentials:'same-origin',cache:'no-store',signal:requestController.signal});
         if (!response.ok) {
           throw new Error(response.status===401?'Open the private CoS launch URL, then use Reconnect / refresh.':response.status===404?'This page must be opened from Chief of Staff for live data.':'CoS returned HTTP '+response.status+'.');
@@ -227,10 +248,11 @@
     function draw() {
       if(!assetsReady)return;
       ctx.imageSmoothingEnabled=false;ctx.drawImage(images.terrain,0,0,768,512);
-      lastPainted=[];const drawables=[];
+      lastPainted=[];const drawables=[],beacons=[];
       for (const p of view.projects) {
         if(projectFocus && p.id!==selectedProject)continue;
         const misc=p.infrastructure.type==='miscellaneous';
+        if(p.attentionCount||p.attentionHeld)beacons.push({p,point:screen({x:p.x+(misc?150:384),y:p.y+(misc?287:252)})});
         const building=misc?{x:p.x+191,y:p.y+100,width:410,height:255}:{x:p.x+235,y:p.y+65,width:310,height:193};
         const s=screen(building),w=building.width*camera.zoom,h=building.height*camera.zoom;
         if(s.x+w < -100||s.x>868||s.y+h < -100||s.y>612)continue;
@@ -275,22 +297,34 @@
           ctx.fillStyle='rgba(23,25,55,'+(.30-track.height*.008)+')';ctx.beginPath();
           ctx.ellipse(position.x-6*scale,position.y,(13-track.height*.16)*scale,3*scale,0,0,Math.PI*2);ctx.fill();
           if(worker.key===selectedWorker)ring(position,16*scale,worker.status.colour);
+          const attending=worker.status.attentionPending;
           const moving=worker.status.animate && track.journey,working=worker.status.animate && !track.journey && (!isDemo||worker.status.area==='console');
           const row=moving?0:working?2:1,frame=moving?track.frame:working?Math.floor(track.phase*5)%6:0;
           const role=model.roles[worker.visual.key],workFlip=working && worker.visual.key!=='console' && track.x>owner.x+384;
-          ctx.save();ctx.translate(position.x,position.y-track.height*scale);ctx.scale(scale*(working?(workFlip?-1:1):(track.flip?-1:1)),scale*track.squash);
-          if(!worker.status.animate)ctx.globalAlpha=.80;
+          ctx.save();ctx.translate(position.x,position.y-track.height*scale);ctx.scale(scale*(attending?1:working?(workFlip?-1:1):(track.flip?-1:1)),scale*track.squash);
+          if(!worker.status.animate && !attending)ctx.globalAlpha=.80;
           const sprite=worker.slot%2?images.amber:images.teal;
-          if(working && role.row!==null) {
+          if(attending){
+            const pose=root.LunarAttention.phase(track.attentionPhase||0,!paused&&worker.status.attentionAnimate);
+            ctx.drawImage(sprite,pose.frame*64,root.LunarAttentionAssets.y+pose.row*64,64,64,-32,-58,64,64);
+          } else if(working && role.row!==null) {
             const workFrame=Math.floor(track.phase*role.rate)%4;
             ctx.drawImage(sprite,workFrame*96,192+role.row*64,96,64,-32,-58,96,64);
           } else ctx.drawImage(sprite,frame*64,row*64,64,64,-32,-58,64,64);
           ctx.restore();
-          ctx.fillStyle=worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
+          if(attending){const radius=Math.max(7,10*scale),y=position.y-68*scale;ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(position.x,y,radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#25303c';ctx.font='bold '+Math.round(radius*1.65)+'px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(worker.status.attention.items.every(i=>i.answered)?'·':'?',position.x,y+radius*.58);ctx.textAlign='left';}
+          ctx.fillStyle=worker.status.attentionPending?'#ffbd66':worker.status.colour;ctx.fillRect(position.x-3,position.y+7*scale,6,3);
         }});
         lastPainted.push({kind:'worker',id:worker.key,x:position.x-25*scale,y:position.y-(track.height+54)*scale,width:50*scale,height:60*scale,depth:track.y});
       }
       drawables.sort((a,b)=>a.depth-b.depth).forEach(item=>item.draw());
+      for(const {p,point} of beacons){
+        const animated=!paused&&connected&&!currentContext().snapshotStale&&p.workers.some(w=>w.status.attentionAnimate),radius=10+(animated?Math.sin(beaconPhase*2)*2:0);
+        ctx.fillStyle='#ffbd662d';ctx.beginPath();ctx.arc(point.x,point.y,radius+7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffbd66';ctx.beginPath();ctx.arc(point.x,point.y,Math.max(7,8*camera.zoom),0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#222b35';ctx.font='bold 12px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(p.attentionCount?'?':'·',point.x,point.y+4);ctx.textAlign='left';
+        if(p.attentionCount){ctx.fillStyle='#201f34';ctx.fillRect(point.x+13,point.y-8,16,16);ctx.fillStyle='#ffce8b';ctx.fillText(String(p.attentionCount),point.x+17,point.y+4);}
+        lastPainted.push({kind:'project',id:p.id,x:point.x-18,y:point.y-18,width:48,height:36,depth:1e6});
+      }
     }
     function updateMotion() {
       element('pause').textContent=paused?'Resume illustration':'Pause illustration';
@@ -298,12 +332,15 @@
       text('motion-state',paused?(motion.matches?'Paused · reduced motion':'Illustration paused'):isDemo?'Scripted work poses and gentle lunar bounds':'Fresh reported activity enables illustrative poses');
     }
     function loop(timestamp) {
+      if(destroyed)return;
       const elapsed=previous?Math.min(.08,(timestamp-previous)/1000):0;previous=timestamp;
       if(!paused && !document.hidden) {
-        if(isDemo)demoElapsed+=elapsed;
+        if(isDemo)demoElapsed+=elapsed;beaconPhase+=elapsed;
         for(const worker of view.workers) {
           const status=model.classify(worker.raw,{...currentContext(),kind:worker.kind}),track=tracks.get(worker.key);
-          if(!status.animate||!track)continue;
+          if(!track)continue;
+          if(status.attentionAnimate)track.attentionPhase=(track.attentionPhase||0)+elapsed;
+          if(!status.animate)continue;
           track.phase+=elapsed;
           if(track.journey) {
             track.journey.elapsed+=elapsed;
@@ -312,7 +349,7 @@
           }
         }
       }
-      if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>w.status.animate)))) {draw();dirty=false;}
+      if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>w.status.animate||w.status.attentionAnimate)))) {draw();dirty=false;}
       requestAnimationFrame(loop);
     }
     function zoom(factor) {
@@ -327,8 +364,8 @@
       camera={x:minX-34/zoom,y:minY-70/zoom,zoom};dirty=true;
       projectFocus=false;
     }
-    element('pause').addEventListener('click',()=>{paused=!paused;updateMotion();});
-    motion.addEventListener('change',event=>{if(event.matches){paused=true;updateMotion();}});
+    element('pause').addEventListener('click',()=>{paused=!paused;dirty=true;updateMotion();});
+    motion.addEventListener('change',event=>{if(event.matches){paused=true;dirty=true;updateMotion();}});
     element('live-refresh').addEventListener('click',refresh);
     element('live-zoom-in').addEventListener('click',()=>zoom(1.25));
     element('live-zoom-out').addEventListener('click',()=>zoom(.8));
@@ -349,19 +386,28 @@
     });
     canvas.addEventListener('pointercancel',()=>{drag=null;});
     canvas.addEventListener('keydown',event=>{
-      if(event.code==='Space'){event.preventDefault();paused=!paused;updateMotion();}
+      if(event.code==='Space'){event.preventDefault();paused=!paused;dirty=true;updateMotion();}
       const delta={ArrowLeft:[-50,0],ArrowRight:[50,0],ArrowUp:[0,-50],ArrowDown:[0,50]}[event.key];
       if(delta){event.preventDefault();camera.x+=delta[0]/camera.zoom;camera.y+=delta[1]/camera.zoom;projectFocus=false;dirty=true;}
     });
-    document.addEventListener('visibilitychange',()=>{previous=0;if(!document.hidden)refresh();});
-    window.addEventListener('pagehide',()=>requestController?.abort(),{once:true});
+    const visibility=()=>{previous=0;if(!document.hidden)refresh();};
+    document.addEventListener('visibilitychange',visibility);
+    const pagehide=()=>requestController?.abort();
+    window.addEventListener('pagehide',pagehide,{once:true});
     updateMotion();renderConnection();
     Promise.all(Object.entries({terrain:'terrain',habitat:'habitat',console:'console',teal:'astronaut-teal',amber:'astronaut-amber'}).map(([key,name])=>new Promise((resolve,reject)=>{
-      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>reject(new Error('Scene asset unavailable: '+name));image.src='./assets/'+name+'.png';
-    }))).then(()=>{assetsReady=true;requestAnimationFrame(loop);}).catch(error=>{connectionError=error.message;renderConnection();});
-    refresh();
-    setInterval(()=>{if(!document.hidden)refresh();},2500);
-    setInterval(()=>{if(snapshot)reconcile();},1000);
+      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>reject(new Error('Scene asset unavailable: '+name));image.src='/lunar-base/assets/'+name+'.png';
+    }))).then(()=>{if(destroyed)return;assetsReady=true;requestAnimationFrame(loop);}).catch(error=>{if(destroyed)return;connectionError=error.message;renderConnection();});
+    if(!embedded)refresh();
+    const polling=embedded?null:setInterval(()=>{if(!document.hidden && (!isDemo||!paused))refresh();},isAttention?500:2500);
+    const aging=setInterval(()=>{if(snapshot&&!document.hidden)reconcile();},1000);
+    return {
+      update(data){if(destroyed)return;model.build(data,model.cleanRegistry(registry),{now:Date.now(),connected:true});snapshot=data;connected=true;connectionError='';lastReceived=clientAnchor=Date.now();serverAnchor=model.time(data.local_time)||lastReceived;reconcile();},
+      disconnect(message){connected=false;connectionError=message;if(snapshot)reconcile();else renderConnection();},
+      selectAgent(id){const worker=view.workers.find(w=>w.agentId===id);if(worker&&selectedWorker!==worker.key){selectedProject=worker.projectId;selectedWorker=worker.key;crewPage=worker.position.page;focus(selected());renderLists();renderDetail();}},
+      selectProject(id){if(selectedProject!==id&&view.projects.some(p=>p.id===id)){selectedProject=id;selectedWorker='';crewPage=0;focus(selected());renderLists();renderDetail();}},
+      destroy(){destroyed=true;clearInterval(polling);clearInterval(aging);requestController?.abort();document.removeEventListener('visibilitychange',visibility);window.removeEventListener('pagehide',pagehide);}
+    };
   }
   root.LunarLiveView={mount};
 })(typeof window !== 'undefined'?window:globalThis);

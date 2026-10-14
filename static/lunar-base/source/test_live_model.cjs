@@ -37,7 +37,7 @@ const snapshot={projects:[{id:'project-a',name:'A'},{id:'project-b',name:'B'}],t
   {id:'job-a',project_id:'project-a',state:'completed',session_id:'known-session',updated:stamp}]};
 const original=structuredClone(snapshot);
 const first=model.build(snapshot,registry,{now,connected:true});
-assert.equal(first.workers.length,2);assert.equal(first.simulatedRecords,1);assert.equal(first.unverifiedRecords,2);assert.equal(first.orphanRecords,1);
+assert.equal(first.workers.length,1);assert.equal(first.simulatedRecords,1);assert.equal(first.unverifiedRecords,2);assert.equal(first.orphanRecords,1);
 assert.deepEqual(snapshot,original,'projection must not edit snapshot or operational records');
 const positions=first.projects.map(p=>[p.id,p.x,p.y]);
 const slots=first.workers.map(w=>[w.key,w.slot]);
@@ -70,3 +70,24 @@ assert.equal(landing.x,30);assert.equal(landing.height,0);
 assert(model.pose(6.3,from,to,sim.bound).done);
 assert.throws(()=>model.build({projects:[]},registry),/missing/);
 console.log('PASS: real/simulated proof, all state categories, stale/disconnected freeze, immutable source, stable persisted layout, pagination, lunar bounds.');
+
+// Persistent agent turns project onto one astronaut; results retain every turn.
+const agents=require('../../agent-model.js');
+const initial=real({id:'root',agent_id:'root',managed_agent:true,state:'ready_for_review',finished_at:stamp,result:{summary:'First result'}});
+const continued=real({id:'next',agent_id:'root',managed_agent:true,parent_task_id:'root',created:'2026-10-13T04:00:01Z'});
+const liveSnapshot={projects:[{id:'project-a',records:[]}],tasks:[initial],jobs:[]};
+const layout=model.cleanRegistry(null),before=model.build(liveSnapshot,layout,context).workers[0];
+assert.equal(before.status.label,'Finished');assert(!before.status.attentionPending);
+liveSnapshot.tasks=[continued,{...initial,state:'superseded',updated:'2026-10-13T04:00:05Z'}];
+const after=model.build(liveSnapshot,layout,context).workers;
+assert.equal(after.length,1);assert.equal(after[0].id,'next');assert.equal(after[0].key,before.key);assert.deepEqual(after[0].position,before.position);
+assert.equal(agents.results(liveSnapshot.tasks).length,1);assert.equal(agents.current(liveSnapshot.tasks)[0].id,'next');
+for(const [activity,kind,area] of [['fileChange: completed','file_change','workspace'],['commandExecution: running','command_execution','console'],['mcpToolCall: completed','mcp_tool_call','console'],['webSearch: completed','web_search','console']]){
+ const mapped=status(real({activity}));assert.equal(mapped.activityKind,kind);assert.equal(mapped.area,area);
+}
+const queued=real({managed_agent:true,state:'queued',worker_pid:null,started_at:null});
+assert.equal(model.build({...liveSnapshot,tasks:[queued]},model.cleanRegistry(null),context).workers[0].status.label,'Queued');
+assert(!status(queued).animate);
+const simulated=real({managed_agent:true,config:{mode:'simulated'}});
+assert.equal(model.build({...liveSnapshot,tasks:[simulated]},model.cleanRegistry(null),context).workers[0].status.label,'Simulated · Working');assert(!status(simulated).animate);
+console.log('PASS: persistent astronaut identity and position, completed results, queued/simulated labels and native event vocabulary.');

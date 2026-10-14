@@ -87,6 +87,8 @@ body[data-lunar-mode=live] .live-legend span:nth-child(6):before{background:#e9c
  body[data-lunar-mode=live] .live-camera button{font-size:10px;padding:7px}
 }
 
+.attention-summary {color:#ffcf8d; font-size:12px; line-height:1.7; margin:15px 0;}
+
 .masthead{flex-wrap:wrap;gap:8px 12px}
 body[data-lunar-mode=placement] .details{min-height:135px}
 body[data-lunar-mode=placement] .detail-note{max-width:250px}

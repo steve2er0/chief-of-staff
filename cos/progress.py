@@ -1,6 +1,8 @@
 """Human updates and tool activity are separate; neither implies completion."""
 import json
 import re
+from .owner_requests import validate_requests, apply_request_update
+from .safety import Invalid
 
 
 TOOL_EVENT = re.compile(r"^(command_execution|file_change|plan_update):\s*\w+$")
@@ -25,7 +27,11 @@ def message_details(text):
         status = None
     if not value:
         return None
-    return {"text": value[:2000], "reported_status": status if status in ("blocked", "failed") else None}
+    result={"text": value[:2000], "reported_status": status if status in ("blocked", "failed") else None}
+    if isinstance(locals().get("data"),dict) and "user_requests" in data:
+        try:result["user_requests"]=validate_requests(data["user_requests"])
+        except Invalid:result["user_requests_error"]="Malformed explicit owner request; prior requests remain unchanged"
+    return result
 
 
 def apply_progress(record, changes, at):
@@ -43,6 +49,9 @@ def apply_progress(record, changes, at):
     elif raw:
         record["activity"] = raw
         record.setdefault("progress", "Agent is working.")
+    if "user_requests" in changes or (details and "user_requests" in details):
+        apply_request_update(record,changes.get("user_requests",details.get("user_requests") if details else None),at)
+    if details and details.get("user_requests_error"):record["user_requests_error"]=details["user_requests_error"]
     if "history" in record:
         record["history"] = (record["history"] + [{"at": at, "event": changes.get("event", "progress"),
             "kind": "message" if details else "activity", "text": raw}])[-100:]

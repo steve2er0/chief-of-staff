@@ -36,7 +36,7 @@ class LunarBaseTests(unittest.TestCase):
                 self.assertEqual(self.request(path, False)[0], 401)
 
     def test_all_runtime_assets_load_with_correct_types(self):
-        paths = {'': 'text/html', 'lunar.css': 'text/css', 'simulation.js': 'text/javascript', 'scene.js': 'text/javascript'}
+        paths = {'': 'text/html', 'lunar.css': 'text/css', 'workspace.css': 'text/css', 'simulation.js': 'text/javascript', 'scene.js': 'text/javascript'}
         for asset in ['terrain', 'habitat', 'console', 'astronaut-teal', 'astronaut-amber']:
             paths['assets/' + asset + '.png'] = 'image/png'
         for path, content_type in paths.items():
@@ -53,14 +53,24 @@ class LunarBaseTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.request('/lunar-base/' + path)[0], 404)
 
-    def test_demo_does_not_mutate_state_and_navigation_remains(self):
+    def test_live_workspace_does_not_mutate_state_and_controls_remain(self):
         before = self.service.snapshot()
         before.pop('local_time')
         self.request('/lunar-base/')
         status, data, _ = self.request('/')
         self.assertEqual(status, 200)
-        self.assertIn(b'Lunar Base demo', data)
+        self.assertIn(b'data-agent-workspace=', data)
+        self.assertNotIn(b'?mode=', data)
+        self.assertIn(b'data-start-agent', data)
         self.assertIn(b'data-view="projects"', data)
         after = self.service.snapshot()
         after.pop('local_time')
         self.assertEqual(after, before)
+
+    def test_previous_demo_urls_all_open_the_same_live_workspace(self):
+        expected=self.request('/')[1]
+        for mode in ['', 'live', 'attention', 'workshop', 'placement', 'demo']:
+            with self.subTest(mode=mode):
+                self.assertEqual(self.request('/lunar-base/?mode='+mode)[1],expected)
+        self.assertEqual(self.request('/agent-model.js')[0],200)
+        self.assertEqual(self.request('/agent-model.js',False)[0],401)

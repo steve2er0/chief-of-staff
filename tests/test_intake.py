@@ -93,6 +93,7 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(list(Path(p['cwd']).iterdir()), [])
 
     def test_busy_slots_and_writer_locks_leave_intake_pending(self):
+        self.s.settings({'concurrency':2})
         p = self.project()
         self.s.active = {str(i): {'cwd': p['cwd'], 'access':'read-only'} for i in range(2)}
         self.s._start_project_reviews()

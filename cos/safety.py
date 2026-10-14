@@ -46,7 +46,7 @@ def working_directory(value, protected=()):
     return str(p)
 
 
-def local_file(root, relative, must_exist=True):
+def local_file(root, relative, must_exist=True, max_bytes=8 * 1024 * 1024):
     relative = bounded_text(relative, "relative file path", 1000)
     # Treat both separator styles as traversal, on every platform.
     w = PureWindowsPath(relative)
@@ -66,9 +66,11 @@ def local_file(root, relative, must_exist=True):
         raise Invalid("Path escapes the project")
     if p == base:
         raise Invalid("Path escapes the project")
+    if must_exist and p.is_dir():
+        raise Invalid("A directory was listed instead of a file: " + relative)
     if must_exist and not p.is_file():
         raise Invalid("Referenced artifact is missing: " + relative)
-    if must_exist and p.stat().st_size > 8 * 1024 * 1024:
+    if must_exist and max_bytes is not None and p.stat().st_size > max_bytes:
         raise Invalid("Artifact exceeds the 8 MiB limit")
     return p
 

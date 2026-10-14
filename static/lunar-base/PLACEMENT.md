@@ -1,5 +1,8 @@
 # All-infrastructure placement review
 
+Historical fixture and artwork evidence. Current launch and workflow are in
+[LIVE.md](LIVE.md); the old mode URLs now open the live agent workspace.
+
 Open **All infrastructure** from the original or work-types demo, or choose **Lunar Base · all infrastructure** in CoS. The route is `/lunar-base/?mode=placement` in your existing private CoS session.
 
 This is one 1152×768 synthetic landscape using the existing habitat, adjacent exterior console, lander, holographic rocket platform and test stand. Existing solar arrays, dishes, equipment boxes and test instrumentation remain part of their original sprites. Seven representative astronauts demonstrate console operation, panel repair, sensor attachment, scanning, inspection, welding and a gentle corridor walk. Equipment and crew keep their existing relative sprite scale. Dashed paths are proposed placement guides; no real agent data or telemetry is used.

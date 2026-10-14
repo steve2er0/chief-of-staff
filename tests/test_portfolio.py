@@ -244,20 +244,19 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(next_move['action'], 'activity')
         self.assertEqual(next_move['id'], task['id'])
         self.assertEqual(self.s.store.all('work_item'), items)
-        with self.assertRaises(Invalid): self.s.prepare_project_assignment(self.p['id'])
-        with self.assertRaises(Invalid): self.s.prepare_delegation(self.p['id'], [items[0]['id']])
+        self.assertEqual(len(self.s.prepare_project_assignment(self.p['id'])['specs']), 1)
+        self.assertEqual(len(self.s.prepare_delegation(self.p['id'], [items[0]['id']])['specs']), 1)
 
-    def test_existing_draft_cannot_launch_over_another_assignment(self):
+    def test_explicit_start_can_launch_another_assignment_in_the_same_project(self):
         items = self.work_map()
         whole = self.s.prepare_project_assignment(self.p['id'])
         self.s.approve(whole['id'], whole['revision'])
         piece = self.s.prepare_delegation(self.p['id'], [items[0]['id']])
         self.s.approve(piece['id'], piece['revision'])
         self.s.launch(piece['id'])
-        refreshed = self.s.approve(whole['id'], whole['revision'])
-        self.assertTrue(refreshed['refreshed'])
-        with self.assertRaises(Invalid): self.s.approve(whole['id'], refreshed['plan']['revision'])
-        self.assertEqual(len(self.s.store.all('task')), 1)
+        launched = self.s.delegate_now(whole['id'], whole['revision'])
+        self.assertEqual(launched['state'], 'launched')
+        self.assertEqual(len(self.s.store.all('task')), 2)
 
     def test_whole_project_task_cannot_expand_to_multiple_specs(self):
         plan = self.s.prepare_project_assignment(self.p['id'])
@@ -367,12 +366,12 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(self.s.store.get('job', job['id'])['state'], 'failed')
         self.assertFalse(self.s.store.all('plan'))
 
-    def test_dependencies_and_deferred_pieces_cannot_delegate(self):
+    def test_dependencies_are_advisory_and_deferred_pieces_stay_deferred(self):
         items = self.work_map()
-        for kind in ('implementation', 'future'):
-            item = next(x for x in items if x['kind']==kind)
-            with self.assertRaises(Invalid): self.s.prepare_delegation(self.p['id'], [item['id']])
-        self.assertFalse(self.s.store.all('plan'))
+        implementation = next(x for x in items if x['kind']=='implementation')
+        self.assertEqual(len(self.s.prepare_delegation(self.p['id'], [implementation['id']])['specs']), 1)
+        future = next(x for x in items if x['kind']=='future')
+        with self.assertRaises(Invalid): self.s.prepare_delegation(self.p['id'], [future['id']])
 
     def test_foreign_project_cannot_be_delegated(self):
         items = self.work_map()

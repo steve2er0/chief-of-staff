@@ -65,7 +65,7 @@ class SetupReviewMixin:
                 if review["state"] != "pending":
                     continue
                 project = self.store.get("project", review["project_id"])
-                if (len(self.active) >= self.config()["concurrency"] or self._locked(project["cwd"], "read-only") or
+                if (self.slots_full() or self._locked(project["cwd"], "read-only") or
                         any(j["project_id"] == project["id"] and j["state"] == "running" for j in self.store.all("job"))):
                     continue
                 try:

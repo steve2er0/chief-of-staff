@@ -1,47 +1,73 @@
-# Lunar Base · read-only CoS view
+# Lunar Base · live agent workspace
 
-The shared infrastructure / varied work-pose iteration is documented in [WORKSHOP.md](WORKSHOP.md).
+Open the private launch URL printed by Chief of Staff. The root page is the live
+Lunar Base. `/lunar-base/` and previous `?mode=live`, `attention`, `workshop`,
+`placement` and `demo` URLs all open this same workspace. Product navigation has
+one map, with panels for Results, Needs you, Projects and Settings.
 
-Open the existing private Chief of Staff launch URL, then choose **Lunar Base · live view** in its sidebar. The route is `/lunar-base/?mode=live` on that same service. For example, an already running instance on port 8876 uses `http://127.0.0.1:8876/lunar-base/?mode=live` after authentication. The ordinary `/lunar-base/` route remains the approved two-astronaut synthetic demo.
+## Manage work on the map
 
-The view reads authenticated, same-origin `GET /api/state` every 2.5 seconds while visible. It exposes no launch, approval, settings or job controls. Project and crew buttons, zoom, pan, pause and reconnect only affect this view. Output links read existing CoS outputs. The service and its security configuration are unchanged by this integration.
+Use **Start agents** to choose a project or folder and enter multiple independent
+instructions. Selecting an outpost opens project context and a preselected start
+button. Selecting an astronaut opens its progress, conversation, native questions,
+tool permission requests, reply/continue form, returned work and earlier results.
+Results collects every returned turn, including partial work and file snapshots.
+Acceptance is optional and does not gate continuation.
 
-## What the scene represents
+Each agent keeps one astronaut across continuations. The current turn uses the
+same `agent_id`, suit, browser-local slot and selection. Old turns remain history
+and results. Active or recovery-locked coordinator calls are separate crew;
+completed historical calls do not accumulate on the map. The app does not discover
+independent CLI windows or external Codex sessions.
 
-Buildings map to CoS project IDs. Worker records come from the snapshot's tasks and coordinator jobs; independent Codex sessions are not discovered. Task workers require a frozen `config.mode` of `codex` and a captured session, positive PID, or valid run-start timestamp. Simulated, unknown-engine and unstarted assignments remain readable in project details without becoming astronauts. A running record needs a captured session or PID and fresh activity before animation is enabled.
+## Status and motion
 
-| Supported record | Illustrated state |
+| Evidence | Illustrated state |
 | --- | --- |
-| Running, confirmed worker, activity within 2 minutes | Running; planted console work or a finite lunar journey when the reported work area changes |
-| Queued, paused, pending, stopping | Waiting; motion held |
-| Agent-reported blocker or failure | Blocked / failed, with the recorded lifecycle retained in details |
-| Ready for review | Needs your review |
-| Accepted / completed | Completed |
-| Interrupted, recovery lock, missing run evidence or missing/invalid activity time | Unknown; motion held |
-| Running with more than 2 minutes of activity silence | Activity stale; motion held; not declared stopped |
-| Failed request / stale snapshot | Disconnected / snapshot stale; last known records retained, motion held |
+| Confirmed running worker with activity within two minutes | Working; illustrative pose or finite lunar journey |
+| Native question or exact tool permission request | Waiting for you; amber question marker |
+| Response is being sent | Stationary; response saved / awaiting agent |
+| Queued, paused or stopping | Stationary; lifecycle labeled explicitly |
+| Finished managed-agent result | Finished; available in Results, no acceptance requirement |
+| Explicit unresolved structured owner request | Needs you; linked response controls |
+| Failure, blocker or recovery lock | Failure/blocker/unknown; motion held |
+| Simulated managed agent | Simulated label; no real execution motion |
+| Activity silence, stale snapshot or disconnected service | Last-known state; motion held |
 
-Structured `activity` values determine the illustrated work area: `file_change` uses the nearby work position; supported command and plan activity uses the console. Human update prose is never parsed to invent activity. Opening the view places workers at their current illustrated area rather than replaying an invented journey. The shared moon-bound timing preserves the approved push-off, float, landing and grounded shadow. Animation illustrates reported state; it does not measure physical work or progress.
+Native `commandExecution`, `fileChange`, `mcpToolCall` and `webSearch` events and
+legacy event names are recognized. Only explicit tool events choose a work area;
+prose never invents activity, requests, measured progress or token usage. Obsolete
+questions linked to superseded/cancelled turns and stopped native requests do not
+leave attention markers behind.
 
-Details show the source record, captured session, lifecycle, reported blocker, timestamps, update text and available outputs. There are no token totals or inferred completion percentages. Unknown data remains unavailable.
+## Controls and safety
 
-## Layout and controls
+Drag to pan, use arrow keys with the canvas focused, and zoom or select All
+outposts. Pause and Space freeze illustration while state polling continues.
+Reduced motion starts paused. Positions stay in `cos.lunar.layout.v1` in this
+browser; they do not alter the operational store. Crew pages hold ten astronauts.
 
-Browser-local `cos.lunar.layout.v1` metadata stores project and worker slots by stable ID. New IDs append without moving existing slots; removed IDs retain their slots for a later return. This metadata never enters CoS's operational store. Different browsers or cleared storage may assign a new layout. Ten recorded workers per project page keep the view usable; all worker records remain accessible through crew paging.
-
-Click buildings or crew, or use the lists below the map. Drag to pan, use arrow keys with the canvas focused, and use the zoom / All outposts controls. Pause and Space freeze the illustration while state reads continue. Reduced-motion preference starts paused. Background tabs hold motion and refresh on return.
+The application owns the authenticated same-origin state poll and reuses the
+existing start, reply, response and Stop APIs. The renderer projects snapshots;
+it does not grant permissions or mutate operational records. Ordinary replies
+retain captured permissions. Native permission responses target the exact pending
+request. Session/turn checks, idempotent UUIDs, cancellation, process cleanup,
+recovery locks and file conflict protection remain in place.
 
 ## Source and verification
 
-`source/live-model.js` contains pure state mapping, layout and motion helpers. `source/live-view.js` contains the GET-only browser renderer. `source/demo-scene.js` and `source/demo-styles.css` preserve the original synthetic scene. Rebuild runtime bundles with:
+`static/agent-model.js` is the shared immutable agent/result selector.
+`source/live-model.js` maps state and layout; `source/attention-model.js` maps
+explicit requests; `source/live-view.js` renders the scene; `static/agents.js`
+supplies the operational panels. Source demos remain developer fixtures and are
+excluded from the shipped scene bundle.
 
 ```sh
 python3 static/lunar-base/source/build_scene.py
 node static/lunar-base/source/test_live_model.cjs
-node static/lunar-base/source/test_simulation.cjs
+node static/lunar-base/source/test_attention_model.cjs
 python3 -B -m unittest discover -s tests -q
 ```
 
-`source/run_live_fixture.py` is an isolated browser QA harness. It requires a new empty data directory, uses synthetic records, disables POST, starts no scheduler or worker and verifies unchanged fixture database state on shutdown. Never point it at operational data. Its page is explicitly labeled **QA FIXTURES**.
-
-See `VALIDATION-LIVE.md` for evidence and the remaining browser-capture limitation. Raster provenance and the unchanged approved Library reference remain documented in `README.md` and `source/asset-manifest.json`.
+See `VALIDATION-LIVE.md` for the current validation boundary and `README.md` for
+raster provenance. No new artwork was needed for this integration.

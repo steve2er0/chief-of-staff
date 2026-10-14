@@ -13,13 +13,12 @@ import uuid
 
 from .safety import Invalid, bounded_text
 from .progress import message_details
+from .owner_requests import REQUEST_SCHEMA, validate_requests
 
 
 # Browser/MCP documentation can exceed 128 KiB in one valid JSONL record.
-# Bound individual records, total output, event count and queued records separately.
-MAX_EVENT_BYTES = 1024 * 1024
-MAX_STREAM_BYTES = 16 * 1024 * 1024
-MAX_EVENTS = 20000
+# Bound individual allocations and queued records, without stopping long runs.
+MAX_EVENT_BYTES = 4 * 1024 * 1024
 
 
 COMPLETION_SCHEMA = {
@@ -27,9 +26,10 @@ COMPLETION_SCHEMA = {
     "properties": {
         "status": {"type": "string", "enum": ["completed", "blocked", "failed"]},
         "summary": {"type": "string"},
-        "artifacts": {"type": "array", "items": {"type": "string"}},
+        "artifacts": {"type": "array", "description": "All delivered relative file paths; list files, not directories.", "items": {"type": "string"}},
         "decisions": {"type": "array", "items": {"type": "string"}},
-        "next_steps": {"type": "array", "items": {"type": "string"}}
+        "next_steps": {"type": "array", "items": {"type": "string"}},
+        "user_requests": REQUEST_SCHEMA
     }, "required": ["status", "summary", "artifacts", "decisions", "next_steps"]
 }
 
@@ -44,17 +44,55 @@ def session_id(value):
 
 
 def completion(value):
-    if not isinstance(value, dict) or set(value) != set(COMPLETION_SCHEMA["required"]):
-        raise Invalid("Final response does not match the completion contract")
+    if not isinstance(value, dict):
+        raise Invalid("Final report must be a JSON object")
+    missing = set(COMPLETION_SCHEMA["required"]) - set(value)
+    unknown = set(value) - set(COMPLETION_SCHEMA["properties"])
+    if missing:
+        raise Invalid("Final report is missing fields: " + ", ".join(sorted(missing)))
+    if unknown:
+        raise Invalid("Final report contains unsupported fields: " + ", ".join(sorted(unknown)))
     if value["status"] not in ("completed", "blocked", "failed"):
-        raise Invalid("Invalid completion status")
-    bounded_text(value["summary"], "summary", 30000)
+        raise Invalid("Final report status must be completed, blocked or failed")
+    if not isinstance(value["summary"], str) or not value["summary"].strip():
+        raise Invalid("Completion field 'summary' must be non-empty text")
+    if "\x00" in value["summary"] or len(value["summary"]) > MAX_EVENT_BYTES:
+        raise Invalid("Completion field 'summary' contains a null character or exceeds the capture buffer")
     for k in ("artifacts", "decisions", "next_steps"):
-        if not isinstance(value[k], list) or len(value[k]) > 30:
-            raise Invalid("Invalid completion " + k)
-        for v in value[k]:
-            bounded_text(v, k, 3000)
+        if not isinstance(value[k], list):
+            raise Invalid("Completion field '" + k + "' must be a list")
+        if k == "artifacts":
+            continue  # Inspect individual entries during capture; retain valid files.
+        for index, v in enumerate(value[k]):
+            if not isinstance(v, str) or not v.strip() or "\x00" in v or len(v) > MAX_EVENT_BYTES:
+                raise Invalid("Completion field '" + k + "' entry " + str(index + 1) + " must be non-empty text without null characters, within the capture buffer")
+    if "user_requests" in value:
+        validate_requests(value["user_requests"])
     return value
+
+
+def retained_report(raw, issue, captured, status="blocked"):
+    """Retain an unverified handoff without promoting it to a completed result."""
+    try:
+        value = json.loads(raw) if isinstance(raw, str) else raw
+    except (ValueError, TypeError):
+        value = None
+    value = value if isinstance(value, dict) else {}
+    summary = value.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        summary = raw if isinstance(raw, str) and raw.strip() else issue + " The agent did not return a final report."
+    result = {"status": status, "summary": summary, "session_id": captured,
+              "agent_report": raw if isinstance(raw, str) else json.dumps(raw) if raw is not None else "",
+              "reported_status": value.get("status"), "handoff_issues": [issue],
+              "artifacts": value.get("artifacts") if isinstance(value.get("artifacts"), list) else [],
+              "decisions": [x for x in value.get("decisions", []) if isinstance(x, str) and x.strip()] if isinstance(value.get("decisions"), list) else [],
+              "next_steps": [x for x in value.get("next_steps", []) if isinstance(x, str) and x.strip()] if isinstance(value.get("next_steps"), list) else []}
+    if "user_requests" in value:
+        try:
+            result["user_requests"] = validate_requests(value["user_requests"])
+        except Invalid as error:
+            result["handoff_issues"].append("Owner request metadata: " + str(error) + ". Correct the request envelope; earlier owner requests remain unchanged.")
+    return result
 
 
 def command_prefix(config):
@@ -149,7 +187,7 @@ class CodexAdapter:
     def preflight(self, config):
         prefix = command_prefix(config)
         output = {}
-        for key, args in (("version", ["--version"]), ("root", ["--help"]), ("exec", ["exec", "--help"]), ("resume", ["exec", "resume", "--help"])):
+        for key, args in (("version", ["--version"]), ("root", ["--help"]), ("exec", ["exec", "--help"]), ("resume", ["exec", "resume", "--help"]), ("app_server", ["app-server", "--help"])):
             r = self.runner(prefix + args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15, shell=False)
             output[key] = (r.stdout + "\n" + r.stderr)[:60000] if r.returncode == 0 else ""
         required = {"json": "--json" in output["exec"], "sandbox": "--sandbox" in output["exec"],
@@ -165,6 +203,7 @@ class CodexAdapter:
                 "resume_skip_git": "--skip-git-repo-check" in output["resume"],
                 "yolo": "--dangerously-bypass-approvals-and-sandbox" in output["exec"],
                 "resume_yolo": "--dangerously-bypass-approvals-and-sandbox" in output["resume"],
+                "app_server": "--listen" in output["app_server"] or "--stdio" in output["app_server"],
                 "model_verified": False, "note": "Help-only check. Authentication, model routing and sandbox enforcement have not been exercised. Headless exec may reject approval-required operations; no automatic approval review is enabled.",
                 "help": output}
         self.capabilities = caps
@@ -208,6 +247,12 @@ class CodexAdapter:
             args += [session]
         return args + ["-"]
 
+    def run_interactive(self, config, cwd, sandbox, prompt, cancel, update, control, session=None,
+                        research_access=False, execution_policy="sandboxed"):
+        from .live_agent import run_agent
+        return run_agent(self, config, cwd, sandbox, prompt, cancel, update, control, session,
+                         research_access, execution_policy)
+
     def run(self, config, cwd, sandbox, prompt, schema_path, cancel, update, session=None, validator=completion, research_access=False, execution_policy="sandboxed"):
         time_limit = config["timeout_seconds"]
         if type(time_limit) is not int or not 0 <= time_limit <= 14400:
@@ -230,6 +275,14 @@ class CodexAdapter:
                     line = pipe.readline(MAX_EVENT_BYTES + 1)
                     if not line:
                         break
+                    if len(line.encode("utf-8")) > MAX_EVENT_BYTES:
+                        # Drain this record without retaining unbounded tool output.
+                        # The worker keeps running; final capture is marked incomplete.
+                        while not line.endswith("\n") and not done.is_set():
+                            line = pipe.readline(MAX_EVENT_BYTES + 1)
+                            if not line:
+                                break
+                        line = {"capture_issue": "One " + channel + " record exceeded the " + str(MAX_EVENT_BYTES) + "-byte capture buffer and was not recorded. Recheck this run's log before accepting; the agent continued running."}
                     while not done.is_set():
                         try:
                             stream.put((channel, line), timeout=0.1)
@@ -244,8 +297,8 @@ class CodexAdapter:
                     except queue.Full:
                         continue
         final, completed, errors, malformed, captured = None, False, [], 0, session
-        event_errors = []
-        ended, count, total_bytes = set(), 0, 0
+        event_errors, capture_issues = [], []
+        ended = set()
         started = time.monotonic()
         try:
             if os.name == "nt":
@@ -259,9 +312,9 @@ class CodexAdapter:
             process.stdin.close()
             while len(ended) < 2:
                 if cancel.is_set():
-                    return {"status": "cancelled", "summary": "Stopped by user", "session_id": captured}
+                    return retained_report(final, "Stopped by user. Saved project files remain available for continuation.", captured, "cancelled")
                 if time_limit and time.monotonic() - started > time_limit:
-                    return {"status": "blocked", "summary": "Approved assignment time limit reached (" + str(time_limit) + " seconds). Partial edits remain on disk; revise to resume.", "session_id": captured}
+                    return retained_report(final, "Approved assignment time limit reached (" + str(time_limit) + " seconds). Partial edits remain on disk; revise to resume.", captured)
                 try:
                     channel, line = stream.get(timeout=0.1)
                 except queue.Empty:
@@ -269,23 +322,15 @@ class CodexAdapter:
                 if line is None:
                     ended.add(channel)
                     continue
-                event_bytes = len(line.encode("utf-8"))
-                total_bytes += event_bytes
-                if event_bytes > MAX_EVENT_BYTES:
-                    raise Invalid("Worker " + channel + " event exceeded the " + str(MAX_EVENT_BYTES) +
-                                  "-byte record limit (read at least " + str(event_bytes) +
-                                  " bytes). Partial project files remain on disk; revise to resume.")
-                if total_bytes > MAX_STREAM_BYTES:
-                    raise Invalid("Worker total event output exceeded the " + str(MAX_STREAM_BYTES) +
-                                  "-byte run limit (read " + str(total_bytes) +
-                                  " bytes). Partial project files remain on disk; revise to resume.")
-                if channel == "stderr":
-                    if len(errors) < 30:
-                        errors.append(line.strip()[:1000])
+                if isinstance(line, dict):
+                    if len(capture_issues) < 20:
+                        capture_issues.append(line["capture_issue"])
+                    update({"progress": line["capture_issue"], "progress_kind": "activity", "event": "capture.warning"})
                     continue
-                count += 1
-                if count > MAX_EVENTS:
-                    raise Invalid("Too many worker events")
+                if channel == "stderr":
+                    errors.append(line.strip()[:1000])
+                    errors = errors[-30:]
+                    continue
                 try:
                     e = json.loads(line)
                     if not isinstance(e, dict) or not isinstance(e.get("type"), str):
@@ -306,6 +351,7 @@ class CodexAdapter:
                     completed = True
                 elif typ in ("turn.failed", "error"):
                     event_errors.append(str(e.get("error", e.get("message", typ)))[:1000])
+                    event_errors = event_errors[-30:]
                     update({"progress": "CLI reported a failure", "event": typ})
                 elif typ.startswith("item."):
                     item = e.get("item", {})
@@ -319,17 +365,29 @@ class CodexAdapter:
                         details = message_details(raw) if item.get("type") == "agent_message" else None
                         update({"progress": details["text"] if details else raw[:2000],
                                 "reported_status": details["reported_status"] if details else None,
-                                "progress_kind": "message" if details else "activity", "event": typ})
+                                "progress_kind": "message" if details else "activity", "event": typ,
+                                **({"user_requests": details["user_requests"]} if details and "user_requests" in details else {})})
             code = process.wait(timeout=5)
             fatal = event_errors + [x for x in errors if x and not x.startswith("WARNING:")]
-            if code or not completed or malformed or not captured or event_errors:
-                msg = "; ".join(fatal[-4:]) or "No verified completed turn/session, or malformed events"
+            if code or not completed or not captured or event_errors:
+                msg = "; ".join(fatal[-4:]) or ("CLI exited with code " + str(code) if code else "No verified completed turn/session")
                 blocked = any(x in msg.lower() for x in ("approval", "permission", "sandbox", "denied", "authentication", "unauthorized", "login"))
-                return {"status": "blocked" if blocked else "failed", "summary": msg, "session_id": captured}
-            result = validator(json.loads(final or "null"))
-            return dict(result, session_id=captured)
+                return retained_report(final, msg, captured, "blocked" if blocked else "failed")
+            if malformed or capture_issues:
+                issues = capture_issues + ([str(malformed) + " malformed CLI event(s). Verify or rerun the interrupted log capture before acceptance."] if malformed else [])
+                result = retained_report(final, issues[0], captured)
+                result["handoff_issues"] = issues + result["handoff_issues"][1:]
+                result["execution_verified"] = True
+                return result
+            try:
+                result = validator(json.loads(final or "null"))
+            except (Invalid, ValueError, TypeError) as error:
+                result = retained_report(final, "Final report format: " + str(error) + ". The original report and valid files are retained for review.", captured)
+                result["execution_verified"] = True
+                return result
+            return dict(result, session_id=captured, agent_report=final, execution_verified=True)
         except (Invalid, ValueError, TypeError, OSError, subprocess.SubprocessError) as e:
-            return {"status": "failed", "summary": str(e), "session_id": captured}
+            return retained_report(final, str(e), captured, "failed")
         finally:
             done.set()
             stop_process(process, job)

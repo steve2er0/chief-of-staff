@@ -1,5 +1,8 @@
 # Visual slice validation · 2026-10-13
 
+Historical fixture and artwork evidence. Current launch and workflow are in
+[LIVE.md](LIVE.md); the old mode URLs now open the live agent workspace.
+
 - Current shared repository: **189 Python tests passed**, including the four
   new private Lunar Base route/state tests. Existing model calls remain mocked.
 - All five original JavaScript files plus the scene/simulation parse successfully.

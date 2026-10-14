@@ -1,46 +1,12 @@
-# Lunar Base visual slice
+# Lunar Base live workspace
 
-The shared infrastructure / varied work-pose iteration is documented in [WORKSHOP.md](WORKSHOP.md).
+The live map is the Chief of Staff home screen. Start multiple agents, select an
+astronaut to follow or reply, and open Results, project context or Settings in
+side panels. See [LIVE.md](LIVE.md) for status, controls, architecture and safety.
 
-One warm-lit habitat, one research console, two miniature animated astronauts.
-The default Canvas scene is a visual demo. Its activity states are scripted and
-synthetic; this mode reads no projects, assignments, tokens or telemetry.
-
-An optional **Lunar Base · live view** now reads the existing authenticated CoS
-snapshot at `/lunar-base/?mode=live`. See [LIVE.md](LIVE.md) for its read-only
-boundaries, supported states and launch instructions.
-
-## Run on this Mac
-
-From the Chief of Staff project:
-
-```sh
-python3 -B app.py --port 8893 --data-dir /tmp/cos-lunar-demo --no-browser
-```
-
-Open the private launch URL printed by the app, then choose **Lunar Base demo**
-in the sidebar. After establishing that session, the page is
-`http://127.0.0.1:8893/lunar-base/`. If the port is occupied, use another port.
-The regular CoS UI and private session protections remain in place.
-
-For a standalone visual preview without CoS, serve this folder directly:
-
-```sh
-python3 -m http.server 8894 --bind 127.0.0.1 --directory static/lunar-base
-```
-
-Then open `http://127.0.0.1:8894/`. The CoS return link only works when served
-through the app. No installation is required for either runtime.
-
-## Controls
-
-- Click a crew member, habitat or console; keyboard users can select the buttons.
-- **Pause motion** freezes both path position and animation poses; **Resume**
-  continues from that instant. Space does the same when the Canvas has focus.
-- Reduced-motion preference starts the page paused. Turning the preference on
-  during playback pauses it. Resume is an explicit opt-in.
-- Background tabs freeze scene time. Returning does not jump the characters.
-- The full 768×512 scene fits the viewport; selection details sit beneath it.
+Start CoS normally with `python3 -B app.py --port 8876` and open its private launch
+URL. Do not run a second service against an already-open data directory. Previous
+Lunar mode URLs open the same workspace; demos are no longer product views.
 
 ## Assets and provenance
 
@@ -93,10 +59,11 @@ allowlist, MIME types, blocked unknown/source paths and unchanged service state.
 Motion tests cover route continuity and speed, all walk poses, both console
 shifts, character separation and pause/background clocks.
 
-## Scope
+## Development fixtures
 
-This is the first visual slice, with a single fixed scene and scripted behaviour.
-The default mode has no live agent integration, user-directed pathfinding, interior navigation,
-game economy or token-driven growth. Character directions use a side view with
-mirroring, rather than a full eight-direction atlas. No paid service, real agent
-job, deployment or push is part of this demo.
+The original scene, workshop, placement and attention demos remain in `source/`
+for model, motion and artwork tests. They are excluded from product navigation
+and the served scene bundle. Historical scripted motion evidence does not prove
+real provider execution. See [VALIDATION-LIVE.md](VALIDATION-LIVE.md) for current
+integration evidence, [WORKSHOP.md](WORKSHOP.md) for work-pose provenance and
+[ATTENTION.md](ATTENTION.md) for request semantics and attention artwork.

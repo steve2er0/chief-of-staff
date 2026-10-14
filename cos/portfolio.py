@@ -362,24 +362,18 @@ class PortfolioMixin:
         if plan.get("scope") == "project":
             if len(plan["specs"]) != 1:
                 raise Invalid("A whole-project assignment needs exactly one task")
-            if outstanding:
-                raise Invalid("Review or stop the project's existing assignment before launching another")
-        elif any(t.get("assignment_scope") == "project" for t in outstanding):
-            raise Invalid("Review or stop the whole-project assignment before delegating separate pieces")
         for spec in plan["specs"]:
             if not spec.get("work_item_id"):
                 continue
             item = self.store.get("work_item", spec["work_item_id"])
             if item["project_id"] != plan["project_id"] or item["status"] in ("done", "deferred"):
                 raise Invalid("This piece is complete, deferred or belongs to another project")
-            if any(self.store.get("work_item", key)["status"] != "done" for key in item["depends_on"]):
-                raise Invalid("Resolve this piece's dependencies before delegation")
-            if any(t.get("work_item_id") == item["id"] and t["state"] in ("queued", "running", "stopping", "ready_for_review") for t in self.store.all("task")):
+            if any(t.get("work_item_id") == item["id"] and t["state"] in ("queued", "running", "stopping") for t in self.store.all("task")):
                 raise Invalid("This piece already has active work or a result awaiting review")
 
     def prepare_delegation(self, pid, item_ids):
-        if not isinstance(item_ids, list) or not 1 <= len(item_ids) <= 20 or len(set(item_ids)) != len(item_ids):
-            raise Invalid("Select 1 to 20 distinct work pieces")
+        if not isinstance(item_ids, list) or not item_ids or len(set(item_ids)) != len(item_ids):
+            raise Invalid("Select distinct work pieces")
         with self.store.transaction():
             self.store.get("project", pid)
             for existing in self.store.all("plan"):
@@ -394,7 +388,7 @@ class PortfolioMixin:
                 if item["project_id"] != pid:
                     raise Invalid("Select pieces from one project")
                 specs.append({"title": item["title"], "purpose": item["purpose"] + "\nExpected outcome: " + item["outcome"],
-                              "criteria": item["criteria"], "access": "read-only", "expected_outputs": [], "work_item_id": key})
+                              "criteria": item["criteria"], "access": "workspace-write" if self.config()["default_execution_policy"] == "yolo" else "read-only", "expected_outputs": [], "work_item_id": key})
             self._validate_linked_plan({"project_id": pid, "specs": specs})
             return self._draft(pid, "\n".join(x["title"] for x in specs), "Selected project work pieces", specs,
                                "User-selected delegation · review scope and permissions before approval")

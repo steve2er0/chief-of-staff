@@ -28,7 +28,7 @@ function conversationSignature(pid) {
 }
 
 function syncConversationFeedback(freshSnapshot=false) {
-  if(view!=='project'||typeof projectTab==='undefined'||projectTab!=='conversation'||$('#modal')?.open)return;
+  if(view!=='project'||typeof projectTab==='undefined'||projectTab!=='conversation'||($('#modal')?.open&&currentModal?.type!=='workspace-panel'))return;
   const form=$('#conversation-form'), transcript=$('.conversation');if(!form||!transcript)return;
   const pid=form.dataset.projectId, project=state.projects.find(p=>p.id===pid);if(!project)return;
   const signature=conversationSignature(pid);

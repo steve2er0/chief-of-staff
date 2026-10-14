@@ -1,0 +1,64 @@
+/* Workspace shell and panels; map styles above are scoped to #lunar-host. */
+body[data-agent-workspace]{background:#080e1b}
+body[data-agent-workspace] main.agent-workspace{margin:0 auto;padding:20px 28px 28px;max-width:1500px}
+.workspace-header{color:#e8e5e8;margin:0 0 12px;flex-wrap:wrap}
+.workspace-header .brand{color:#e8e5e8;font-size:18px}
+.workspace-header .brand small{color:#99acbf}
+.workspace-header .brand-mark{background:#183744;color:#84d8dd;border:1px solid #395261}
+.workspace-actions{display:flex;align-items:center;gap:8px;margin:0;flex-wrap:wrap}
+.workspace-actions button{background:#142335;color:#c5d7e5;border-color:#334559;font-size:12px;padding:9px 12px}
+.workspace-actions button:hover,.workspace-actions button.active{background:#21374a;border-color:#7294a7}
+.workspace-actions button.primary{background:#57d4df;color:#0b2533;border-color:#57d4df}
+.workspace-actions span:not(:empty){display:inline-block;margin-left:4px;padding:0 5px;border-radius:4px;background:#ffcf8d;color:#273040}
+.workspace-footer{border-top:0;display:flex;justify-content:space-between;gap:15px;margin-top:18px;color:#96a7ba;font-size:11px}
+.workspace-footer #mode-label{padding:0;border:0;display:inline;color:inherit;font-size:10px}
+#lunar-host{max-width:1240px;margin:auto;line-height:1.5}
+#lunar-host .entities{display:flex;margin:0;gap:8px;padding:12px 0}
+#lunar-host .scene-title h1{color:#e8e5e8;margin:0;font-family:ui-monospace,monospace}
+#lunar-host .viewport{border-radius:12px}
+#lunar-host .live-details[hidden]{display:none}
+#lunar-host .live-connection{margin-bottom:10px}
+#lunar-host .live-connection .demo-label{flex:none;white-space:nowrap;min-width:auto}
+#lunar-host .live-legend{padding-bottom:12px}
+#lunar-host footer{border:0;padding-top:0;font-size:9px}
+#lunar-host .live-camera button{min-height:38px}
+#lunar-host #world{width:100%;height:auto;background:#111d31}
+#lunar-host .scene-title{top:20px}
+.workspace-drawer{position:fixed;inset:0 0 0 auto;margin:0;width:min(570px,48vw);height:100dvh;max-height:100dvh;max-width:none;border-radius:14px 0 0 14px;padding:24px 26px;overflow:auto;box-shadow:-20px 0 60px #0005;z-index:20}
+.workspace-drawer[data-panel=workspace-panel]{width:min(780px,56vw)}
+.workspace-drawer .modal-top{position:sticky;top:-24px;background:var(--white);z-index:3;margin:0 -4px 20px;padding:12px 4px 16px;border-bottom:1px solid var(--line)}
+.workspace-drawer .modal-top h2{font-size:25px}
+.workspace-drawer .split,.workspace-drawer .project-layout{grid-template-columns:1fr}
+.workspace-drawer .grid-projects,.workspace-drawer .agent-grid{grid-template-columns:1fr}
+.workspace-drawer pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:11px}
+.workspace-drawer .agent-transcript{max-height:280px}
+.workspace-drawer .project-tabs{overflow-x:auto}
+body[data-panel-open] main.agent-workspace{margin-right:min(570px,48vw);padding-right:20px}
+body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(780px,56vw)}
+body[data-panel-open] #lunar-host #world{max-height:none;min-height:0}
+#toast{z-index:40}
+@media(max-width:1000px){
+ body[data-panel-open] main.agent-workspace,body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:0}
+ .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{width:min(570px,70vw)}
+}
+@media(max-width:650px){
+ body[data-agent-workspace] main.agent-workspace{padding:14px 12px 20px}
+ .workspace-header{align-items:flex-start;gap:16px}
+ .workspace-actions{gap:5px;width:100%}
+ .workspace-actions button{padding:8px;font-size:11px}
+ .workspace-actions button.primary{margin-left:auto}
+ .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{top:24vh;height:76dvh;width:100%;border-radius:15px 15px 0 0;padding:18px}
+ .workspace-drawer .modal-top{top:-18px}
+ #lunar-host #world{min-height:0;max-height:none}
+ #lunar-host .scene-title{top:15px}
+ #lunar-host .scene-title h1{font-size:20px}
+ .workspace-footer{font-size:9px}
+}
+
+.live-agent-request fieldset{border:0;padding:0;margin:0;min-width:0}
+.live-agent-request fieldset:disabled{opacity:.65}
+
+.workspace-header{position:sticky;top:0;z-index:10;background:#080e1bf5;padding:10px 0}
+
+#lunar-host{container-type:inline-size}
+#lunar-host .scene-title h1{font-size:clamp(18px,3.1cqw,38px)}
