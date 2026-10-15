@@ -91,10 +91,14 @@ abstain((s,t)=>t.result.summary='Which color should I choose?');
 abstain((s,t)=>t.result.agent_report='Please decide whether to publish.');
 abstain((s,t)=>t.result.summary='x'.repeat(8001));
 abstain((s,t)=>t.result.decisions=['Approve publication']);
+abstain((s,t)=>t.decisions_needed=['Select the audience']);
+abstain((s,t)=>t.user_requests_error='Conflicting owner request revision');
+abstain((s,t)=>t.owner_attention={source:'invalid',items:[]});
 abstain((s,t)=>t.owner_attention={items:[{answered:false}]});
 abstain((s,t)=>t.result.user_requests={items:[{kind:'question'}]});
 abstain((s,t)=>t.live_requests=[{status:'pending'}]);
 abstain(s=>s.projects[0].records=[{category:'question',status:'open'}]);
+abstain(s=>s.projects[0].open_questions='Select the audience');
 abstain((s,t)=>t.handoff_issues=['Missing file']);
 abstain((s,t)=>t.result.next_steps=['yes continue']);
 abstain((s,t)=>t.result.next_steps=['Run tests; approve and deploy']);
@@ -114,6 +118,19 @@ const key=f.context(s,'a').key;s.tasks[0].conversation.at(-1).text='A newer repo
 assert.notEqual(f.context(s,'a').key,key);
 s.tasks.push({...task,id:'unrelated',agent_id:'other',state:'running'});
 assert.ok(f.context(s,'a'));
+// Edits to the request or project context also invalidate an in-flight prediction.
+const fallback=JSON.parse(before);fallback.tasks[0].conversation=[];
+for(const mutate of [s=>s.tasks[0].purpose='Build a histogram',
+ s=>s.tasks[0].goal='New task goal',s=>s.projects[0].goal='New project goal',
+ s=>s.projects[0].next_steps='Review the sample']){
+ const changed=JSON.parse(JSON.stringify(fallback));
+ const key=f.context(changed,'a').key;mutate(changed);assert.notEqual(f.context(changed,'a').key,key);
+}
+// Long requests use the task title as their topic.
+fallback.tasks[0].purpose='Build '.repeat(30);
+const titleKey=f.context(fallback,'a').key;fallback.tasks[0].title='New task title';
+assert.notEqual(f.context(fallback,'a').key,titleKey);
+fallback.projects[0].open_questions='   ';assert.ok(f.context(fallback,'a'));
 ''')
 
     def test_async_races_keyboard_focus_cancellation_and_recovery(self):

@@ -16,11 +16,12 @@
     const result=task.result;
     if(!result||result.status!=='completed'||result.report_truncated||result.execution_verified===false)return null;
     const owner=task.owner_attention||task.user_requests;
-    if(list(task.live_requests).some(r=>['pending','sending'].includes(r.status))||
+    if(task.user_requests_error||owner?.source==='invalid'||
+      list(task.live_requests).some(r=>['pending','sending'].includes(r.status))||
       list(owner?.items).some(r=>!r.answered)||list(result.user_requests?.items).length||
-      list(result.decisions).length||list(task.handoff_issues).length||list(task.snapshot_limits).length||list(result.handoff_issues).length)return null;
+      list(task.decisions_needed).length||list(result.decisions).length||list(task.handoff_issues).length||list(task.snapshot_limits).length||list(result.handoff_issues).length)return null;
     const project=list(snapshot.projects).find(p=>p.id===task.project_id);
-    if(!project||list(project.records).some(r=>r.category==='question'&&r.status==='open'||
+    if(!project||project.open_questions?.trim()||list(project.records).some(r=>r.category==='question'&&r.status==='open'||
       ['decision','assumption'].includes(r.category)&&r.status==='suggested'))return null;
     const summary=text(result.summary,8000),report=text(result.agent_report||result.summary,16000);
     if(!summary||!report||unresolved(summary)||unresolved(report))return null;
@@ -38,7 +39,7 @@
     const evidence={request,topic,summary,steps,captured};
     // Freeze every relevant input, including transcript changes, for stale-result rejection.
     return {key:JSON.stringify([task.id,task.project_id,task.state,task.finished_at,result,
-      messages,project.version,project.vision||project.goal,project.records,task.output_links]),...evidence};
+      messages,request,topic,task.goal,project.version,project.vision,project.goal,project.next_steps,project.records,task.output_links]),...evidence};
   }
 
   function predict(input){

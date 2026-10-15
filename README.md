@@ -82,6 +82,23 @@ working folder, model and execution permissions. Tool permissions are handled
 in the same conversation when the CLI requests them. A saved result does not
 need to be accepted before you start another agent or send a follow-up.
 
+After a completed response, an empty focused reply box can show one subtle
+suggested draft. **Tab** or **Use suggestion** copies it into editable text;
+**Escape** dismisses it, and typing hides it immediately. Shift-Tab keeps its
+normal focus behavior. Sending remains a separate explicit action with the
+existing execution permissions. Disable suggestions in **Settings**; the choice
+is saved across restarts.
+
+Suggestions currently use a conservative local rule, not model generation. The
+existing Codex integration launches tool-capable agent sessions and has no
+bounded text-only prediction interface. The local rule recognizes a single
+structured test follow-up or proposes reviewing one captured deliverable against
+the latest request. It treats reports as untrusted data, never copies arbitrary
+instructions from them, and abstains for unresolved decisions, missing evidence,
+or ambiguous next steps. Generation and acceptance make no model calls or work
+requests. Pending predictions expire and are discarded when their task, report,
+request, focus, draft, visibility, or setting changes.
+
 **Results** shows the latest returned outcome for each agent, with earlier runs
 under a separate disclosure. Short summaries lead to **Open preview** when the
 report supplies a preview link, or **View result**. **Files** lists captured

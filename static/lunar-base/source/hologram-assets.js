@@ -1,0 +1,1 @@
+window.LunarHologramAssets={"url":"/lunar-base/assets/hologram-cycle.png","width":675,"height":735,"columns":5,"steps":15,"period":24,"hold":9,"transition":3,"rings":{"frames":120,"period":24,"arc":0.28,"orbits":[{"center":[341,205],"radii":[214,96],"tilt":-0.34,"direction":1,"offset":2.25},{"center":[343,297],"radii":[216,94],"tilt":-0.1,"direction":-1,"offset":5.65}]}};

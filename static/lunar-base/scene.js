@@ -792,6 +792,80 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
   root.LunarAvailability=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
 
+window.LunarHologramAssets={"url":"/lunar-base/assets/hologram-cycle.png","width":675,"height":735,"columns":5,"steps":15,"period":24,"hold":9,"transition":3,"rings":{"frames":120,"period":24,"arc":0.28,"orbits":[{"center":[341,205],"radii":[214,96],"tilt":-0.34,"direction":1,"offset":2.25},{"center":[343,297],"radii":[216,94],"tilt":-0.1,"direction":-1,"offset":5.65}]}};
+
+/* Ambient scenery only. This clock has no agent, task or transport inputs. */
+(function(root){
+  'use strict';
+  function frame(seconds,meta,reduced=false){
+    if(reduced||!Number.isFinite(seconds))return 0;
+    const t=((seconds%meta.period)+meta.period)%meta.period,h=meta.hold,d=meta.transition,n=meta.steps;
+    if(t<h)return t%4>=2?n+1:0;
+    if(t<h+d)return Math.round((t-h)/d*n);
+    if(t<h*2+d)return (t-h-d)%4>=2?n+2:n;
+    return Math.round((1-(t-h*2-d)/d)*n);
+  }
+  function clock(meta){
+    let seconds=0;
+    return {advance(elapsed,{paused=false,hidden=false,reduced=false}={}){
+      if(!paused&&!hidden&&!reduced&&Number.isFinite(elapsed)&&elapsed>0)
+        seconds=(seconds+Math.min(.08,elapsed))%meta.period;
+      return frame(seconds,meta,reduced);
+    },orbit(reduced=false){
+      return reduced||!meta.rings?null:Math.floor(seconds/meta.rings.period*meta.rings.frames)%meta.rings.frames;
+    }};
+  }
+  function rect(index,meta){
+    return [(index%meta.columns)*meta.width,Math.floor(index/meta.columns)*meta.height,meta.width,meta.height];
+  }
+  const api={frame,clock,rect};root.LunarHologram=api;
+  if(typeof module!=='undefined')module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
+
+/* Projected markings in the registered sprite plane; the hardware stays fixed. */
+(function(root){
+  'use strict';
+  function point(orbit,angle){
+    const [cx,cy]=orbit.center,[rx,ry]=orbit.radii,c=Math.cos(orbit.tilt),s=Math.sin(orbit.tilt);
+    return [cx+rx*Math.cos(angle)*c-ry*Math.sin(angle)*s,cy+rx*Math.cos(angle)*s+ry*Math.sin(angle)*c];
+  }
+  function strokes(index,meta,front){
+    if(index===null||!meta.rings)return [];
+    const rings=meta.rings,result=[];
+    const add=(points,width,alpha)=>{if(points.length>1)result.push({points,width,alpha});};
+    const arc=(points,alpha)=>{add(points,6,alpha*.17);add(points,2.5,alpha);};
+    for(const orbit of rings.orbits){
+      const angle=orbit.offset+orbit.direction*index/rings.frames*Math.PI*2;
+      const alpha=.70+.16*Math.sin(angle);let points=[];
+      for(let n=0;n<=20;n++){
+        const a=angle-orbit.direction*rings.arc*(1-n/20);
+        if((Math.sin(a)>=0)===front)points.push(point(orbit,a));
+        else if(points.length){arc(points,alpha);points=[];}
+      }
+      arc(points,alpha);
+      // A short normal tick and small marker make motion readable on a uniform ring.
+      if((Math.sin(angle)>=0)===front){
+        const [x,y]=point(orbit,angle),[tx,ty]=point(orbit,angle-.015),length=Math.hypot(x-tx,y-ty);
+        const nx=-(y-ty)/length*5,ny=(x-tx)/length*5;
+        add([[x-nx,y-ny],[x+nx,y+ny]],2,alpha);
+        add([[x-3,y-3],[x+3,y-3],[x+3,y+3],[x-3,y+3],[x-3,y-3]],2,alpha);
+      }
+    }
+    return result;
+  }
+  function paint(ctx,index,meta,x,y,width,height,front){
+    const paths=strokes(index,meta,front);if(!paths.length)return;
+    ctx.save();ctx.translate(x,y);ctx.scale(width/meta.width,height/meta.height);ctx.lineCap='square';ctx.lineJoin='round';
+    for(const path of paths){
+      ctx.strokeStyle='rgba(126,244,255,'+path.alpha+')';ctx.lineWidth=path.width;ctx.beginPath();
+      path.points.forEach(([px,py],i)=>i?ctx.lineTo(px,py):ctx.moveTo(px,py));ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const api={point,strokes,paint};root.LunarHologramOrbits=api;
+  if(typeof module!=='undefined')module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);
+
 /* Scene projection. Management controls are supplied by the authenticated app. */
 (function (root) {
   'use strict';
@@ -833,6 +907,10 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     let projectFilter=new URLSearchParams(location.search).get('project')||'',selectedProject=projectFilter,selectedWorker='',fetching=false,requestController=null,connectionError='',initialFocus=false;
     let paused=motion.matches,previous=0,crewPage=0,drag=null,lastPainted=[],listsSignature='',detailSignature='',demoElapsed=0,attentionSignature='',beaconPhase=0;
     let camera={x:0,y:0,zoom:1},assetsReady=false,dirty=true,destroyed=false;
+    const hologram=root.LunarHologram,hologramMeta=root.LunarHologramAssets,orbits=root.LunarHologramOrbits;
+    const hologramClock=hologram&&hologramMeta?hologram.clock(hologramMeta):null;
+    let hologramFrame=0,paintedHologramFrame=-1;
+    let orbitFrame=null,paintedOrbitFrame=null;
     // Layout and hit testing stay in 768 x 432 logical units. Only the backing
     // surface follows the CSS size and display density, including drawer resize.
     function resizeSurface(){
@@ -1098,6 +1176,11 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
           }
           drawables.push({depth:p.y+object.groundDepth,draw:()=>{
             if(object.src||object.asset==='habitat'||object.asset==='console')ctx.drawImage(images[object.asset],s.x,s.y,w,h);
+            else if(object.asset==='hologram'&&images.hologramCycle){
+              orbits?.paint(ctx,orbitFrame,hologramMeta,s.x,s.y,w,h,false);
+              ctx.drawImage(images.hologramCycle,...hologram.rect(hologramFrame,hologramMeta),s.x,s.y,w,h);
+              orbits?.paint(ctx,orbitFrame,hologramMeta,s.x,s.y,w,h,true);
+            }
             else packed(object.asset,s.x,s.y,w,h);
 
           }});
@@ -1184,6 +1267,8 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     function loop(timestamp) {
       if(destroyed)return;
       const elapsed=previous?Math.min(.08,(timestamp-previous)/1000):0;previous=timestamp;
+      if(hologramClock)hologramFrame=hologramClock.advance(elapsed,{paused,hidden:document.hidden,reduced:motion.matches});
+      orbitFrame=hologramClock&&orbits&&images.hologramCycle?hologramClock.orbit(motion.matches):null;
       if(!paused && !document.hidden) {
         if(isDemo)demoElapsed+=elapsed;beaconPhase+=elapsed;
         for(const worker of view.workers) {
@@ -1194,7 +1279,8 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
         }
         availability.advanceCrew(view.workers,tracks,elapsed,model.pose,bound,layout);
       }
-      if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;}
+      const ambientChanged=images.hologramCycle&&(hologramFrame!==paintedHologramFrame||orbitFrame!==paintedOrbitFrame);
+      if(assetsReady && !document.hidden && (dirty || drag || ambientChanged || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;paintedHologramFrame=hologramFrame;paintedOrbitFrame=orbitFrame;}
       requestAnimationFrame(loop);
     }
     function zoom(factor) {
@@ -1235,9 +1321,10 @@ window.LunarAvailabilityAssets={"restTeal": "data:image/png;base64,iVBORw0KGgoAA
     updateMotion();renderConnection();
     const assetURLs=Object.fromEntries(Object.entries({terrain:'terrain',habitat:'habitat',console:'console',teal:'astronaut-teal',amber:'astronaut-amber'}).map(([key,name])=>[key,'/lunar-base/assets/'+name+'.png']));
     Object.assign(assetURLs,root.LunarAvailabilityAssets);
+    if(hologramClock)assetURLs.hologramCycle=hologramMeta.url;
     for(const object of layout.objects)if(object.src)assetURLs[object.asset]=object.src;
     Promise.all(Object.entries(assetURLs).map(([key,url])=>new Promise((resolve,reject)=>{
-      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>reject(new Error('Scene asset unavailable: '+key));image.src=url;
+      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>key==='hologramCycle'?resolve():reject(new Error('Scene asset unavailable: '+key));image.src=url;
     }))).then(()=>{if(destroyed)return;assetsReady=true;requestAnimationFrame(loop);}).catch(error=>{if(destroyed)return;connectionError=error.message;renderConnection();});
     if(!embedded)refresh();
     const polling=embedded?null:setInterval(()=>{if(!document.hidden && (!isDemo||!paused))refresh();},isAttention?500:2500);

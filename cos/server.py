@@ -117,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 "/lunar-base/simulation.js": ("simulation.js", "text/javascript; charset=utf-8"),
                 "/lunar-base/scene.js": ("scene.js", "text/javascript; charset=utf-8"),
             }
-            for name in ("terrain", "habitat", "console", "astronaut-teal", "astronaut-amber"):
+            for name in ("terrain", "habitat", "console", "astronaut-teal", "astronaut-amber", "hologram-cycle"):
                 lunar_files["/lunar-base/assets/" + name + ".png"] = ("assets/" + name + ".png", "image/png")
             for name in ("rover-garage", "greenhouse", "communications-dish", "launch-pad", "rover"):
                 relative = "expansion-v1/sprites-3x/" + name + ".png"

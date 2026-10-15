@@ -1,0 +1,259 @@
+{
+  "version": 2,
+  "generation": "Built-in imagegen capsule edit; original rocket and fixed platform retained",
+  "ambient_only": true,
+  "logical_size": [
+    225,
+    245
+  ],
+  "sprite_scale": 3,
+  "anchor": [
+    112.5,
+    245
+  ],
+  "period_seconds": 24,
+  "hold_seconds": 9,
+  "transition_seconds": 3,
+  "source_bounds": [
+    183,
+    51,
+    1150,
+    1102
+  ],
+  "projection_bounds": [
+    221,
+    0,
+    466,
+    454
+  ],
+  "sources": {
+    "rocket": {
+      "path": "../workshop-hologram-original.png",
+      "sha256": "9bc7e6319b83ad408dedbd5e9f665a4fce674ec1084a1959cfd4c07bb7485549"
+    },
+    "capsule": {
+      "path": "capsule-original.png",
+      "sha256": "d6c906f63aa70d35696fdd60c5d63b546b2760ab1805fba117a85c3eae5ee4fb"
+    }
+  },
+  "atlas": {
+    "path": "../../assets/hologram-cycle.png",
+    "sha256": "f7dffcd86b43ca9b54c43e75ecbb6a1eff3594519cee0cc3d8769bba3895b35a",
+    "size": [
+      3375,
+      2940
+    ],
+    "columns": 5
+  },
+  "frame_size": [
+    675,
+    735
+  ],
+  "rocket_frame": 0,
+  "capsule_frame": 15,
+  "hold_shimmer_frames": [
+    16,
+    17
+  ],
+  "frames": [
+    {
+      "index": 0,
+      "rect": [
+        0,
+        0,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 1,
+      "rect": [
+        675,
+        0,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 2,
+      "rect": [
+        1350,
+        0,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 3,
+      "rect": [
+        2025,
+        0,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 4,
+      "rect": [
+        2700,
+        0,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 5,
+      "rect": [
+        0,
+        735,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 6,
+      "rect": [
+        675,
+        735,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 7,
+      "rect": [
+        1350,
+        735,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 8,
+      "rect": [
+        2025,
+        735,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 9,
+      "rect": [
+        2700,
+        735,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 10,
+      "rect": [
+        0,
+        1470,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 11,
+      "rect": [
+        675,
+        1470,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 12,
+      "rect": [
+        1350,
+        1470,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 13,
+      "rect": [
+        2025,
+        1470,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 14,
+      "rect": [
+        2700,
+        1470,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 15,
+      "rect": [
+        0,
+        2205,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 16,
+      "rect": [
+        675,
+        2205,
+        675,
+        735
+      ]
+    },
+    {
+      "index": 17,
+      "rect": [
+        1350,
+        2205,
+        675,
+        735
+      ]
+    }
+  ],
+  "rings": {
+    "frames": 120,
+    "period": 24,
+    "arc": 0.28,
+    "orbits": [
+      {
+        "center": [
+          341,
+          205
+        ],
+        "radii": [
+          214,
+          96
+        ],
+        "tilt": -0.34,
+        "direction": 1,
+        "offset": 2.25
+      },
+      {
+        "center": [
+          343,
+          297
+        ],
+        "radii": [
+          216,
+          94
+        ],
+        "tilt": -0.1,
+        "direction": -1,
+        "offset": 5.65
+      }
+    ]
+  },
+  "ring_geometry": {
+    "path": "orbits.json",
+    "sha256": "d9ba2c4749a3cf559fd53603ddb4d405b903a41799b7f06a5297f142d03c9106"
+  }
+}

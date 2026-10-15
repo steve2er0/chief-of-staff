@@ -39,6 +39,10 @@
     let projectFilter=new URLSearchParams(location.search).get('project')||'',selectedProject=projectFilter,selectedWorker='',fetching=false,requestController=null,connectionError='',initialFocus=false;
     let paused=motion.matches,previous=0,crewPage=0,drag=null,lastPainted=[],listsSignature='',detailSignature='',demoElapsed=0,attentionSignature='',beaconPhase=0;
     let camera={x:0,y:0,zoom:1},assetsReady=false,dirty=true,destroyed=false;
+    const hologram=root.LunarHologram,hologramMeta=root.LunarHologramAssets,orbits=root.LunarHologramOrbits;
+    const hologramClock=hologram&&hologramMeta?hologram.clock(hologramMeta):null;
+    let hologramFrame=0,paintedHologramFrame=-1;
+    let orbitFrame=null,paintedOrbitFrame=null;
     // Layout and hit testing stay in 768 x 432 logical units. Only the backing
     // surface follows the CSS size and display density, including drawer resize.
     function resizeSurface(){
@@ -304,6 +308,11 @@
           }
           drawables.push({depth:p.y+object.groundDepth,draw:()=>{
             if(object.src||object.asset==='habitat'||object.asset==='console')ctx.drawImage(images[object.asset],s.x,s.y,w,h);
+            else if(object.asset==='hologram'&&images.hologramCycle){
+              orbits?.paint(ctx,orbitFrame,hologramMeta,s.x,s.y,w,h,false);
+              ctx.drawImage(images.hologramCycle,...hologram.rect(hologramFrame,hologramMeta),s.x,s.y,w,h);
+              orbits?.paint(ctx,orbitFrame,hologramMeta,s.x,s.y,w,h,true);
+            }
             else packed(object.asset,s.x,s.y,w,h);
 
           }});
@@ -390,6 +399,8 @@
     function loop(timestamp) {
       if(destroyed)return;
       const elapsed=previous?Math.min(.08,(timestamp-previous)/1000):0;previous=timestamp;
+      if(hologramClock)hologramFrame=hologramClock.advance(elapsed,{paused,hidden:document.hidden,reduced:motion.matches});
+      orbitFrame=hologramClock&&orbits&&images.hologramCycle?hologramClock.orbit(motion.matches):null;
       if(!paused && !document.hidden) {
         if(isDemo)demoElapsed+=elapsed;beaconPhase+=elapsed;
         for(const worker of view.workers) {
@@ -400,7 +411,8 @@
         }
         availability.advanceCrew(view.workers,tracks,elapsed,model.pose,bound,layout);
       }
-      if(assetsReady && (dirty || drag || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;}
+      const ambientChanged=images.hologramCycle&&(hologramFrame!==paintedHologramFrame||orbitFrame!==paintedOrbitFrame);
+      if(assetsReady && !document.hidden && (dirty || drag || ambientChanged || (!paused && view.workers.some(w=>tracks.get(w.key)?.behavior.motion||w.status.attentionAnimate)))) {draw();dirty=false;paintedHologramFrame=hologramFrame;paintedOrbitFrame=orbitFrame;}
       requestAnimationFrame(loop);
     }
     function zoom(factor) {
@@ -441,9 +453,10 @@
     updateMotion();renderConnection();
     const assetURLs=Object.fromEntries(Object.entries({terrain:'terrain',habitat:'habitat',console:'console',teal:'astronaut-teal',amber:'astronaut-amber'}).map(([key,name])=>[key,'/lunar-base/assets/'+name+'.png']));
     Object.assign(assetURLs,root.LunarAvailabilityAssets);
+    if(hologramClock)assetURLs.hologramCycle=hologramMeta.url;
     for(const object of layout.objects)if(object.src)assetURLs[object.asset]=object.src;
     Promise.all(Object.entries(assetURLs).map(([key,url])=>new Promise((resolve,reject)=>{
-      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>reject(new Error('Scene asset unavailable: '+key));image.src=url;
+      const image=new Image();image.onload=()=>{images[key]=image;resolve();};image.onerror=()=>key==='hologramCycle'?resolve():reject(new Error('Scene asset unavailable: '+key));image.src=url;
     }))).then(()=>{if(destroyed)return;assetsReady=true;requestAnimationFrame(loop);}).catch(error=>{if(destroyed)return;connectionError=error.message;renderConnection();});
     if(!embedded)refresh();
     const polling=embedded?null:setInterval(()=>{if(!document.hidden && (!isDemo||!paused))refresh();},isAttention?500:2500);
