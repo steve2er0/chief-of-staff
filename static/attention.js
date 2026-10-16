@@ -3,7 +3,11 @@
 let attentionFilter='all';
 const attentionLabels={approvals:'Approvals',handoffs:'Handoffs',reviews:'Reviews'};
 function attentionRows(items) {
-  return items.map(item=>`<article class="attention-row"><div><div class="eyebrow">${esc(item.project)} · ${esc(attentionLabels[item.group])}</div><h3>${esc(item.title)}</h3><p>${esc(shortTaskText(item.reason,450))}</p><small class="muted">${esc(date(item.updated))}</small></div><button data-attention="${esc(item.id)}" class="${item.group==='reviews'?'primary':'mini-button'}">${esc(item.action)} →</button></article>`).join('');
+  return items.map(item=>{
+    const record=item.kind==='record'?state.projects.find(p=>p.id===item.project_id)?.records?.find(r=>r.id===item.target_id):null;
+    const task=(state.tasks||[]).find(t=>t.id===(item.kind==='task'?item.target_id:record?.user_request_task_id));
+    return `<article class="attention-row"><div><div class="eyebrow">${esc(item.project)} · ${esc(attentionLabels[item.group])}</div><h3>${esc(item.title)}</h3><p>${esc(shortTaskText(item.reason,450))}</p><small class="muted">${esc(date(item.updated))}</small>${task?`<p class="attention-conversation"><button class="text-button" data-task="${esc(task.id)}">Open conversation →</button></p>`:''}</div><button data-attention="${esc(item.id)}" class="${item.group==='reviews'?'primary':'mini-button'}">${esc(item.action)} →</button></article>`;
+  }).join('');
 }
 function attentionPanelHTML(limit=4,projectId='') {
   const items=(state.attention||[]).filter(item=>!projectId||item.project_id===projectId);
@@ -11,7 +15,8 @@ function attentionPanelHTML(limit=4,projectId='') {
 }
 renderReview=function() {
   const items=state.attention||[], visible=items.filter(item=>attentionFilter==='all'||item.group===attentionFilter);
-  return `<section class="panel"><div class="section-title"><h2>Your attention queue</h2><span class="pill">${items.length} waiting</span></div><p class="muted">Review the request, make your decision, then choose when work starts or continues.</p><div class="attention-filters" role="group" aria-label="Filter attention queue">${[['all','All'],...Object.entries(attentionLabels)].map(([key,label])=>`<button class="mini-button" data-attention-filter="${key}" aria-pressed="${attentionFilter===key}">${label} · ${items.filter(item=>key==='all'||item.group===key).length}</button>`).join('')}</div>${attentionRows(visible)||'<div class="empty-state"><h3>Nothing waiting here.</h3><p>New approvals, handoffs and reviews arrive in this queue.</p></div>'}</section>`;
+  const linked=typeof attentionCoveredAgents==='function'?attentionCoveredAgents(items):new Set(items.filter(item=>item.kind==='task').map(item=>item.target_id)),extra=typeof statusAgents==='function'?statusAgents('needs').filter(task=>!linked.has(task.id)):[];
+  return `<section class="panel"><div class="section-title"><h2>Your attention queue</h2><span class="pill">${items.length+extra.length} waiting</span></div><p class="muted">Review the request, make your decision, then choose when work starts or continues.</p><div class="attention-filters" role="group" aria-label="Filter attention queue">${[['all','All'],...Object.entries(attentionLabels)].map(([key,label])=>`<button class="mini-button" data-attention-filter="${key}" aria-pressed="${attentionFilter===key}">${label} · ${key==='all'?items.length+extra.length:items.filter(item=>item.group===key).length}</button>`).join('')}</div>${attentionRows(visible)}${attentionFilter==='all'&&extra.length?statusAgentRows(extra):''}${!visible.length&&!(attentionFilter==='all'&&extra.length)?'<div class="empty-state"><h3>Nothing waiting here.</h3><p>New approvals, handoffs and reviews arrive in this queue.</p></div>':''}</section>`;
 };
 
 function resumeWorkHTML(task) {
@@ -21,7 +26,7 @@ function resumeWorkHTML(task) {
   return ready?`<details class="resume-work"><summary>Ask the agent for changes</summary>${body}</details>`:`<section class="resume-work"><h3>Continue the saved work</h3>${body}</section>`;
 }
 function attentionRecordModal(item) {
-  const record=state.projects.find(p=>p.id===item.project_id)?.records.find(r=>r.id===item.target_id);if(!record)return;
+  const record=state.projects.find(p=>p.id===item.project_id)?.records?.find(r=>r.id===item.target_id);if(!record)return;
   const question=record.category==='question', linked=!!record.user_request_task_id;
   modal(question?'Answer the handoff':'Review a proposed decision',item.project,`<p class="prose">${esc(record.text)}</p><p class="muted">${esc(record.provenance)}</p><form id="attention-record-form" data-project-id="${esc(item.project_id)}" data-record-id="${esc(record.id)}" data-agent-linked="${linked}">${question?'<label>Your answer<textarea name="answer" required rows="4"></textarea></label>':'<label>Your decision<select name="action"><option value="approve">Approve</option><option value="reject">Reject</option></select></label>'}<p class="section-note">${linked?'Your response is saved and sent to the agent. Its existing execution permissions stay in effect.':'This saves your project context.'}</p><button type="submit" class="primary">${linked?'Reply & continue':question?'Save answer':'Record decision'}</button></form>`,'attention-record',record.id);
 }

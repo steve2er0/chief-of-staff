@@ -18,6 +18,8 @@ from .results import capture_result, file_digest, result_presentation
 from .owner_requests import apply_request_update, sync_request_records, owner_snapshot
 from .agents import AgentMixin, git
 from .live_agent import AgentControl
+from .artifacts import ArtifactMixin
+from .metrics import HostMetrics
 
 
 DEFAULT_CONFIG = {"id": "settings", "mode": "simulated", "executable": "codex", "entrypoint": "",
@@ -72,7 +74,7 @@ def normalized_spec(raw):
     return spec
 
 
-class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
+class Service(AgentMixin, ArtifactMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
     def __init__(self, data, adapter=None, start=True, demo_delay=1):
         self.store = Store(data)
         self.data = self.store.folder
@@ -84,6 +86,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
         self.scheduler = None
         self.config_lock = threading.RLock()
         self.capability_lock = threading.Lock()
+        self.host_metrics = HostMetrics()
         (self.data / "outputs").mkdir(exist_ok=True)
         (self.data / "schemas").mkdir(exist_ok=True)
         (self.data / "schemas" / "completion.json").write_text(json.dumps(COMPLETION_SCHEMA), encoding="utf-8")
@@ -199,8 +202,13 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                     raise Invalid("Wait or pause active work before changing its folder or file references")
             else:
                 p = {"id": uid(), "created": now(), "version": 0, "records": [], "accepted_results": [], "sources": []}
-            vision = bounded_text(raw.get("vision", raw.get("goal", p.get("vision", p.get("goal")))), "vision", 6000)
-            p["name"] = bounded_text(raw.get("name") or p.get("name") or vision.splitlines()[0][:70], "project name", 120)
+            folder_name = ""
+            if not pid and raw.get("cwd") and not raw.get("vision") and not raw.get("goal"):
+                folder = working_directory(raw["cwd"], (self.data, Path(__file__).resolve().parent.parent))
+                folder_name = Path(folder).name
+            vision = bounded_text(raw.get("vision", raw.get("goal", p.get("vision", p.get("goal")))) or
+                                  ("Work in " + folder_name + "." if folder_name else None), "vision", 6000)
+            p["name"] = bounded_text(raw.get("name") or p.get("name") or folder_name or vision.splitlines()[0][:70], "project name", 120)
             if p.get("vision") != vision:
                 p.setdefault("vision_history", []).append({"text": vision, "at": now(), "source": bounded_text(raw.get("source") or "User", "vision source", 1000)})
                 if raw.get("source"):
@@ -1051,6 +1059,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
             self.briefing("local:" + local_now.strftime("%Y-%m-%d:") + slot, local_now)
 
     def snapshot(self):
+        host_metrics = self.host_metrics.snapshot()
         with self.store.transaction():
             caps = self.store.all("capabilities")
             return {"projects": self.store.all("project"), "plans": self.store.all("plan"), "tasks": [owner_snapshot(result_presentation(activity_snapshot(t)),self.store.get("project",t["project_id"])) for t in self.store.all("task")],
@@ -1061,6 +1070,7 @@ class Service(AgentMixin, ReferenceMixin, SetupReviewMixin, PortfolioMixin):
                     "setup_reviews": self.store.all("setup_review"),
                     "proposals": self.store.all("proposal"), "findings": self.store.all("finding"), "portfolio": self.portfolio_briefing(),
                     "attention": attention_queue(self.store),
+                    "host_metrics": host_metrics,
                     "local_time": datetime.now().astimezone().isoformat(), "active_count": len(self.active)}
 
     def _loop(self):

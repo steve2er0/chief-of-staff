@@ -288,6 +288,9 @@ def run_agent(adapter, config, cwd, sandbox, prompt, cancel, update, control, se
             elif method == "turn/started":
                 turn_id = params["turn"]["id"]
                 update({"turn_id": turn_id})
+            elif method == "thread/tokenUsage/updated":
+                if turn_id and params.get("threadId") == captured and params.get("turnId") == turn_id:
+                    update({"token_usage": params.get("tokenUsage")})
             elif method in ("item/started", "item/completed"):
                 item = params.get("item", {})
                 typ = item.get("type")

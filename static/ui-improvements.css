@@ -1,0 +1,10 @@
+.status-agent-row{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 0;border-top:1px solid var(--line)}
+.status-agent-row>div{min-width:0;flex:1}
+.status-agent-row>.mini-button{flex-shrink:0;font-size:12px}
+.status-agent-title{font-size:15px;font-weight:600;text-align:left;overflow-wrap:anywhere}
+.status-agent-update{color:var(--muted);font-size:12px;line-height:1.55;margin:7px 0 0;overflow-wrap:anywhere}
+.project-conversation-links{display:grid;gap:4px;margin-top:12px}
+.project-conversation-links button{display:flex;justify-content:space-between;text-align:left;align-items:baseline;gap:12px;padding:6px 0;font-size:12px;overflow-wrap:anywhere}
+.project-conversation-links button span{color:var(--muted);font-size:11px;flex-shrink:0}
+.attention-row .attention-conversation{margin:8px 0 0;font-size:12px}
+@media(max-width:650px){.workspace-actions{gap:5px}.workspace-actions button{font-size:11px;padding:8px}.status-agent-row{gap:10px}.status-agent-row>.mini-button{font-size:11px;padding:7px}.project-conversation-links button{flex-wrap:wrap;gap:3px 10px}}

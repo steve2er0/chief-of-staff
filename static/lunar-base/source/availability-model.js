@@ -11,11 +11,9 @@
     if(status.category==='completed')return {mode:'available',motion:true,light:'dim',reason:'This turn finished; the saved agent remains available. No session-end signal exists.'};
     if(status.category==='waiting')return {mode:'waiting',motion:true,light:'dim',reason:status.reason};
     if(status.category==='active'){
-      // Only explicit in-progress file/tool work enables the existing work poses.
-      // A completed tool event does not complete the agent's running turn.
-      const editing=status.activityKind==='file_change'&&/:(?:\s*)(started|running|inProgress|in_progress|working)$/.test(String(raw.activity||''));
-      const scripted=status.illustrative&&status.animate;
-      return {mode:editing||scripted?'working':'thinking',motion:true,light:'on',reason:editing?'Fresh in-progress file work.':scripted?'Scripted demonstration.':'CoS still reports a running solve; no explicit completion or inter-agent wait is inferred.'};
+      // Fresh, verified running work may use cosmetic routines. The poses never
+      // claim a particular real tool action and never alter the reported state.
+      return {mode:'working',motion:true,light:'on',reason:status.illustrative?'Scripted demonstration.':'CoS reports active work. Typing, inspection and maintenance poses are cosmetic; the reported tool activity remains the source of truth.'};
     }
     return {mode:'held',motion:false,light:'unknown',reason:status.reason};
   }
@@ -120,18 +118,38 @@
     return worker.position.work;
   }
   function visualScale(worker,track,layout){
+    if(track.behavior.mode==='working'&&track.workTarget)return worker.position.scale;
     const hubScale=layout.crewScale||1,work=worker.position.work;
     const rest=destination(worker,{mode:'available'},layout,track.restSpot),span=rest.y-work.y;
     const progress=Math.abs(span)>EPS?Math.max(0,Math.min(1,(track.y-work.y)/span)):track.behavior.mode==='available'?1:0;
     return worker.position.scale+(hubScale-worker.position.scale)*progress;
   }
+  function random(track){
+    let value=track.cosmeticSeed||1;value^=value<<13;value^=value>>>17;value^=value<<5;
+    track.cosmeticSeed=value>>>0;return track.cosmeticSeed/4294967296;
+  }
+  function seed(key){let value=2166136261;for(const letter of String(key))value=Math.imul(value^letter.charCodeAt(0),16777619);return value>>>0||1;}
+  function cosmeticRole(track,worker){
+    const choices=worker.position.area==='console'?['console','inspect','console','sensor']:['console','inspect','assemble','weld','sensor','scan'];
+    const candidates=choices.filter(role=>role!==track.cosmeticRole);
+    track.cosmeticRole=candidates[Math.floor(random(track)*candidates.length)];
+    track.nextWork=6+random(track)*8;
+  }
   function sync(track,worker,layout,restTarget){
-    const behavior=intent(worker.status,worker.raw),target=destination(worker,behavior,layout,restTarget);
-    if(!track){return {...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target},restSpot:behavior.mode==='available'?{...target}:null};}
+    const behavior=intent(worker.status,worker.raw),workAnchor=worker.position.work;
+    const sameWork=track?.workAnchor&&distance(track.workAnchor,workAnchor)<EPS;
+    const target=behavior.mode==='working'&&sameWork&&track.workTarget?track.workTarget:destination(worker,behavior,layout,restTarget);
+    if(!track){
+      track={...target,height:0,squash:1,frame:0,phase:worker.visual.phase,behavior,restTime:0,journey:null,goal:{...target},restSpot:behavior.mode==='available'?{...target}:null,workAnchor:{...workAnchor},cosmeticSeed:seed(worker.key)};
+      if(behavior.mode==='working')cosmeticRole(track,worker);return track;
+    }
     const changed=!track.goal||distance(track.goal,target)>EPS;
     const oldMode=track.behavior?.mode;track.behavior=behavior;
     if(behavior.mode==='available')track.restSpot={...target};
     if(oldMode!==behavior.mode)track.restTime=0;
+    if(behavior.mode!=='working'||!sameWork){track.workTarget=null;track.cosmeticRole=null;}
+    track.workAnchor={...workAnchor};
+    if(behavior.mode==='working'&&!track.cosmeticRole)cosmeticRole(track,worker);
     if(behavior.mode==='attention'){
       // Explicit request takes priority at the actual current position.
       track.journey=null;track.goal=null;track.height=0;track.squash=1;track.frame=0;
@@ -141,6 +159,39 @@
       track.routeBlocked=!points;track.height=0;track.squash=1;
     }
     return track;
+  }
+  function workRoutine(worker,track,peers,layout){
+    if(track.behavior.mode!=='working'||!track.behavior.motion||track.journey||track.restTime<(track.nextWork||8))return;
+    cosmeticRole(track,worker);track.restTime=0;
+    const anchor=worker.position.work,margin=32*(layout.crewScale||1),blocks=obstacles(layout,14),infrastructure=layout.objects.find(o=>o.id===worker.position.area);
+    const near=point=>!infrastructure||Math.hypot(Math.max(infrastructure.x-point.x,0,point.x-infrastructure.x-infrastructure.width),Math.max(infrastructure.y-point.y,0,point.y-infrastructure.y-infrastructure.height))<160;
+    const scale=worker.position.scale;
+    const occupied=peers.flatMap(p=>[
+      {point:p.track,scale:visualScale(p.worker,p.track,layout)},
+      {point:p.worker.position.work,scale:p.worker.position.scale},
+      ...(p.track.goal?[{point:p.track.goal,scale:p.track.behavior.mode==='available'?(layout.crewScale||1):p.worker.position.scale}]:[])
+    ]);
+    const clear=point=>point.x>=32&&point.x<=layout.width-32&&point.y>=58&&point.y<=layout.height-24&&
+      near(point)&&!blocks.some(r=>inside(point,r))&&occupied.every(({point:p,scale:s})=>
+        // Reserve the full pose envelope in either facing direction. Center
+        // distance alone can leave hands/helmets overlapping at a work stop.
+        Math.abs(point.x-p.x)>=32*(scale+s)+8||point.y+2*scale+8<=p.y-52*s||point.y-52*scale-8>=p.y+2*s);
+    const candidates=[anchor];
+    for(const station of Object.values(layout.stations))if(station.area===worker.position.area){
+      const point={x:station.work[0],y:station.work[1]};if(distance(point,anchor)<=240)candidates.push(point);
+    }
+    // Small local work positions retain the assigned infrastructure and avoid
+    // displacing another astronaut's saved work station or current destination.
+    for(const [dx,dy] of [[-54,0],[54,0],[0,54],[0,-54],[-40,40],[40,40],[-40,-40],[40,-40]])candidates.push({x:anchor.x+dx,y:anchor.y+dy});
+    const free=candidates.filter(p=>clear(p)&&distance(p,track)>24);
+    if(!free.length)return;
+    const offset=Math.floor(random(track)*free.length);
+    for(let n=0;n<free.length;n++){
+      const target=free[(offset+n)%free.length],points=route(track,target,layout,peers.map(p=>({...p.track,radius:margin})));
+      if(!points)continue;
+      track.workTarget={...target};track.goal={...target};track.routeBlocked=false;
+      track.journey={points,index:0,from:{x:track.x,y:track.y},elapsed:0};return;
+    }
   }
   function advance(track,seconds,pose,bound,canStep=()=>true){
     if(!track.behavior.motion||track.behavior.mode==='attention')return;
@@ -156,12 +207,13 @@
     }else track.restTime+=seconds;
     return true;
   }
-  function advanceCrew(workers,tracks,seconds,pose,bound,layout){
+  function advanceCrew(workers,tracks,seconds,pose,bound,layout,options={}){
     const separation=32*(layout.crewScale||1);
     for(const worker of [...workers].sort((a,b)=>a.key.localeCompare(b.key))){
       const track=tracks.get(worker.key);if(!track)continue;
       const peers=workers.filter(other=>other.key!==worker.key&&other.position.page===worker.position.page)
         .map(other=>({worker:other,track:tracks.get(other.key)})).filter(p=>p.track);
+      if(options.cosmetic)workRoutine(worker,track,peers,layout);
       let blockers=[];
       const stepped=advance(track,seconds,pose,bound,next=>{
         blockers=peers.filter(p=>{
@@ -194,6 +246,6 @@
     return seed%2?1:0;
   }
   function tabletFrame(seconds,seed=0){const t=(seconds+seed*1.7)%24;return t>=18&&t<21?Math.floor((t-18)*1.3)%4:null;}
-  const api={intent,obstacles,inside,crosses,segmentDistance,route,restSpots,restClear,restTargets,destination,visualScale,sync,advance,advanceCrew,restPose,tabletFrame};
+  const api={intent,obstacles,inside,crosses,segmentDistance,route,restSpots,restClear,restTargets,destination,visualScale,sync,workRoutine,advance,advanceCrew,restPose,tabletFrame};
   root.LunarAvailability=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

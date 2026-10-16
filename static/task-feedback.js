@@ -145,6 +145,7 @@ function resultAlertsHTML(t){
   return `${limits.length?`<p class="result-alert"><strong>Limitations:</strong> ${reportPreview(limits[0],150)}${limits.length>1?` <span>+${limits.length-1} more in More</span>`:''}</p>`:''}${decisions.length?`<p class="result-alert"><strong>Needs your decision:</strong> ${reportPreview(decisions[0],150)}${decisions.length>1?` · ${decisions.length} decisions`:''}</p>`:''}${t.worktree?'<p class="result-location">Run used separate checkout</p>':''}${t.config?.mode==='simulated'?'<p class="result-location">Simulated result</p>':''}`;
 }
 function resultFilesHTML(t){
+  if(typeof AgentArtifacts!=='undefined')return AgentArtifacts.files(t);
   const files=(t.output_links||[]).filter(x=>x.source_path);if(!files.length)return '';
   const basename=x=>String(x.source_path||x.label).split(/[\\/]/).at(-1);
   return `<details class="result-files" data-preserve-open="${esc(t.id)}:files" data-panel-detail="files"><summary data-result-focus="${esc(t.id)}:files">Files (${files.length})</summary><div class="result-file-list">${files.map(f=>`<a class="result-file-link" href="/api/output/${encodeURIComponent(t.id)}/${encodeURIComponent(f.name)}" title="${esc(f.source_path)}" download><span>${esc(basename(f))}</span>${files.filter(x=>basename(x)===basename(f)).length>1?`<small>${esc(f.source_path)}</small>`:''}${f.partial?'<small>Partial snapshot</small>':''}</a>`).join('')}</div></details>`;

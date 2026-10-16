@@ -4,6 +4,7 @@ import binascii
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import secrets
 import threading
@@ -11,6 +12,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .safety import Invalid, docx_text, digest
 from .filesystem import browse_paths
+from .artifacts import image_type
 from .store import uid
 
 
@@ -51,12 +53,15 @@ class Handler(BaseHTTPRequestHandler):
         # Do not leak the one-time launch token in HTTP logs.
         pass
 
-    def send_output(self, path):
+    def send_output(self, path, preview=False, filename=None):
+        content_type = image_type(path) if preview else "application/octet-stream"
+        filename = filename or path.name
+        fallback = "".join(c for c in filename if 32 <= ord(c) < 127).replace('"', '').replace('\\', '') or "artifact"
         with path.open("rb") as source:
             self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(path.stat().st_size))
-            self.send_header("Content-Disposition", 'attachment; filename="' + path.name + '"')
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+            self.send_header("Content-Disposition", ('inline' if preview else 'attachment') + '; filename="' + fallback + '"; filename*=UTF-8\'\'' + quote(filename, safe=""))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
@@ -107,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(401, {"error": "Open the private launch URL printed by the service."})
             if u.path in ("/", "/lunar-base/"):
                 return self.send(200, (self.server.static / "index.html").read_bytes(), "text/html; charset=utf-8")
-            if u.path in ("/app.js", "/agent-model.js", "/followup-suggestions.js", "/composer-suggestions.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/agents.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css"):
+            if u.path in ("/app.js", "/agent-model.js", "/followup-suggestions.js", "/composer-suggestions.js", "/workspace.js", "/task-feedback.js", "/attention.js", "/agents.js", "/conversation-feedback.js", "/reference-files.js", "/path-picker.js", "/styles.css", "/conversation-tools.js", "/conversation-tools.css", "/artifacts.js", "/artifacts.css", "/status-navigation.js", "/ui-improvements.css"):
                 path = self.server.static / u.path[1:]
                 return self.send(200, path.read_bytes(), "text/javascript; charset=utf-8" if path.suffix == ".js" else "text/css; charset=utf-8")
             # Exact private allowlist for the live workspace's map assets.
@@ -137,7 +142,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, file.read_bytes(), "application/octet-stream", attachment=record["name"])
             if len(parts) == 4 and parts[:2] == ["api", "output"]:
                 p = self.server.service.output(parts[2], unquote(parts[3]))
-                return self.send_output(p)
+                task = self.server.service.store.get("task", parts[2])
+                link = next(x for x in task["output_links"] if x["name"] == unquote(parts[3]))
+                filename = str(link.get("source_path") or p.name).replace("\\", "/").split("/")[-1]
+                return self.send_output(p, filename=filename)
+            if len(parts) == 4 and parts[:2] == ["api", "output-preview"]:
+                return self.send_output(self.server.service.output(parts[2], unquote(parts[3])), preview=True)
+            if len(parts) == 4 and parts[:2] == ["api", "artifact"]:
+                path = self.server.service.artifact(parts[2], unquote(parts[3]))
+                return self.send_output(path, preview=parse_qs(u.query).get("preview") == ["1"])
             if len(parts) == 4 and parts[:2] == ["api", "agent-capture"]:
                 return self.send_output(self.server.service.live_capture(parts[2], unquote(parts[3])))
             return self.send(404, {"error": "Not found"})
@@ -257,6 +270,8 @@ class Handler(BaseHTTPRequestHandler):
             result = s.import_reference(raw["filename"], base64.b64decode(raw["base64"], validate=True))
         elif path == "/api/reference-discard":
             result = s.discard_reference(raw["id"])
+        elif path == "/api/reveal-artifact":
+            result = s.reveal_artifact(raw["id"], raw.get("name"), raw.get("relative"))
         elif path == "/api/import":
             # Browser-picked bytes only: no server-side arbitrary path access.
             data = base64.b64decode(raw["base64"], validate=True)

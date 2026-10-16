@@ -6,6 +6,20 @@ import subprocess
 import unittest
 
 class LunarAvailabilityTests(unittest.TestCase):
+    def test_active_cosmetic_routines_preserve_real_status_and_clearance(self):
+        node=shutil.which('node')
+        if not node:self.skipTest('Node unavailable')
+        root=Path(__file__).resolve().parents[1]
+        result=subprocess.run([node,str(root/'static/lunar-base/source/test_cosmetic_routines.cjs')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
+    def test_hud_only_shows_measured_host_and_verified_context_values(self):
+        node=shutil.which('node')
+        if not node:self.skipTest('Node unavailable')
+        root=Path(__file__).resolve().parents[1]
+        result=subprocess.run([node,str(root/'static/lunar-base/source/test_hud_model.cjs')],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
     def test_crew_traffic_recovers_from_head_on_and_crowded_routes(self):
         node=shutil.which('node')
         if not node:self.skipTest('Node unavailable')

@@ -37,7 +37,7 @@ for(const elapsed of [NaN,Infinity,-1,0])assert.equal(clock.advance(elapsed),cap
 assert.equal(clock.advance(1000),capsule); // stalls are capped, with no catch-up
 
 async function renderer({failedAtlas=false,reduced=false}={}){
-  let raf=null,time=1000,intervals=0,refreshes=0;
+  let raf=null,time=1000,intervals=0,refreshes=0,reduceSetting=false;
   const draws=[],layers=[],documentEvents={},motionEvents={},elements=new Map(),motion={matches:reduced,addEventListener:(k,fn)=>motionEvents[k]=fn};
   const node=()=>({dataset:{},hidden:false,textContent:'',classList:{toggle(){}},
     addEventListener(k,fn){this[k]=fn;},setAttribute(){},getBoundingClientRect:()=>({width:768,height:432})});
@@ -67,7 +67,7 @@ async function renderer({failedAtlas=false,reduced=false}={}){
   step();
   assert.equal(intervals,1,'Ambient animation adds no timers');
   return {api,document,motion,documentEvents,motionEvents,draws,layers,step,latest,holograms,context,canvas,
-    pause:()=>host.querySelector('#pause').click(),get refreshes(){return refreshes;}};
+    pause:()=>api.setReducedMotion(reduceSetting=!reduceSetting),get refreshes(){return refreshes;}};
 }
 (async()=>{
   const r=await renderer();assert.deepEqual(r.latest().slice(1,5),[0,0,675,735]);
@@ -80,10 +80,10 @@ async function renderer({failedAtlas=false,reduced=false}={}){
   for(let i=0;i<r.layers.length;i+=3)assert.deepEqual(r.layers.slice(i,i+3),['back','body','front'],'Rear markings are occluded by the body; front markings pass over it');
   r.pause();r.step();const paused=r.draws.length,pose=r.latest().slice(1,5);
   for(let n=0;n<100;n++)r.step();assert.equal(r.draws.length,paused);assert.deepEqual(r.latest().slice(1,5),pose);
-  r.pause();r.document.hidden=true;r.documentEvents.visibilitychange();const hidden=r.draws.length;
+  r.pause();r.step();const resumedPose=r.latest().slice(1,5);r.document.hidden=true;r.documentEvents.visibilitychange();const hidden=r.draws.length;
   for(let n=0;n<100;n++)r.step();assert.equal(r.draws.length,hidden,'Hidden tabs neither advance nor paint');
   r.document.hidden=false;r.documentEvents.visibilitychange();r.step(100000);
-  assert.deepEqual(r.latest().slice(1,5),pose,'Visibility return does not catch up elapsed background time');assert.equal(r.refreshes,1);
+  assert.deepEqual(r.latest().slice(1,5),resumedPose,'Visibility return does not catch up elapsed background time');assert.equal(r.refreshes,1);
   r.motion.matches=true;r.motionEvents.change({matches:true});r.step();assert.deepEqual(r.latest().slice(1,5),[0,0,675,735]);
   r.pause();for(let n=0;n<200;n++)r.step();assert.deepEqual(r.latest().slice(1,5),[0,0,675,735],'Resume respects reduced motion for ambient art');
   const beforeDestroy=r.draws.length;r.api.destroy();r.step();assert.equal(r.draws.length,beforeDestroy);

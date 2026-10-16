@@ -334,7 +334,10 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(p['state'],'draft');self.assertEqual(self.s.store.get('task',t['id'])['state'],'superseded')
         with self.assertRaises(Invalid):self.s.launch(p['id'])
     def test_persistence_restart_and_scheduled_deduplication(self):
-        self.launch();self.drain();self.s.settings({'briefing_times':['09:00']})
+        # Launch/drain must not create a briefing when the real clock happens
+        # to match a default slot; this test supplies its own schedule clock.
+        self.s.settings({'schedule_enabled':False})
+        self.launch();self.drain();self.s.settings({'briefing_times':['09:00'],'schedule_enabled':True})
         at=datetime(2026,10,9,9,0,tzinfo=timezone.utc)
         self.s.scheduled_briefings(at);self.s.scheduled_briefings(at)
         self.s.close();self.s=Service(self.root/'data',start=False)

@@ -3,6 +3,7 @@ import json
 import re
 from .owner_requests import validate_requests, apply_request_update
 from .safety import Invalid
+from .metrics import context_usage
 
 
 TOOL_EVENT = re.compile(r"^(command_execution|file_change|plan_update):\s*\w+$")
@@ -36,6 +37,10 @@ def message_details(text):
 
 def apply_progress(record, changes, at):
     record.update({k: v for k, v in changes.items() if k in ("session_id", "worker_pid")})
+    if "token_usage" in changes:
+        usage = context_usage(changes["token_usage"], at)
+        if usage:
+            record["context_usage"] = usage
     record["updated"] = record["last_activity_at"] = at
     if changes.get("event") == "process.started":
         record.setdefault("started_at", at)

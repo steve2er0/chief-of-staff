@@ -4,7 +4,7 @@
 #lunar-host .demo-label b{font-weight:400}#lunar-host .live-connection{display:flex;align-items:center;gap:14px;margin:0 0 15px;font-size:11px;color:#aebacc;flex-wrap:wrap}#lunar-host .live-connection>span{flex:1;min-width:200px}#lunar-host .live-connection>.live-available{flex:0 0 auto;min-width:0;padding:5px 9px;border:1px solid #365e50;border-radius:6px;background:#18352b;color:#a1e8bf;font-weight:600}#lunar-host .live-available[hidden]{display:none}#lunar-host .live-connection a{color:#77c8d1;text-decoration:none}#lunar-host .live-connection button{font-size:10px;padding:7px 10px}#lunar-host .live-empty{position:absolute;inset:24% 12%;display:grid;place-items:center;text-align:center;background:#0a1627e8;border:1px solid #4c657a;color:#d5dee6;padding:24px;font-size:14px;line-height:1.8}#lunar-host .live-empty[hidden]{display:none}#lunar-host #world{touch-action:none;cursor:grab;aspect-ratio:16/9}#lunar-host #world:active{cursor:grabbing}#lunar-host .live-camera{display:flex;gap:5px;font-size:11px}#lunar-host .live-crew-heading{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--edge);padding:14px 0 0;color:#a9b6c8;font-size:11px;gap:12px}#lunar-host .live-crew-heading>div{display:flex;gap:9px;align-items:center;font:9px ui-monospace,monospace}#lunar-host .live-crew-heading button{padding:4px 9px}#lunar-host button:disabled{opacity:.35;cursor:default}#lunar-host #live-workers button{max-width:100%;text-align:left;align-items:flex-start}#lunar-host #live-workers button span{max-width:260px;white-space:normal;overflow-wrap:anywhere}#lunar-host .live-worker-card{display:flex;flex-direction:column;gap:7px;flex:1 1 220px;min-width:0;max-width:340px}#lunar-host .live-worker-card button{width:100%;height:100%}#lunar-host .live-infrastructure-control{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font:12px system-ui,sans-serif}#lunar-host .live-infrastructure-control select{flex:1;min-width:0;margin:0;padding:6px 8px;border:1px solid var(--edge);border-radius:6px;background:var(--surface,#101927);color:var(--ink,#d5dee6);font:inherit}#lunar-host .live-placement-note{font:11px system-ui,sans-serif;color:var(--muted);margin:8px 0}#lunar-host .live-no-workers{font-size:12px;line-height:1.7;color:var(--muted);margin:0}#lunar-host .live-details{padding-top:12px}#lunar-host .live-details>div:first-child{flex:1;min-width:0}#lunar-host .live-details .detail-note{max-width:245px;text-align:left}#lunar-host #detail-body{white-space:pre-line;overflow-wrap:anywhere;max-height:300px;overflow:auto}#lunar-host #live-source{white-space:pre-line;overflow-wrap:anywhere}#lunar-host #live-detail-fields{margin-top:17px}#lunar-host .live-field{display:grid;grid-template-columns:160px 1fr;gap:18px;border-top:1px solid #273044;padding:9px 0;font-size:12px;line-height:1.6}#lunar-host .live-field strong{font-size:11px;color:#8295ad;font-weight:500}#lunar-host .live-field span{white-space:pre-line;overflow-wrap:anywhere;max-height:250px;overflow:auto;color:#bac7d6}#lunar-host .live-output{display:block;color:#73cad7;font-size:12px;margin-top:12px;text-decoration:none;overflow-wrap:anywhere}#lunar-host .live-legend{display:flex;flex-wrap:wrap;gap:8px 18px;padding:8px 0 22px;font:9px ui-monospace,monospace;color:#b2bfd0}#lunar-host .live-legend span:before{content:"";display:inline-block;width:5px;height:5px;margin-right:7px;background:#62dce4}#lunar-host .live-legend span:nth-child(2):before{background:#bac4d4}#lunar-host .live-legend span:nth-child(3):before{background:#ffb34d}#lunar-host .live-legend span:nth-child(4):before{background:#e3b8f5}#lunar-host .live-legend span:nth-child(5):before{background:#a7dfb4}#lunar-host .live-legend span:nth-child(6):before{background:#e9c895}
 @media(max-width:650px){#lunar-host .live-connection{gap:8px}#lunar-host .live-connection>span{flex-basis:100%}#lunar-host .live-empty{inset:22% 8%;padding:14px;font-size:11px;line-height:1.5}#lunar-host .live-field{grid-template-columns:100px 1fr;gap:12px;font-size:11px}#lunar-host .live-details .detail-note{max-width:none}#lunar-host .live-crew-heading{display:block}#lunar-host .live-crew-heading>div{margin-top:10px}#lunar-host .motion{gap:8px}#lunar-host .motion button{font-size:10px;min-width:0}#lunar-host #motion-state{max-width:90px;font-size:9px}#lunar-host .live-camera button{font-size:10px;padding:7px}}#lunar-host .attention-summary{color:#ffcf8d; font-size:12px; line-height:1.7; margin:15px 0;}
 /* One theme for the map, drawers and controls. Tokens live in styles.css. */
-body[data-agent-workspace]{background:var(--paper)}
+body[data-agent-workspace]{background:var(--paper);--workspace-drawer-width:min(640px,48vw)}
 body[data-agent-workspace] main.agent-workspace{margin:0 auto;padding:12px 28px 20px;max-width:1500px}
 .workspace-header{position:sticky;top:0;z-index:10;background:var(--paper);padding:10px 0;margin:0 0 10px;flex-wrap:wrap}
 .workspace-header .brand{color:var(--ink);font-size:18px;letter-spacing:-.3px}
@@ -50,8 +50,7 @@ body[data-agent-workspace] main.agent-workspace{margin:0 auto;padding:12px 28px 
 #lunar-host .live-legend span:before{display:none}
 #lunar-host .live-legend i{width:6px;height:6px;border-radius:50%}
 #lunar-host .attention-summary{color:var(--gold);font-size:12px;margin:10px 0}
-.workspace-drawer{position:fixed;inset:0 0 0 auto;margin:0;width:min(540px,48vw);height:100dvh;max-height:100dvh;max-width:none;border-radius:14px 0 0 14px;padding:20px 24px;overflow:auto;box-shadow:-20px 0 60px #0005;z-index:20;scrollbar-color:#405673 var(--white)}
-.workspace-drawer[data-panel=workspace-panel]{width:min(680px,52vw)}
+.workspace-drawer{position:fixed;inset:0 0 0 auto;margin:0;width:var(--workspace-drawer-width);height:100dvh;max-height:100dvh;max-width:none;border-radius:14px 0 0 14px;padding:20px 24px;overflow:auto;box-shadow:-20px 0 60px #0005;z-index:20;scrollbar-color:#405673 var(--white)}
 .workspace-drawer .modal-top{position:sticky;top:-20px;background:var(--white);z-index:3;margin:0 -4px 20px;padding:12px 4px 16px;border-bottom:1px solid var(--line)}
 .workspace-drawer .modal-top h2{font:650 23px/1.35 var(--font-ui);letter-spacing:-.45px;overflow-wrap:anywhere}
 .workspace-drawer .modal-top .eyebrow{font-size:11px;letter-spacing:.2px;font-weight:500;margin-bottom:6px}
@@ -66,8 +65,7 @@ body[data-agent-workspace] main.agent-workspace{margin:0 auto;padding:12px 28px 
 .workspace-drawer #agent-reply-form{padding:16px;border-radius:10px;margin-top:16px}
 .workspace-drawer #agent-reply-form details{margin-top:10px}
 .workspace-drawer #agent-reply-form textarea{min-height:88px}
-body[data-panel-open] main.agent-workspace{margin-right:min(540px,48vw);padding-right:20px}
-body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680px,52vw)}
+body[data-panel-open] main.agent-workspace{margin-right:var(--workspace-drawer-width);padding-right:20px}
 #toast{z-index:40}
 .live-agent-request fieldset{border:0;padding:0;margin:0;min-width:0}
 .live-agent-request fieldset:disabled{opacity:.65}
@@ -84,7 +82,7 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
 #agent-options-summary{display:block;color:var(--ink);line-height:1.5;margin:4px 0 0 14px;overflow-wrap:anywhere}
 @media(max-width:1000px){
  body[data-panel-open] main.agent-workspace,body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:0}
- .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{width:min(570px,70vw)}
+ body[data-agent-workspace]{--workspace-drawer-width:min(640px,74vw)}
 }
 @media(max-width:650px){
  body[data-agent-workspace] main.agent-workspace{padding:10px 12px 16px}
@@ -102,7 +100,8 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
  #lunar-host .live-crew-heading>div{margin-top:0}
  #lunar-host .entities button{padding:8px;font-size:11px}
  #lunar-host #live-workers button span{max-width:210px}
- .workspace-drawer,.workspace-drawer[data-panel=workspace-panel]{top:16dvh;height:84dvh;width:100%;border-radius:15px 15px 0 0;padding:16px}
+ body[data-agent-workspace]{--workspace-drawer-width:100%}
+ .workspace-drawer{top:16dvh;height:84dvh;width:var(--workspace-drawer-width);border-radius:15px 15px 0 0;padding:16px}
  .workspace-drawer .modal-top{top:-16px}
  .workspace-drawer .form-grid{grid-template-columns:1fr}
  #start-agent-form .path-input{flex-wrap:nowrap;gap:8px}
@@ -115,8 +114,6 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
 .workspace-drawer .eyebrow{font:500 11px var(--font-ui);letter-spacing:.1px;text-transform:none}
 .workspace-drawer .modal-top .eyebrow:empty{display:none}
 
-#lunar-host .live-project-filter{display:flex;align-items:center;gap:10px;margin:0;color:var(--muted);font-size:12px}
-#lunar-host .live-project-filter select{margin:0;min-width:180px;max-width:350px;background:var(--white);color:var(--ink);border-color:var(--line);padding:8px 10px;border-radius:8px;font:12px var(--font-ui)}
 #lunar-host .live-worker-project{display:block;margin-top:3px;color:var(--muted);font-size:10px}
 
 /* Agent drawers keep one scroll area per view and a compact composer. */
@@ -291,4 +288,28 @@ body[data-panel-open=workspace-panel] main.agent-workspace{margin-right:min(680p
  .result-card-heading h3{font-size:14px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
  .result-card-heading{align-items:flex-start}
  .result-actions button,.result-primary-action{font-size:11px;padding:7px 9px}
+}
+
+/* HUD stays at viewport corners while the terrain pans beneath it. */
+#lunar-host .viewport{position:relative;isolation:isolate}
+#lunar-host .scene-title{display:none}
+#lunar-host .lunar-hud{position:absolute;z-index:2;display:flex;align-items:center;gap:10px;max-width:calc(50% - 20px);padding:6px 9px;border:1px solid #54708b66;border-radius:7px;background:#0b1220db;box-shadow:0 2px 12px #0002;color:#b7c9d9;font:11px/1.4 var(--font-ui);pointer-events:none;backdrop-filter:blur(5px)}
+#lunar-host .lunar-hud[tabindex]{pointer-events:auto}
+#lunar-host .lunar-hud[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#lunar-host .lunar-hud strong{color:#e4edf7;font-weight:600;font-variant-numeric:tabular-nums}
+#lunar-host .lunar-hud-top-left{top:12px;left:12px}
+#lunar-host .lunar-hud-top-right{top:12px;right:12px;justify-content:flex-end}
+#lunar-host .lunar-hud-bottom-left{bottom:12px;left:12px}
+#lunar-host .lunar-hud-bottom-right{bottom:12px;right:12px;text-align:right}
+#lunar-host .lunar-hud [hidden],#lunar-host .demo-controls:has([hidden]){display:none}
+#lunar-host .lunar-hud .live-available{color:#a1e8bf}
+#lunar-host #live-connection{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lunar-host .demo-controls:empty{display:none}
+@container(max-width:550px){
+ #lunar-host .lunar-hud{gap:5px;max-width:calc(50% - 12px);padding:4px 6px;font-size:9px;border-radius:5px}
+ #lunar-host .lunar-hud-top-left{top:7px;left:7px}
+ #lunar-host .lunar-hud-top-right{top:7px;right:7px}
+ #lunar-host .lunar-hud-bottom-left{bottom:7px;left:7px;flex-wrap:wrap}
+ #lunar-host .lunar-hud-bottom-right{bottom:7px;right:7px}
+ #lunar-host .lunar-hud .live-available{display:none}
 }

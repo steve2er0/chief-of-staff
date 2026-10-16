@@ -3,7 +3,7 @@ from pathlib import Path
 
 root=Path(__file__).resolve().parent.parent
 source=root/'source'
-pieces=[(root.parent/'agent-model.js').read_text()]+[(source/name).read_text() for name in ['attention-assets.js','attention-model.js','workshop-assets.js','display-assets.js','base-layout.js','live-model.js','availability-assets.js','availability-model.js','hologram-assets.js','hologram-model.js','hologram-orbits.js','live-view.js']]
+pieces=[(root.parent/'agent-model.js').read_text()]+[(source/name).read_text() for name in ['attention-assets.js','attention-model.js','workshop-assets.js','display-assets.js','base-layout.js','live-model.js','availability-assets.js','availability-model.js','hologram-assets.js','hologram-model.js','hologram-orbits.js','hud-model.js','live-view.js']]
 guard="if(!document.body.dataset.agentWorkspace){window.LunarLiveView.mount();}\n"
 (root/'scene.js').write_text('\n'.join(pieces)+'\n'+guard)
 (root/'lunar.css').write_text((source/'demo-styles.css').read_text()+'\n'+(source/'live-styles.css').read_text()+'\n'+(source/'placement-styles.css').read_text())

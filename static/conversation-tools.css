@@ -1,0 +1,12 @@
+/* Equation layout stays native, offline and keyboard/screen-reader readable. */
+.report-markdown math{font-family:"STIX Two Math","Cambria Math","Noto Sans Math",math;font-size:1.12em;max-width:100%;color:inherit}
+.report-markdown math[display="inline"]{vertical-align:middle;margin-inline:.12em}
+.report-markdown math[display="block"]{display:block math;overflow-x:auto;overflow-y:hidden;padding:12px 2px;margin:8px 0;text-align:center}
+.agent-composer-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.agent-composer-actions [data-agent-reply-help]{flex:1 0 100%;margin:0}
+.agent-composer-buttons{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%}
+#agent-reply-form .agent-composer-buttons button{white-space:nowrap}
+#agent-reply-form #agent-reply-status{position:static;clear:both;min-height:0;margin:0;overflow-wrap:anywhere}
+#agent-reply-form #agent-reply-status:not(:empty){margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:11px;color:var(--success);background:var(--paper)}
+#agent-reply-form #agent-reply-status[data-error="true"]{color:var(--rose)}
+@media(max-width:480px){.agent-composer-buttons{width:100%}.agent-composer-buttons button{flex:1;padding-inline:10px}.report-markdown math{font-size:1.02em}}

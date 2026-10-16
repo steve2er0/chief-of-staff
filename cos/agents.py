@@ -274,7 +274,7 @@ class AgentMixin:
             previous["cleanup_confirmed_at"] = now()
         previous.update(prior_state=task["state"], state="superseded", updated=now())
         next_task = copy.deepcopy(task)
-        for key in ("result", "review", "review_note", "accepted_at", "finished_at", "started_at", "worker_pid", "turn_id", "stop_target", "recovery_lock", "revision_plan", "latest_update", "latest_update_at", "reported_status", "error", "connection_error", "prior_state", "user_requests", "user_request_links", "user_requests_error"):
+        for key in ("result", "review", "review_note", "accepted_at", "finished_at", "started_at", "worker_pid", "turn_id", "stop_target", "recovery_lock", "revision_plan", "latest_update", "latest_update_at", "reported_status", "error", "connection_error", "prior_state", "user_requests", "user_request_links", "user_requests_error", "context_usage"):
             next_task.pop(key, None)
         for message in next_task.get("conversation", []):
             if message.get("status") in ("queued_next", "queued"):

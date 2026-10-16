@@ -6,8 +6,8 @@ const raw=(patch={})=>({id:'run-a',agent_id:'agent-a',managed_agent:true,project
 const status=r=>model.classify(r,context),project={id:'p',name:'Fixture'};
 const worker=(r,registry=model.cleanRegistry(null))=>model.build({projects:[project],tasks:[r],jobs:[]},registry,context).workers[0];
 for(const [patch,mode] of [
-  [{},'working'],[{activity:'commandExecution: running'},'thinking'],[{activity:'fileChange: completed'},'thinking'],
-  [{activity:'mcpToolCall: started'},'thinking'],[{state:'paused'},'waiting'],[{state:'waiting'},'waiting'],
+  [{},'working'],[{activity:'commandExecution: running'},'working'],[{activity:'fileChange: completed'},'working'],
+  [{activity:'mcpToolCall: started'},'working'],[{state:'paused'},'waiting'],[{state:'waiting'},'waiting'],
   [{state:'queued'},'waiting'],[{state:'completed'},'available'],[{state:'accepted'},'available'],[{state:'ready_for_review'},'available'],
   [{state:'cancelled'},'held'],[{state:'failed'},'held'],[{state:'interrupted'},'held'],[{recovery_lock:true},'held'],
   [{state:'brand-new'},'held'],[{last_activity_at:'2026-10-14T11:55:00Z'},'held'],

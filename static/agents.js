@@ -3,6 +3,8 @@
 let agentFilter='all';
 const agentReplyDrafts=new Map();
 const agentReplyRequests=new Map();
+const agentReplyFeedback=new Map();
+const agentComposingInputs=new WeakSet();
 const agentSessionChoices=new Map();
 const liveRequestDrafts=new Map();
 let startAgentRequest=null;
@@ -140,7 +142,7 @@ function agentConversationHTML(t,wrap=true){
   const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t];
   const runs=AgentModel.conversationRuns(tasks,t),earlier=runs.filter(r=>r.task.id!==t.id&&r.messages.length),current=runs.find(r=>r.task.id===t.id);
   const labels={pending:'Queued',queued:'Sending',delivered:'Delivered',queued_next:'Queued for next run',uncertain:'Delivery uncertain · inspect before retrying',failed:'Could not deliver'};
-  const message=(m,run)=>`<article class="message ${m.role==='user'?'user':'cos'}" data-message-key="${esc((m.task_id||run.id)+':'+(m.id||m.at))}"><div class="message-label">${m.role==='user'?'You':'Agent'}<span>${esc(date(m.at))}</span></div>${reportHTML(agentMessage(m.text)?.text||m.text)}${m.capture_name?`<p><a href="/api/agent-capture/${encodeURIComponent(m.task_id||run.id)}/${encodeURIComponent(m.capture_name)}" download>Full message</a></p>`:''}${m.role==='user'?`<small class="message-receipt">${esc(labels[m.status]||m.status)}${m.error?' · '+esc(m.error):''}</small>`:''}</article>`;
+  const message=(m,run)=>{const text=agentMessage(m.text)?.text||m.text;return `<article class="message ${m.role==='user'?'user':'cos'}" data-message-key="${esc((m.task_id||run.id)+':'+(m.id||m.at))}"><div class="message-label">${m.role==='user'?'You':'Agent'}<span>${esc(date(m.at))}</span></div>${typeof ConversationTools!=='undefined'?ConversationTools.renderMessage(text,reportHTML):reportHTML(text)}${m.role!=='user'&&typeof AgentArtifacts!=='undefined'?AgentArtifacts.render(run,m.text):''}${m.capture_name?`<p><a href="/api/agent-capture/${encodeURIComponent(m.task_id||run.id)}/${encodeURIComponent(m.capture_name)}" download>Full message</a></p>`:''}${m.role==='user'?`<small class="message-receipt">${esc(labels[m.status]||m.status)}${m.error?' · '+esc(m.error):''}</small>`:''}</article>`;};
   const messages=`${earlier.length?`<details class="earlier-runs" data-panel-detail="earlier-runs"><summary>Earlier runs · ${earlier.length}</summary>${earlier.map(run=>`<section><div class="run-separator">Saved run · ${esc(date(run.task.started_at||run.task.created))}</div>${run.messages.map(m=>message(m,run.task)).join('')}</section>`).join('')}</details>`:''}<div class="run-separator">${t.state==='superseded'?'Saved':'Current'} run · ${esc(date(t.started_at||t.created))}</div>${(current?.messages||[]).map(m=>message(m,t)).join('')||'<p class="muted">Waiting for the first message.</p>'}`;
   return wrap?`<div class="agent-transcript" data-agent-transcript="${esc(t.id)}">${messages}</div>`:messages;
 }
@@ -156,7 +158,8 @@ function agentReplyHelp(t){
 }
 function replyComposerHTML(t){
   const draft=agentReplyDrafts.get(t.id)||'',active=['running','queued'].includes(t.state),fresh=agentFreshSession(t);
-  return `<form id="agent-reply-form" data-task-id="${esc(t.id)}" ${t.state==='superseded'?'hidden':''}><label class="composer-label"><span class="sr-only" data-agent-reply-label>Message to this agent</span><span class="followup-input"><textarea name="text" aria-label="Message to this agent" rows="2" placeholder="${active?'Send a message or change direction…':'What should the agent do next?'}">${esc(draft)}</textarea><span data-followup-ghost class="followup-ghost" aria-hidden="true" hidden></span></span></label><div data-followup-hint class="followup-hint" hidden><span>Suggested draft · Tab to use</span><button type="button" data-accept-followup class="text-button">Use suggestion</button></div><span id="agent-followup-description" class="sr-only" aria-live="polite"></span><label class="checkbox-label agent-recovery" ${!t.recovery_lock?'hidden':''}><input type="checkbox" name="confirmed_stopped" ${t.recovery_lock?'required':''}>The previous worker and its tools have stopped.</label><details class="agent-continue-options" ${active||t.state==='stopping'?'hidden':''}><summary>Continue options${fresh?' · New session':''}</summary><label class="checkbox-label"><input type="checkbox" name="fresh" ${fresh?'checked':''} ${active||t.state==='stopping'||!t.session_id?'disabled':''}>Start a new session for the next run</label><p class="section-note" data-session-option-note>${t.session_id?'Starts a new CLI session with the same files and permissions.':'No saved session is available. The next run starts a new session with the same files and permissions.'}</p></details><div class="agent-composer-actions"><p data-agent-reply-help class="section-note">${agentReplyHelp(t)}</p><button type="submit" class="primary" ${t.state==='stopping'?'disabled':''}>${t.state==='stopping'?'Stopping…':active?'Send message':'Continue agent'}</button></div><p id="agent-reply-status" role="status" aria-live="polite"></p></form>`;
+  const actions=typeof ConversationTools!=='undefined'?ConversationTools.actionState(t):{submitDisabled:t.state==='stopping',goDisabled:true};
+  return `<form id="agent-reply-form" data-task-id="${esc(t.id)}" ${t.state==='superseded'?'hidden':''}><label class="composer-label"><span class="sr-only" data-agent-reply-label>Message to this agent</span><span class="followup-input"><textarea name="text" aria-label="Message to this agent" rows="2" placeholder="${active?'Send a message or change direction…':'What should the agent do next?'}">${esc(draft)}</textarea><span data-followup-ghost class="followup-ghost" aria-hidden="true" hidden></span></span></label><div data-followup-hint class="followup-hint" hidden><span>Suggested draft · Tab to use</span><button type="button" data-accept-followup class="text-button">Use suggestion</button></div><span id="agent-followup-description" class="sr-only" aria-live="polite"></span><label class="checkbox-label agent-recovery" ${!t.recovery_lock?'hidden':''}><input type="checkbox" name="confirmed_stopped" ${t.recovery_lock?'required':''}>The previous worker and its tools have stopped.</label><details class="agent-continue-options" ${active||t.state==='stopping'?'hidden':''}><summary>Continue options${fresh?' · New session':''}</summary><label class="checkbox-label"><input type="checkbox" name="fresh" ${fresh?'checked':''} ${active||t.state==='stopping'||!t.session_id?'disabled':''}>Start a new session for the next run</label><p class="section-note" data-session-option-note>${t.session_id?'Starts a new CLI session with the same files and permissions.':'No saved session is available. The next run starts a new session with the same files and permissions.'}</p></details><div class="agent-composer-actions"><p data-agent-reply-help class="section-note">${agentReplyHelp(t)} · Enter to submit · Shift+Enter for a newline</p><div class="agent-composer-buttons"><button type="submit" class="primary" name="intent" value="submit" ${actions.submitDisabled?'disabled':''}>${t.state==='stopping'?'Stopping…':'Submit'}</button><button type="submit" name="intent" value="go" title="Send a go-ahead using this agent’s existing permissions" ${actions.goDisabled?'disabled':''}>Let's go!</button></div></div><p id="agent-reply-status" role="status" aria-live="polite">${esc(agentReplyFeedback.get(t.id)||'')}</p></form>`;
 }
 function agentResultsHTML(t){
   const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t],returned=AgentModel.results(AgentModel.turns(tasks,t));
@@ -238,23 +241,19 @@ function selectAgentTab(tab){
   if(typeof syncAgentSuggestions==='function')syncAgentSuggestions();
   if(tab==='conversation'&&panel.dataset.followLatest==='true')requestAnimationFrame(jumpToLatest);
 }
-function syncAgentSession(){
-  if(currentModal?.type!=='task'||!$('#agent-panel'))return;
-  let raw=state.tasks.find(t=>t.id===currentModal.id);if(!raw)return;
-  if(raw.state==='superseded'&&currentModal.followAgent){
-    const latest=AgentModel.current(state.tasks).find(t=>AgentModel.identity(t)===AgentModel.identity(raw));
-    if(latest){const draft=$('#agent-reply-form textarea')?.value;if(draft)agentReplyDrafts.set(latest.id,draft);currentModal.id=latest.id;raw=latest;}
-  }
-  const t=AgentModel.resultView(raw),panel=$('#agent-panel');
-  $('#modal-title').textContent=AgentModel.title(t);$('#modal-eyebrow').textContent=projectName(t.project_id);
-  replaceAgentSection($('#agent-status'),agentStatusHTML(t),JSON.stringify([t.state,t.owner_attention,t.live_requests?.map(r=>[r.id,r.status]),t.started_at,t.finished_at,t.last_activity_at,t.session_id,t.worktree]));
-  const scroll=$('#agent-conversation-scroll'),transcript=$('[data-agent-transcript]'),signature=JSON.stringify([t.id,t.conversation]);
-  if(transcript.dataset.signature!==signature){
+function agentTranscriptSignature(t){
+  const tasks=typeof state!=='undefined'&&state?.tasks?state.tasks:[t];
+  return JSON.stringify([t.id,t.state==='superseded',AgentModel.conversationRuns(tasks,t).map(run=>[run.task.id,run.task.started_at||run.task.created,run.messages,run.task.output_links,run.task.context?.cwd,run.task.result?.artifacts])]);
+}
+function syncAgentTranscript(t){
+  const panel=$('#agent-panel'),scroll=$('#agent-conversation-scroll'),transcript=$('[data-agent-transcript]'),signature=agentTranscriptSignature(t);
+  if(!panel||!scroll||!transcript||transcript.dataset.signature===signature)return false;
+  {
     const follow=panel.dataset.followLatest==='true',bounds=scroll.getBoundingClientRect();
     const visible=[...transcript.querySelectorAll('[data-message-key]')].find(m=>{const r=m.getBoundingClientRect();return r.height&&r.bottom>bounds.top&&r.top<bounds.bottom;});
     const anchor=visible?.dataset.messageKey,top=visible?.getBoundingClientRect().top,previousScroll=scroll.scrollTop;
     replaceAgentSection(transcript,agentConversationHTML(t,false),signature);
-    // The wrapper stays mounted; only its messages change, so drafts keep focus.
+    // The transcript wrapper and composer stay mounted, preserving the draft and its focus.
     transcript.dataset.agentTranscript=t.id;
     if(follow){if(panel.dataset.tab==='conversation')requestAnimationFrame(jumpToLatest);else{panel.dataset.unread='true';$('[data-agent-tab=conversation]').dataset.unread='true';$('[data-agent-tab=conversation]').setAttribute('aria-label','Conversation, new messages');}}
     else{
@@ -265,6 +264,19 @@ function syncAgentSession(){
       $('[data-agent-tab=conversation]').dataset.unread='true';$('[data-agent-tab=conversation]').setAttribute('aria-label','Conversation, new messages');
     }
   }
+  return true;
+}
+function syncAgentSession(){
+  if(currentModal?.type!=='task'||!$('#agent-panel'))return;
+  let raw=state.tasks.find(t=>t.id===currentModal.id);if(!raw)return;
+  if(raw.state==='superseded'&&currentModal.followAgent){
+    const latest=AgentModel.current(state.tasks).find(t=>AgentModel.identity(t)===AgentModel.identity(raw));
+    if(latest){const draft=$('#agent-reply-form textarea')?.value;if(draft)agentReplyDrafts.set(latest.id,draft);currentModal.id=latest.id;raw=latest;}
+  }
+  const t=AgentModel.resultView(raw),panel=$('#agent-panel');
+  $('#modal-title').textContent=AgentModel.title(t);$('#modal-eyebrow').textContent=projectName(t.project_id);
+  replaceAgentSection($('#agent-status'),agentStatusHTML(t),JSON.stringify([t.state,t.owner_attention,t.live_requests?.map(r=>[r.id,r.status]),t.started_at,t.finished_at,t.last_activity_at,t.session_id,t.worktree]));
+  syncAgentTranscript(t);
   const requests=$('#agent-current-requests'),requestSignature=JSON.stringify([t.id,t.live_requests,t.owner_attention]);
   if(requests.dataset.signature!==requestSignature){rememberLiveRequestDrafts();replaceAgentSection(requests,liveRequestsHTML(t)+(typeof ownerRequestsHTML==='function'?ownerRequestsHTML(t):''),requestSignature);restoreLiveRequestDrafts();if(panel.dataset.followLatest==='true'&&panel.dataset.tab==='conversation')requestAnimationFrame(jumpToLatest);}
   const results=$('#agent-returned-work'),resultSignature=JSON.stringify(AgentModel.turns(state.tasks,t).map(r=>[r.id,r.state,r.result,r.output_links,r.handoff_issues,r.validation_checks]));
@@ -273,10 +285,11 @@ function syncAgentSession(){
   replaceAgentDetails($('#agent-details-content'),t,agentDetailsSignature(t));
   const composer=$('#agent-reply-form'),active=['running','queued'].includes(t.state);
   composer.dataset.taskId=t.id;composer.hidden=t.state==='superseded';
-  composer.querySelector('button[type=submit]').textContent=t.state==='stopping'?'Stopping…':active?'Send message':'Continue agent';
-  composer.querySelector('button[type=submit]').disabled=t.state==='stopping'||composer.dataset.sending==='true';
+  const actions=typeof ConversationTools!=='undefined'?ConversationTools.actionState(t,composer.dataset.sending==='true'):{submitDisabled:t.state==='stopping'||composer.dataset.sending==='true',goDisabled:true};
+  composer.querySelector('button[value=submit]').textContent=t.state==='stopping'?'Stopping…':'Submit';
+  for(const [intent,disabled] of [['submit',actions.submitDisabled],['go',actions.goDisabled]])composer.querySelector(`button[value=${intent}]`).disabled=disabled;
   composer.querySelector('textarea').placeholder=active?'Send a message or change direction…':'What should the agent do next?';
-  composer.querySelector('[data-agent-reply-help]').textContent=agentReplyHelp(t);
+  composer.querySelector('[data-agent-reply-help]').textContent=agentReplyHelp(t)+' · Enter to submit · Shift+Enter for a newline';
   composer.elements.fresh.checked=agentFreshSession(t);
   composer.elements.fresh.disabled=active||t.state==='stopping'||!t.session_id;
   composer.querySelector('.agent-continue-options').hidden=active||t.state==='stopping';
@@ -293,7 +306,7 @@ taskModal=function(id,tab='conversation',returnToResults=false){
   modal(AgentModel.title(t),projectName(t.project_id),`<div id="agent-panel" data-tab="${tab}" data-follow-latest="true"><div id="agent-status">${agentStatusHTML(t)}</div><div class="agent-panel-tabs" role="tablist" aria-label="Agent panel">${[['conversation','Conversation'],['results','Results'],['details','Details']].map(([key,label])=>`<button type="button" role="tab" id="agent-tab-${key}" aria-controls="agent-${key}-panel" aria-selected="${key===tab}" tabindex="${key===tab?0:-1}" data-agent-tab="${key}">${label}</button>`).join('')}</div><section id="agent-conversation-panel" class="agent-tab-panel" data-agent-tab-panel="conversation" role="tabpanel" aria-labelledby="agent-tab-conversation" ${tab!=='conversation'?'hidden':''}><div id="agent-conversation-scroll" class="agent-tab-scroll">${agentConversationHTML(t)}<div id="agent-current-requests"></div></div><button id="agent-new-messages" type="button" class="mini-button" hidden>New messages ↓</button>${replyComposerHTML(t)}</section><section id="agent-results-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="results" role="tabpanel" aria-labelledby="agent-tab-results" ${tab!=='results'?'hidden':''}><div id="agent-returned-work"></div></section><section id="agent-details-panel" class="agent-tab-panel agent-tab-scroll" data-agent-tab-panel="details" role="tabpanel" aria-labelledby="agent-tab-details" ${tab!=='details'?'hidden':''}><div id="agent-details-content"></div></section></div>`,'task',id);
   currentModal.followAgent=t.state!=='superseded';currentModal.tab=tab;currentModal.returnToResults=returnToResults;currentModal.returnToProject=returnToProject;
   if(returnToProject)$('#agent-panel').insertAdjacentHTML('afterbegin',`<button type="button" class="text-button project-back" data-project="${esc(returnToProject)}">← Back to project</button>`);
-  $('[data-agent-transcript]').dataset.signature=JSON.stringify([t.id,t.conversation]);
+  $('[data-agent-transcript]').dataset.signature=agentTranscriptSignature(t);
   $('#agent-conversation-scroll').addEventListener('scroll',()=>{const scroll=$('#agent-conversation-scroll');if(!scroll||scroll.clientHeight===0)return;$('#agent-panel').dataset.followLatest=String(scroll.scrollHeight-scroll.scrollTop-scroll.clientHeight<48);if($('#agent-panel').dataset.followLatest==='true')clearNewMessages();});
   $('#agent-new-messages').addEventListener('click',jumpToLatest);
   syncAgentSession();requestAnimationFrame(()=>{if(tab==='conversation')jumpToLatest();});
@@ -370,7 +383,7 @@ function projectAgentRows(p){
   return currentAgents(p.id).map(t=>`<article class="project-agent-row" data-project-anchor="agent:${esc(t.id)}"><div class="project-agent-heading"><button data-task="${esc(t.id)}" data-project-focus="agent:${esc(t.id)}" class="text-button" title="${esc(t.title)}">${esc(AgentModel.title(t,48))}</button><span class="project-state" data-project-tone="${projectAgentNeedsYou(t)?'attention':['running','queued','stopping'].includes(t.state)?'active':'quiet'}">${esc((t.config?.mode==='simulated'?'Simulated · ':'')+projectAgentLabel(t))}</span>${['running','queued','stopping'].includes(t.state)?`<button data-agent-stop="${esc(t.id)}" data-project-focus="stop:${esc(t.id)}" class="mini-button" ${t.state==='stopping'?'disabled':''}>${t.state==='stopping'?'Stopping…':'Stop'}</button>`:''}</div><details data-preserve-open="project:${esc(p.id)}:agent:${esc(t.id)}"><summary data-project-focus="agent-details:${esc(t.id)}" data-project-anchor="agent-details:${esc(t.id)}">Run details</summary>${taskFeedbackHTML(t)}${t.worktree?'<p class="project-meta">Run uses a separate checkout · folder in agent Details</p>':''}</details></article>`).join('')||'<p class="muted">No agents yet.</p>';
 }
 renderProjects=function(){
-  return `<div id="project-panel" data-reading-key="projects"><div class="projects-toolbar"><button id="projects-new" data-project-focus="new">+ New project</button></div><section class="projects-list" aria-label="Projects">${state.projects.map(p=>{const status=projectStatus(p);return `<article class="project-list-row" data-project-anchor="project:${esc(p.id)}"><div class="project-list-heading"><h3><button class="text-button" data-project="${esc(p.id)}" data-project-focus="open:${esc(p.id)}">${esc(p.name)}</button></h3><button data-start-agent="${esc(p.id)}" data-project-focus="start:${esc(p.id)}" class="text-button project-start">Start agents</button></div><p class="project-vision-preview">${esc(shortTaskText(resultPlain(p.vision||p.goal),120))}</p><p class="project-state" data-project-tone="${status.tone}">${status.tone==='attention'?'<strong>Needs you · </strong>':''}${esc(status.text)}</p></article>`;}).join('')||'<p class="muted">No projects yet. Start agents or create a project.</p>'}</section></div>`;
+  return `<div id="project-panel" data-reading-key="projects"><div class="projects-toolbar"><button id="projects-new" data-project-focus="new">+ New project</button></div><section class="projects-list" aria-label="Projects">${state.projects.map(p=>{const status=projectStatus(p);return `<article class="project-list-row" data-project-anchor="project:${esc(p.id)}"><div class="project-list-heading"><h3><button class="text-button" data-project="${esc(p.id)}" data-project-focus="open:${esc(p.id)}">${esc(p.name)}</button></h3><button data-start-agent="${esc(p.id)}" data-project-focus="start:${esc(p.id)}" class="text-button project-start">Start agents</button></div><p class="project-vision-preview">${esc(shortTaskText(resultPlain(p.vision||p.goal),120))}</p><p class="project-state" data-project-tone="${status.tone}">${status.tone==='attention'?'<strong>Needs you · </strong>':''}${esc(status.text)}</p>${typeof projectConversationLinks==='function'?projectConversationLinks(p):''}</article>`;}).join('')||'<p class="muted">No projects yet. Start agents or create a project.</p>'}</section></div>`;
 };
 renderProject=function(){
   const p=state.projects.find(p=>p.id===selectedProject);if(!p)return '<p>Project not found.</p>';
@@ -418,11 +431,25 @@ document.addEventListener('change',event=>{
 document.addEventListener('input',event=>{
   if(event.target.closest('#start-agent-form'))syncStartAgentForm();
   if(event.target.closest('[data-live-agent-form]'))rememberLiveRequestDrafts();
-  if(event.target.closest('#agent-reply-form')&&event.target.name==='text')agentReplyDrafts.set(event.target.form.dataset.taskId,event.target.value);
+  if(event.target.closest('#agent-reply-form')&&event.target.name==='text'){
+    agentReplyDrafts.set(event.target.form.dataset.taskId,event.target.value);agentReplyFeedback.delete(event.target.form.dataset.taskId);
+    const status=event.target.form.querySelector('#agent-reply-status');if(status){status.textContent='';delete status.dataset.error;}
+  }
+});
+for(const type of ['compositionstart','compositionend'])document.addEventListener(type,event=>{
+  if(!event.target.matches('#agent-reply-form textarea'))return;
+  if(type==='compositionstart')agentComposingInputs.add(event.target);else agentComposingInputs.delete(event.target);
+});
+document.addEventListener('keydown',event=>{
+  if(!event.target.matches('#agent-reply-form textarea')||typeof ConversationTools==='undefined'||!ConversationTools.enterSubmits(event,agentComposingInputs.has(event.target)))return;
+  event.preventDefault();const form=event.target.form,submit=form.querySelector('button[value=submit]');
+  // Empty drafts include ghost suggestions: they are never submitted or accepted.
+  if(form.dataset.sending==='true'||submit.disabled||!event.target.value.trim())return;
+  form.requestSubmit(submit);
 });
 document.addEventListener('submit',async event=>{
   const form=event.target;if(!['start-agent-form','agent-reply-form'].includes(form.id)&&!form.hasAttribute('data-live-agent-form'))return;
-  event.preventDefault();if(form.dataset.sending==='true')return;form.dataset.sending='true';
+  event.preventDefault();if(form.dataset.sending==='true'||event.submitter?.disabled)return;form.dataset.sending='true';
   const buttons=[...form.querySelectorAll('button[type=submit]')];buttons.forEach(b=>b.disabled=true);
   try{
     const data=new FormData(form);let result;
@@ -436,14 +463,23 @@ document.addEventListener('submit',async event=>{
       result=await api('start-agents',payload,startAgentRequest.id,false);startAgentRequest=null;
       closeModal();boardFilter='';agentFilter='all';await refresh(false);setView('live');lunarScene?.selectProject('');toast(`${result.task_ids.length} agent${result.task_ids.length===1?'':'s'} queued.`);
     }else if(form.id==='agent-reply-form'){
-      const tid=form.dataset.taskId,payload={id:tid,text:data.get('text'),confirmed_stopped:form.elements.confirmed_stopped?.checked||false,fresh:form.elements.fresh.checked};
+      const tid=form.dataset.taskId,draft=String(data.get('text')||''),intent=event.submitter?.value||'submit',task=state.tasks.find(t=>t.id===tid);
+      const text=typeof ConversationTools!=='undefined'?ConversationTools.instruction(intent,draft,task):draft.trim();
+      if(!text)throw new Error('Write a message first.');
+      const payload={id:tid,text,confirmed_stopped:form.elements.confirmed_stopped?.checked||false,fresh:form.elements.fresh.checked};
       const fingerprint=JSON.stringify(payload),previous=agentReplyRequests.get(tid);
       const request=previous?.fingerprint===fingerprint?previous:{fingerprint,id:crypto.randomUUID()};agentReplyRequests.set(tid,request);
-      $('#agent-reply-status').textContent='Sending…';
+      $('#agent-reply-status').textContent='Sending…';delete $('#agent-reply-status').dataset.error;
+      form.elements.text.readOnly=true;
       result=await api('agent-reply',payload,request.id,false);agentReplyDrafts.delete(tid);agentReplyRequests.delete(tid);
-      if(form.elements.text.value===payload.text)form.elements.text.value='';
+      if(form.elements.text.value===draft)form.elements.text.value='';
       else agentReplyDrafts.set(result.id,form.elements.text.value);
-      await refresh(false);taskModal(result.id);toast(result.state==='queued'?'Follow-up queued for this agent.':'Reply saved; delivery status is shown in the conversation.');
+      const label=intent==='go'?'Go-ahead':'Message';
+      agentReplyFeedback.set(result.id,result.state==='queued'?label+' queued for this agent.':label+' saved. Delivery status is shown above.');
+      const resultIndex=state.tasks.findIndex(t=>t.id===result.id);if(resultIndex<0)state.tasks.push(result);else state.tasks[resultIndex]=result;
+      // Feedback occupies its own composer row; a floating toast covered Submit.
+      try{await refresh(false);}catch{agentReplyFeedback.set(result.id,label+' saved. Reconnecting for delivery updates.');}
+      taskModal(result.id);
     }else{
       const payload={id:form.dataset.taskId,request:form.dataset.requestId};
       if(form.dataset.method==='item/tool/requestUserInput'){const bulk=form.querySelector('[data-agent-answers-json]');payload.answers=bulk?JSON.parse(bulk.value):Object.fromEntries([...form.querySelectorAll('[data-agent-answer]')].map(x=>[x.dataset.agentAnswer,x.value]));}
@@ -451,8 +487,8 @@ document.addEventListener('submit',async event=>{
       const fingerprint=JSON.stringify(payload);if(form.dataset.responseFingerprint!==fingerprint){form.dataset.responseUuid=crypto.randomUUID();form.dataset.responseFingerprint=fingerprint;}result=await api('agent-response',payload,form.dataset.responseUuid,false);
       liveRequestDrafts.delete(payload.id+':'+payload.request);await refresh(false);taskModal(result.id);toast('Response sent to the agent.');
     }
-  }catch(error){toast(error.message,true);const status=form.querySelector('[role=status]');if(status)status.textContent=error.message+' Your instructions are preserved for retry.';}
-  finally{form.dataset.sending='false';buttons.forEach(b=>{if(b.isConnected)b.disabled=false;});}
+  }catch(error){if(form.id!=='agent-reply-form')toast(error.message,true);const status=form.querySelector('[role=status]');if(status){status.textContent=error.message+' Your instructions are preserved for retry.';status.dataset.error='true';}}
+  finally{form.dataset.sending='false';if(form.id==='agent-reply-form'){form.elements.text.readOnly=false;if(form.isConnected)syncAgentSession();}else buttons.forEach(b=>{if(b.isConnected)b.disabled=false;});}
 });
 
 // Arrow keys move between the three tabs without losing their reading positions.

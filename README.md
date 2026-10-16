@@ -57,8 +57,9 @@ questions and settings are panels; the map stays in place.
 
 The **live Lunar Base** is the starting view: one shared habitat, exterior console,
 lander, model platform, engine test stand and connecting paths for all projects.
-Project labels and filters identify the work without moving the camera or creating
-more bases. Each agent keeps one astronaut across its turns. Click **Start agents**, choose an
+All projects stay visible on the base. **Working**, **Finished**, and **Needs you**
+open saved agent conversations directly; the **Projects** panel also lists direct
+conversation links. Each agent keeps one astronaut across its turns. Click **Start agents**, choose an
 existing project or a working folder, and write an instruction. Add another
 agent row for each separate responsibility, then click **Start agents** once.
 No framing proposal, work map, acceptance criteria form, or separate approval
@@ -88,6 +89,31 @@ suggested draft. **Tab** or **Use suggestion** copies it into editable text;
 normal focus behavior. Sending remains a separate explicit action with the
 existing execution permissions. Disable suggestions in **Settings**; the choice
 is saved across restarts.
+
+**Enter** submits your typed reply; **Shift+Enter** adds a newline. IME composition
+and held keys do not send. Suggestions remain editable drafts and never submit
+themselves. Ask for a plan in your own prompt when useful. **Let's go!** sends an
+explicit go-ahead for the work discussed above, using the agent's existing
+permissions. Any typed draft is included as additional instructions. Busy agents
+and unresolved requests keep this button disabled. Submit and Let's go! use the
+same conversation and execution settings.
+
+Messages render common inline and block TeX equations locally using native
+MathML. Incomplete streaming expressions, malformed math, and unsupported TeX
+commands remain readable source. No message text is sent to a rendering service.
+Explicitly linked PNG, JPEG, GIF, and WebP artifacts appear inline and enlarge
+when clicked. Other formats, oversized images, and unavailable previews retain
+file download links. **Show in folder** requests selection in Finder on macOS or
+Explorer on Windows, on the computer running CoS; downloads work in the browser.
+
+The base's corner HUD shows connection and agent counts, measured host CPU/RAM,
+and the selected agent's last reported request context. Measurements describe the
+machine running CoS, including a Windows host, and are cached for five seconds.
+RAM means physical memory in use, including reclaimable cache. Context comes from
+native CLI token-usage notifications; absent measurements show **Unavailable**.
+**Settings → Reduce lunar motion** freezes scene animation and also respects the
+system's reduced-motion preference. Working poses are cosmetic illustrations;
+saved agent lifecycle and tool reports remain the source of truth.
 
 Suggestions currently use a conservative local rule, not model generation. The
 existing Codex integration launches tool-capable agent sessions and has no
@@ -149,6 +175,10 @@ status. Open a project for compact agent rows and one latest result per agent;
 owner-written vision, vision history, references, conversation and saved records.
 Questions and reply requests stay visible. **Back to Projects** and **Back to
 project** restore reading position; live updates retain expanded sections and focus.
+
+**New project** asks only for its working directory and uses the folder name as
+the initial display name. Add or edit direction, references, priorities and other
+context later with **Edit project**. Existing project metadata is retained.
 
 With **Codex mode** configured, creating a project automatically starts a
 read-only setup review of the vision, working folder and selected references.
