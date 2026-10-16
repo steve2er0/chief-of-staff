@@ -14,7 +14,7 @@
         <div class="lunar-hud lunar-hud-top-left"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span></div>
         <div class="lunar-hud lunar-hud-top-right"><span id="live-agent-count">0 agents</span><span id="live-available" class="live-available" hidden></span></div>
         <div class="lunar-hud lunar-hud-bottom-left" id="live-host-metrics" tabindex="0" aria-label="Host CPU and RAM"><span>Host CPU <strong id="live-host-cpu">Unavailable</strong></span><span>RAM <strong id="live-host-ram">Unavailable</strong></span></div>
-        <div class="lunar-hud lunar-hud-bottom-right" id="live-context-metrics" tabindex="0" aria-label="Selected agent context usage"><span>Context <strong id="live-context-usage">Select an agent</strong></span></div>
+        <div class="lunar-hud lunar-hud-bottom-right" id="live-context-metrics" tabindex="0" aria-label="Selected agent context usage"><span>Context <strong id="live-context-usage">Select an agent</strong></span><small id="live-context-note" hidden></small></div>
         <div class="scene-title"><p id="live-outpost">SHARED LUNAR BASE</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
         <div id="live-empty" class="live-empty" role="status">Waiting for the first supported CoS snapshot.</div>
         <div class="scene-caption" id="live-caption" hidden></div>
@@ -379,9 +379,9 @@
       }
     }
     function renderHUD(){
-      const metrics=root.LunarHUD?.host(snapshot?.host_metrics),worker=view.workers.find(w=>w.key===selectedWorker),context=root.LunarHUD?.context(worker);
+      const metrics=root.LunarHUD?.host(snapshot?.host_metrics),worker=view.workers.find(w=>w.key===selectedWorker),context=root.LunarHUD?.context(worker,currentContext());
       if(metrics){text('live-host-cpu',metrics.cpu);text('live-host-ram',metrics.ram);element('live-host-metrics').title=metrics.detail;element('live-host-metrics').setAttribute('aria-label','Host CPU '+metrics.cpu+'; RAM '+metrics.ram+'. '+metrics.detail);}
-      if(context){text('live-context-usage',context.value);element('live-context-metrics').title=context.detail;element('live-context-metrics').setAttribute('aria-label','Selected agent context '+context.value+'. '+context.detail);}
+      if(context){text('live-context-usage',context.value);text('live-context-note',context.note||'');element('live-context-note').hidden=!context.note;element('live-context-metrics').title=context.detail;element('live-context-metrics').setAttribute('aria-label','Selected agent context '+context.value+'. '+context.detail);}
     }
     function setReducedMotion(value){reducedMotion=Boolean(value);paused=motion.matches||reducedMotion;previous=0;dirty=true;}
     function loop(timestamp) {

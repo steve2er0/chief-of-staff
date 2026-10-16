@@ -13,14 +13,18 @@
     const platform={darwin:'macOS',win32:'Windows',linux:'Linux'}[metrics.platform]||'App host';
     return {cpu:percent(metrics.cpu_percent),ram,detail:platform+' · machine running CoS'+(size?' · RAM '+size:'')+(metrics.sampled_at?' · sampled '+metrics.sampled_at:'')};
   }
-  function context(worker){
-    if(!worker)return {value:'Select an agent',detail:'Select an astronaut or open an agent conversation to see reported context usage.'};
-    const usage=worker.raw?.context_usage;
-    if(!usage||usage.available!==true||usage.source!=='codex_app_server'||!finite(usage.used_tokens))return {value:'Unavailable',detail:'This agent has not reported context usage.'};
-    const used=Math.round(usage.used_tokens).toLocaleString('en-US');
-    const maximum=finite(usage.max_tokens)&&usage.max_tokens>0?usage.max_tokens:null;
-    const value=finite(usage.percent)&&usage.percent<=100?Math.round(usage.percent)+'%':maximum&&usage.used_tokens<=maximum?Math.round(usage.used_tokens/maximum*100)+'%':used+' tokens';
-    return {value,detail:'Last reported request context: '+used+(maximum?' / '+Math.round(maximum).toLocaleString('en-US'):'')+' tokens'+(usage.updated_at?' · updated '+usage.updated_at:'')};
+  function context(worker,transport={}){
+    if(!worker)return {value:'Select an agent',note:'',detail:'Select an astronaut or open an agent conversation to see its last reported model-request tokens.'};
+    const raw=worker.raw||{},usage=raw.context_usage,active=['queued','running','stopping'].includes(raw.state);
+    if(!usage||usage.source!=='codex_app_server'||(usage.basis&&usage.basis!=='last_model_request')||!Number.isSafeInteger(usage.used_tokens)||usage.used_tokens<0){
+      return {value:'Unavailable',note:active?'Awaiting token report':'No saved token report',detail:raw.config?.mode==='simulated'?'Simulated agents have no native token usage.':active?'No native token usage has been recorded for this run yet. A reading appears only if the CLI reports it.':'This saved run has no recorded native token usage. A future run can supply a reading if the CLI reports it; restarting CoS does not recover an earlier reading.'};
+    }
+    // `available` describes the percentage denominator, not the validity of the
+    // native token count. Never replace missing limits with a model estimate.
+    const used=usage.used_tokens.toLocaleString('en-US'),maximum=Number.isSafeInteger(usage.max_tokens)&&usage.max_tokens>0?usage.max_tokens:null;
+    const stale=transport.connected===false||transport.snapshotStale===true;
+    const value=maximum&&usage.used_tokens<=maximum?Math.round(usage.used_tokens/maximum*100)+'%':used+' tokens';
+    return {value,note:stale?'Last known request':maximum?'Last reported request':'Limit not reported',detail:'Last reported model request: '+used+(maximum?' / '+maximum.toLocaleString('en-US'):'')+' tokens'+(maximum?' (reported context-window limit)':' (context-window limit not reported)')+(usage.updated_at?' · reported '+usage.updated_at:'')+'. Includes reported input/output tokens; not a live measurement of current context occupancy.'+(stale?' Connection or snapshot is stale; this is the last saved reading.':'')};
   }
   const api={host,context};root.LunarHUD=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

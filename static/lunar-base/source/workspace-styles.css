@@ -295,7 +295,8 @@ body[data-panel-open] main.agent-workspace{margin-right:var(--workspace-drawer-w
 #lunar-host .lunar-hud-top-left{top:12px;left:12px}
 #lunar-host .lunar-hud-top-right{top:12px;right:12px;justify-content:flex-end}
 #lunar-host .lunar-hud-bottom-left{bottom:12px;left:12px}
-#lunar-host .lunar-hud-bottom-right{bottom:12px;right:12px;text-align:right}
+#lunar-host .lunar-hud-bottom-right{bottom:12px;right:12px;text-align:right;flex-direction:column;align-items:flex-end;gap:0}
+#lunar-host #live-context-note{font-size:inherit;color:#a9bdce}
 #lunar-host .lunar-hud [hidden],#lunar-host .demo-controls:has([hidden]){display:none}
 #lunar-host .lunar-hud .live-available{color:#a1e8bf}
 #lunar-host #live-connection{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

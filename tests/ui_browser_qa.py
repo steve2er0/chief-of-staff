@@ -166,6 +166,8 @@ try:
             'document.querySelectorAll("math").length===3&&document.querySelector("math[display=block] mfrac")&&getComputedStyle(document.querySelector("math[display=block]")).display==="block math"&&document.querySelector("[data-agent-transcript]").textContent.includes("malformed streamed expression stays readable: $")')
         check('selected context is honestly unavailable',
             'document.querySelector("#live-context-usage").textContent==="Unavailable"')
+        check('saved runs explain absent native token telemetry',
+            'document.querySelector("#live-context-note").textContent==="No saved token report"&&document.querySelector("#live-context-metrics").title.includes("no native token usage")')
         capture('conversation-math-image.png')
         click('[data-artifact-enlarge]')
         wait('document.querySelector("#artifact-viewer")?.open&&document.querySelector("#artifact-viewer img").naturalWidth>0')
@@ -226,6 +228,17 @@ try:
         hashes = [js('document.querySelector("canvas").toDataURL()') for _ in range(3)]
         assert len(set(hashes))==1, 'Reduced-motion canvas changed'
         checks.append('reduced motion freezes the scene')
+        # Browser-only synthetic snapshots; no model turn or server data write.
+        js('window.contextFixture=structuredClone(state);window.contextAgent=contextFixture.tasks.find(t=>t.managed_agent&&t.state!=="superseded");contextAgent.context_usage={source:"codex_app_server",basis:"last_model_request",available:false,used_tokens:24000,max_tokens:null,percent:null,updated_at:"2026-10-16T01:00:00Z"};lunarScene.update(contextFixture);lunarScene.selectAgent(AgentModel.identity(contextAgent))')
+        check('selected agent shows native token count when its limit is unknown',
+            'document.querySelector("#live-context-usage").textContent==="24,000 tokens"&&document.querySelector("#live-context-note").textContent==="Limit not reported"')
+        capture('context-unknown-limit.png')
+        js('Object.assign(contextAgent.context_usage,{available:true,max_tokens:200000,percent:12});lunarScene.update(contextFixture)')
+        check('selected agent updates reported request percentage without a prompt',
+            'document.querySelector("#live-context-usage").textContent==="12%"&&document.querySelector("#live-context-metrics").title.includes("not a live measurement")')
+        capture('context-last-request.png')
+        check('disconnected context reading is explicitly last known',
+            '(()=>{lunarScene.update(contextFixture);lunarScene.disconnect("Synthetic QA disconnection");return document.querySelector("#live-context-note").textContent==="Last known request"})()')
         assert not [e for e in events if e.get('method')=='Runtime.exceptionThrown'], 'Browser JavaScript exceptions occurred'
         checks.append('browser has no JavaScript exceptions')
         report = {'checks':checks,'passed':len(checks),'platform':'macOS native headless Chrome','actual_windows':False,

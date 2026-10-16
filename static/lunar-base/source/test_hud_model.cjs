@@ -8,9 +8,30 @@ for(const platform of ['darwin','win32','linux']){
 }
 assert.equal(hud.context().value,'Select an agent');
 for(const usage of [undefined,{available:false},{available:true,source:'estimate',used_tokens:200,max_tokens:1000},{available:true,source:'codex_app_server',used_tokens:null}])assert.equal(hud.context({raw:{context_usage:usage}}).value,'Unavailable');
-const usage={available:true,source:'codex_app_server',used_tokens:24000,max_tokens:200000,percent:12};
+const usage={available:true,source:'codex_app_server',basis:'last_model_request',used_tokens:24000,max_tokens:200000,percent:12,updated_at:'2026-10-16T01:00:00Z'};
 assert.equal(hud.context({raw:{context_usage:usage}}).value,'12%');
 assert(hud.context({raw:{context_usage:usage}}).detail.includes('24,000 / 200,000 tokens'));
 assert.equal(hud.context({raw:{context_usage:{...usage,percent:null}}}).value,'12%');
 assert.equal(hud.context({raw:{context_usage:{...usage,percent:null,max_tokens:null}}}).value,'24,000 tokens');
-console.log('PASS: measured app-host CPU/RAM across platforms, unknown samples, verified context, null limits and no estimates.');
+const noLimit=hud.context({raw:{context_usage:{...usage,available:false,percent:99,max_tokens:null}}});
+assert.equal(noLimit.value,'24,000 tokens');assert.equal(noLimit.note,'Limit not reported');
+assert(noLimit.detail.includes('not a live measurement'));assert(noLimit.detail.includes(usage.updated_at));
+assert.equal(hud.context({raw:{context_usage:{...usage,available:false,used_tokens:0,max_tokens:null}}}).value,'0 tokens');
+assert.equal(hud.context({raw:{context_usage:{...usage,percent:99}}}).value,'12%');
+assert.equal(hud.context({raw:{context_usage:{...usage,basis:'lifetime_total'}}}).value,'Unavailable');
+assert.equal(hud.context({raw:{state:'running'}}).note,'Awaiting token report');
+assert.equal(hud.context({raw:{state:'ready_for_review'}}).note,'No saved token report');
+assert(hud.context({raw:{state:'ready_for_review'}}).detail.includes('restarting CoS does not recover'));
+for(const transport of [{connected:false},{snapshotStale:true}]){
+ const stale=hud.context({raw:{context_usage:usage}},transport);
+ assert.equal(stale.value,'12%');assert.equal(stale.note,'Last known request');assert(stale.detail.includes('stale'));
+}
+// Latest-run projection retains the native reading on the selected identity.
+const model=require('./live-model.js'),snapshot={projects:[{id:'p',name:'Synthetic'}],jobs:[],tasks:[
+ {id:'old',agent_id:'a',project_id:'p',state:'superseded',managed_agent:true,updated:'2026-10-15T00:00:00Z',context_usage:{...usage,used_tokens:90000}},
+ {id:'new',agent_id:'a',project_id:'p',state:'ready_for_review',managed_agent:true,updated:usage.updated_at,context_usage:usage}
+]};
+const before=JSON.stringify(snapshot),view=model.build(snapshot,model.cleanRegistry());
+assert.equal(view.workers.length,1);assert.equal(view.workers[0].agentId,'a');
+assert.equal(hud.context(view.workers[0]).value,'12%');assert.equal(JSON.stringify(snapshot),before);
+console.log('PASS: measured host metrics, native request tokens, missing limits, absent/stale readings, identity projection and no estimates.');

@@ -28,8 +28,8 @@ pre-restart values. Live API and browser checks confirmed measured CPU/RAM.
 
 ## Validation
 
-The full Python discovery suite passes **408 tests**. The native macOS Chrome QA
-script passes **23 checks**, with no browser JavaScript exceptions, using only
+The full Python discovery suite passes **409 tests**. The native macOS Chrome QA
+script passes **27 checks**, with no browser JavaScript exceptions, using only
 synthetic data and a separate browser profile. It records screenshots and a short
 animation in ignored `.local/` storage. No model or worker is launched by that
 fixture. Run it explicitly with:
@@ -59,6 +59,13 @@ the real current time to trigger an unrelated default briefing.
   with its timestamp, rather than an estimate of live thread occupancy. A new
   run clears the previous measurement. CPU is unavailable until two samples exist.
   RAM includes reclaimable physical cache and can differ from Activity Monitor.
+- The context HUD also explains missing telemetry. Runs without a saved native
+  reading remain unavailable; restarting cannot reconstruct an earlier reading.
+  A reported token count is still shown if the CLI omits its window limit, with
+  no estimated percentage. Request counts include reported input/output tokens;
+  they are not live current-context occupancy. Disconnected or stale snapshots
+  label a saved value as the last known request. Synthetic tests cover persistence,
+  latest-run selection, missing limits and stale state without starting a model.
 - Windows native measurement structures and Explorer dispatch are unit-tested
   with mocks. No actual Windows PC was available. macOS measurements and native
   Finder reveal were exercised directly; Finder's separate automation selection

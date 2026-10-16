@@ -110,7 +110,14 @@ The base's corner HUD shows connection and agent counts, measured host CPU/RAM,
 and the selected agent's last reported request context. Measurements describe the
 machine running CoS, including a Windows host, and are cached for five seconds.
 RAM means physical memory in use, including reclaimable cache. Context comes from
-native CLI token-usage notifications; absent measurements show **Unavailable**.
+native CLI token-usage notifications. It shows the last model request's reported
+tokens relative to the reported window limit, including input/output tokens;
+it is not a live measure of current context occupancy. If the limit is missing,
+the reported token count is shown without an estimated percentage. Older runs
+without a saved reading show **Unavailable · No saved token report**; restarting
+the app cannot reconstruct that reading. A future normal run can supply one if
+the CLI emits usage. Hover or focus the HUD for the measurement timestamp and
+details; stale connections label a saved reading as **Last known request**.
 **Settings → Reduce lunar motion** freezes scene animation and also respects the
 system's reduced-motion preference. Working poses are cosmetic illustrations;
 saved agent lifecycle and tool reports remain the source of truth.

@@ -220,6 +220,22 @@ class ProjectAndContextTests(BackendFixture):
         self.assertEqual(first['host_metrics'], second['host_metrics'])
         reader.assert_called_once()
 
+    def test_native_usage_persists_to_selected_agent_snapshot_without_a_limit(self):
+        self.task['state'] = 'running'
+        self.save()
+        raw = {'last': {'totalTokens': 120, 'inputTokens': 100, 'outputTokens': 20},
+               'total': {'totalTokens': 9000}, 'modelContextWindow': None}
+        self.s._update(self.task['id'], {'token_usage': raw})
+        saved = self.s.store.get('task', self.task['id'])['context_usage']
+        self.assertEqual(saved['used_tokens'], 120)
+        self.assertIsNone(saved['max_tokens'])
+        self.assertIsNone(saved['percent'])
+        self.assertFalse(saved['available'])  # Only the percentage is unavailable.
+        shown = next(t for t in self.s.snapshot()['tasks'] if t['id'] == self.task['id'])
+        self.assertEqual(shown['context_usage'], saved)
+        self.s._update(self.task['id'], {'token_usage': {'total': {'totalTokens': 9500}}})
+        self.assertEqual(self.s.store.get('task', self.task['id'])['context_usage'], saved)
+
 
 class MetricsTests(unittest.TestCase):
     def test_cache_limits_native_calls_and_cpu_uses_sample_deltas(self):

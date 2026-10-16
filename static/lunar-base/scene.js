@@ -936,14 +936,18 @@ window.LunarHologramAssets={"url":"/lunar-base/assets/hologram-cycle.png","width
     const platform={darwin:'macOS',win32:'Windows',linux:'Linux'}[metrics.platform]||'App host';
     return {cpu:percent(metrics.cpu_percent),ram,detail:platform+' · machine running CoS'+(size?' · RAM '+size:'')+(metrics.sampled_at?' · sampled '+metrics.sampled_at:'')};
   }
-  function context(worker){
-    if(!worker)return {value:'Select an agent',detail:'Select an astronaut or open an agent conversation to see reported context usage.'};
-    const usage=worker.raw?.context_usage;
-    if(!usage||usage.available!==true||usage.source!=='codex_app_server'||!finite(usage.used_tokens))return {value:'Unavailable',detail:'This agent has not reported context usage.'};
-    const used=Math.round(usage.used_tokens).toLocaleString('en-US');
-    const maximum=finite(usage.max_tokens)&&usage.max_tokens>0?usage.max_tokens:null;
-    const value=finite(usage.percent)&&usage.percent<=100?Math.round(usage.percent)+'%':maximum&&usage.used_tokens<=maximum?Math.round(usage.used_tokens/maximum*100)+'%':used+' tokens';
-    return {value,detail:'Last reported request context: '+used+(maximum?' / '+Math.round(maximum).toLocaleString('en-US'):'')+' tokens'+(usage.updated_at?' · updated '+usage.updated_at:'')};
+  function context(worker,transport={}){
+    if(!worker)return {value:'Select an agent',note:'',detail:'Select an astronaut or open an agent conversation to see its last reported model-request tokens.'};
+    const raw=worker.raw||{},usage=raw.context_usage,active=['queued','running','stopping'].includes(raw.state);
+    if(!usage||usage.source!=='codex_app_server'||(usage.basis&&usage.basis!=='last_model_request')||!Number.isSafeInteger(usage.used_tokens)||usage.used_tokens<0){
+      return {value:'Unavailable',note:active?'Awaiting token report':'No saved token report',detail:raw.config?.mode==='simulated'?'Simulated agents have no native token usage.':active?'No native token usage has been recorded for this run yet. A reading appears only if the CLI reports it.':'This saved run has no recorded native token usage. A future run can supply a reading if the CLI reports it; restarting CoS does not recover an earlier reading.'};
+    }
+    // `available` describes the percentage denominator, not the validity of the
+    // native token count. Never replace missing limits with a model estimate.
+    const used=usage.used_tokens.toLocaleString('en-US'),maximum=Number.isSafeInteger(usage.max_tokens)&&usage.max_tokens>0?usage.max_tokens:null;
+    const stale=transport.connected===false||transport.snapshotStale===true;
+    const value=maximum&&usage.used_tokens<=maximum?Math.round(usage.used_tokens/maximum*100)+'%':used+' tokens';
+    return {value,note:stale?'Last known request':maximum?'Last reported request':'Limit not reported',detail:'Last reported model request: '+used+(maximum?' / '+maximum.toLocaleString('en-US'):'')+' tokens'+(maximum?' (reported context-window limit)':' (context-window limit not reported)')+(usage.updated_at?' · reported '+usage.updated_at:'')+'. Includes reported input/output tokens; not a live measurement of current context occupancy.'+(stale?' Connection or snapshot is stale; this is the last saved reading.':'')};
   }
   const api={host,context};root.LunarHUD=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
@@ -964,7 +968,7 @@ window.LunarHologramAssets={"url":"/lunar-base/assets/hologram-cycle.png","width
         <div class="lunar-hud lunar-hud-top-left"><span id="live-connection" role="status" aria-live="polite">Connecting…</span><span class="demo-label" hidden><b id="live-kind">LIVE AGENTS</b></span></div>
         <div class="lunar-hud lunar-hud-top-right"><span id="live-agent-count">0 agents</span><span id="live-available" class="live-available" hidden></span></div>
         <div class="lunar-hud lunar-hud-bottom-left" id="live-host-metrics" tabindex="0" aria-label="Host CPU and RAM"><span>Host CPU <strong id="live-host-cpu">Unavailable</strong></span><span>RAM <strong id="live-host-ram">Unavailable</strong></span></div>
-        <div class="lunar-hud lunar-hud-bottom-right" id="live-context-metrics" tabindex="0" aria-label="Selected agent context usage"><span>Context <strong id="live-context-usage">Select an agent</strong></span></div>
+        <div class="lunar-hud lunar-hud-bottom-right" id="live-context-metrics" tabindex="0" aria-label="Selected agent context usage"><span>Context <strong id="live-context-usage">Select an agent</strong></span><small id="live-context-note" hidden></small></div>
         <div class="scene-title"><p id="live-outpost">SHARED LUNAR BASE</p><h1>LUNAR BASE</h1><div class="title-rule"></div></div>
         <div id="live-empty" class="live-empty" role="status">Waiting for the first supported CoS snapshot.</div>
         <div class="scene-caption" id="live-caption" hidden></div>
@@ -1329,9 +1333,9 @@ window.LunarHologramAssets={"url":"/lunar-base/assets/hologram-cycle.png","width
       }
     }
     function renderHUD(){
-      const metrics=root.LunarHUD?.host(snapshot?.host_metrics),worker=view.workers.find(w=>w.key===selectedWorker),context=root.LunarHUD?.context(worker);
+      const metrics=root.LunarHUD?.host(snapshot?.host_metrics),worker=view.workers.find(w=>w.key===selectedWorker),context=root.LunarHUD?.context(worker,currentContext());
       if(metrics){text('live-host-cpu',metrics.cpu);text('live-host-ram',metrics.ram);element('live-host-metrics').title=metrics.detail;element('live-host-metrics').setAttribute('aria-label','Host CPU '+metrics.cpu+'; RAM '+metrics.ram+'. '+metrics.detail);}
-      if(context){text('live-context-usage',context.value);element('live-context-metrics').title=context.detail;element('live-context-metrics').setAttribute('aria-label','Selected agent context '+context.value+'. '+context.detail);}
+      if(context){text('live-context-usage',context.value);text('live-context-note',context.note||'');element('live-context-note').hidden=!context.note;element('live-context-metrics').title=context.detail;element('live-context-metrics').setAttribute('aria-label','Selected agent context '+context.value+'. '+context.detail);}
     }
     function setReducedMotion(value){reducedMotion=Boolean(value);paused=motion.matches||reducedMotion;previous=0;dirty=true;}
     function loop(timestamp) {
