@@ -1,4 +1,4 @@
-"""Artifact cards use authenticated local paths and preserve download fallbacks."""
+"""Artifact names are plain text; explicit reveal and image previews are separate."""
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,11 +17,20 @@ assert.equal(artifacts.relative(task,'/project/plots/chart.png:12'),'plots/chart
 assert.equal(artifacts.relative({context:{cwd:'C:\\Project'}},'c:\\project\\plots\\chart.png'),'plots/chart.png');
 const before=JSON.stringify(task),text='![Chart](plots/chart.png) [Notes](notes.txt) `notes.txt` ![Private](https://bad.invalid/private.png)';
 const html=artifacts.render(task,text);
-assert.ok(html.includes('/api/output-preview/task%20%3Cone%3E/saved.txt'));assert.ok(html.includes('/api/artifact/task%20%3Cone%3E/notes.txt'));
+assert.ok(html.includes('/api/output-preview/task%20%3Cone%3E/saved.txt'));assert.ok(html.includes('data-artifact-relative="notes.txt"'));
 assert.ok(html.includes('Show in folder'));assert.ok(html.includes('Enlarge image'));assert.ok(!html.includes('bad.invalid'));
 assert.equal((html.match(/<figure/g)||[]).length,2);assert.ok(!html.includes('task <one>'));
 const results=artifacts.files(task);assert.ok(results.includes('<img'),'Friendly display labels must not hide raster previews');
-assert.ok(results.includes('Chart preview'));assert.ok(results.includes('download'));
+assert.ok(results.includes('Chart preview'));assert.ok(!results.includes('download'));assert.ok(!/<a\b/.test(results));
+assert.ok(!/<a\b/.test(html));assert.ok(html.includes('<span class="artifact-filename">notes.txt</span>'));
+const checkout={id:'t',context:{cwd:'/run'},worktree:{source_cwd:'/original'}};
+assert.equal(artifacts.revealTarget(checkout,'original').scope,'Original project folder');
+assert.equal(artifacts.revealTarget(checkout,'.').reference,'.');
+assert.equal(artifacts.revealTarget(checkout,'reports/').reference,'reports');
+assert.equal(artifacts.revealTarget(checkout,'/original/docs/updated.txt').reference,'/original/docs/updated.txt');
+assert.equal(artifacts.revealTarget(checkout,'/other/updated.txt'),null);
+assert.equal(artifacts.revealTarget(checkout,'../original'),null);
+assert.ok(artifacts.render(checkout,'Updated `original`.').includes('Original project folder'));
 assert.equal(JSON.stringify(task),before);
 assert.ok(!artifacts.render(task,'No files were reported.').includes('<img'));
 assert.equal(artifacts.render(task,'`../secret.png`'),'');

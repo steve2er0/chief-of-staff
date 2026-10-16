@@ -17,7 +17,7 @@ pre-restart values. Live API and browser checks confirmed measured CPU/RAM.
 | 5 | Explicit local image references render inline and enlarge in a dialog. | Authenticated raster byte validation, privacy/path tests and real browser preview/enlargement. |
 | 6 | New project requires only a working directory; its basename supplies the name. Existing metadata remains editable. | Backend preservation tests and browser creation in a temporary folder. |
 | 7 | Corner HUD reports cached app-host CPU/RAM and selected-agent native last-request context; missing values say Unavailable. | Real Mac native APIs; mocked Windows APIs, cache and protocol tests. |
-| 8 | Generated files download with their original names. Show in folder explicitly requests Finder/Explorer selection; browser download remains available. | Privacy/CSRF/idempotency, platform argument tests and successful native Mac reveal. |
+| 8 | Generated filenames are plain text with a separate Show in folder button. Files select in Finder/Explorer; directory references open that directory. No Download action or automatic download fallback appears in these entries. | Privacy/CSRF/idempotency, file/directory platform tests, missing-file and copyable-path checks, plus native Mac reveal. |
 | 9 | Enter submits; Shift+Enter inserts newline. IME and repeated keys do not double-send or accept ghost drafts. | Composition/key regressions and real Chrome keyboard submission. |
 | 10 | Rover and garage moved left; crew stations follow safely. | Full raster-frame, badge, label, geometry and crowded return-route checks. |
 | 11 | Drawers use one responsive width. | Browser width comparison and 900px/390px window checks. |
@@ -28,8 +28,8 @@ pre-restart values. Live API and browser checks confirmed measured CPU/RAM.
 
 ## Validation
 
-The full Python discovery suite passes **409 tests**. The native macOS Chrome QA
-script passes **27 checks**, with no browser JavaScript exceptions, using only
+The full Python discovery suite passes **416 tests**. The native macOS Chrome QA
+script passes **31 checks**, with no browser JavaScript exceptions, using only
 synthetic data and a separate browser profile. It records screenshots and a short
 animation in ignored `.local/` storage. No model or worker is launched by that
 fixture. Run it explicitly with:
@@ -54,7 +54,15 @@ the real current time to trigger an unrelated default briefing.
   it does not change collaboration mode, sandbox, or approval permissions.
 - Math supports common TeX syntax, not arbitrary LaTeX packages or macros.
 - Inline previews support PNG/JPEG/GIF/WebP up to 20 MiB. SVG, PDF and other files
-  remain downloadable; active formats are not embedded in the app.
+  retain their plain filename and Show in folder action; active formats are not
+  embedded in the app. Filename clicks do nothing; image thumbnails still enlarge.
+- Reveal resolves files and directories only in the captured run folder, or in
+  an explicitly named original checkout recorded with that run. The UI identifies
+  the scope. An exact, unambiguous recorded-folder basename can identify that
+  folder; relative child paths never search another checkout. Existing preview
+  and download API roots are unchanged. Missing files produce errors, while an
+  unavailable host file manager provides a verified copyable host path. Remote
+  browser clients cannot use this action to open their own machine's file manager.
 - Context is the latest native model-request token count and context window,
   with its timestamp, rather than an estimate of live thread occupancy. A new
   run clears the previous measurement. CPU is unavailable until two samples exist.

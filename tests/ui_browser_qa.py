@@ -33,6 +33,10 @@ def cdp(method, params=None):
         if response.get('id') != target:
             if response.get('method') in ('Runtime.exceptionThrown', 'Network.loadingFailed'):
                 events.append(response)
+            if response.get('method')=='Network.requestWillBeSent':
+                url=response.get('params',{}).get('request',{}).get('url','')
+                if any(path in url for path in ('/api/output/','/api/artifact/')) and 'preview=1' not in url:
+                    events.append({'method':'artifact/file-request'})
             continue
         if 'error' in response:
             raise RuntimeError(response['error'])
@@ -172,6 +176,11 @@ try:
         click('[data-artifact-enlarge]')
         wait('document.querySelector("#artifact-viewer")?.open&&document.querySelector("#artifact-viewer img").naturalWidth>0')
         capture('image-enlarged.png');click('#artifact-viewer button')
+        requests_before=sum(e.get('method')=='artifact/file-request' for e in events)
+        click('.artifact-filename')
+        check('generated filenames are plain text and never trigger a file request',
+            'document.querySelectorAll(".agent-artifact figcaption a,.agent-artifact [download]").length===0&&document.querySelector(".artifact-filename").tagName==="SPAN"')
+        assert sum(e.get('method')=='artifact/file-request' for e in events)==requests_before
         # Explicit user-action reveal of a synthetic artifact, then read Finder selection.
         click('[data-reveal-artifact]')
         wait('document.querySelector("#toast").textContent.includes("Requested selection")')
@@ -179,6 +188,22 @@ try:
         reveal = subprocess.run(['/usr/bin/open','-R',expected],capture_output=True,text=True,timeout=5)
         assert reveal.returncode==0, 'Finder rejected the synthetic artifact reveal'
         checks.append('macOS Finder accepted native reveal of the synthetic generated file')
+        wait('document.querySelector("#toast").hidden')
+        click('[data-artifact-relative="reports"]')
+        wait('document.querySelector("#toast").textContent.includes("Requested opening")')
+        check('directory entries open their folder through an explicit button',
+            'document.querySelector("[data-artifact-relative=reports]").closest("figure").querySelector(".artifact-reveal-feedback").textContent.includes("Requested opening")')
+        wait('document.querySelector("#toast").hidden')
+        click('[data-artifact-relative="not-generated.txt"]')
+        wait('document.querySelector("#toast").textContent.includes("Referenced artifact is missing")')
+        check('missing artifacts give a clear inline error without a download',
+            'document.querySelector("[data-artifact-relative=\\"not-generated.txt\\"]").closest("figure").querySelector(".artifact-reveal-feedback").textContent.includes("missing")&&!document.querySelector(".agent-artifact a")')
+        wait('document.querySelector("#toast").hidden')
+        js('AgentArtifacts.bind({api:async()=>({revealed:false,reason:"Synthetic file manager unavailable",path:"/synthetic/verified/chart.png"})})')
+        click('[data-reveal-artifact]')
+        check('unavailable host file manager provides a copyable path without downloading',
+            'document.querySelector(".artifact-reveal-feedback input[readonly]")?.value==="/synthetic/verified/chart.png"&&!document.querySelector(".agent-artifact a")')
+        js('AgentArtifacts.bind({api})')
         wait('document.querySelector("#toast").hidden')
         click('#agent-reply-form textarea')
         cdp('Input.insertText', {'text':'Synthetic draft'})

@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 import test_agent_manager
 import test_app
-from cos.artifacts import PREVIEW_LIMIT, image_type, relative_reference, reveal_file
+from cos.artifacts import PREVIEW_LIMIT, image_type, relative_reference, reveal_file, reveal_reference
 from cos.metrics import HostMetrics, _linux, _mac, _windows, context_usage
 from cos.progress import apply_progress
 from cos.safety import Invalid
@@ -143,6 +143,104 @@ class ArtifactTests(BackendFixture):
                                            stderr=subprocess.DEVNULL, shell=False)
         self.assertFalse(reveal_file(path, 'linux', Mock())['revealed'])
         self.assertFalse(reveal_file(path, 'darwin', Mock(side_effect=OSError()))['revealed'])
+
+    def test_reveal_directory_opens_contents_and_file_selects_in_parent(self):
+        folder = self.work / 'plots'
+        folder.mkdir()
+        for platform, command in [('darwin', ['/usr/bin/open', str(folder)]),
+                                  ('win32', ['explorer.exe', str(folder)])]:
+            runner = Mock()
+            self.assertTrue(reveal_file(folder, platform, runner)['revealed'])
+            self.assertEqual(runner.call_args.args[0], command)
+            self.assertFalse(runner.call_args.kwargs['shell'])
+
+    def test_reveal_accepts_explicit_files_and_directories_inside_run_folder(self):
+        file = self.file('docs/chart.png', PNG)
+        values = [self.work.name, '.', str(self.work), 'docs/', str(self.work/'docs')+'/',
+                  'docs/chart.png', str(file)+':12']
+        self.task['result']['artifacts'] = values
+        self.save()
+        for value, target in zip(values, [self.work,self.work,self.work,file.parent,file.parent,file,file]):
+            with self.subTest(value=value), patch('cos.artifacts.reveal_file', return_value={'revealed': True}) as reveal:
+                result = self.s.reveal_artifact(self.task['id'], relative=value)
+                reveal.assert_called_once_with(target)
+                self.assertEqual(result['path'], str(target))
+                self.assertEqual(result['kind'], 'directory' if target.is_dir() else 'file')
+        with self.assertRaises(Invalid):
+            self.s.artifact(self.task['id'], 'docs')  # Reveal does not enable directory downloads.
+
+    def test_original_checkout_requires_captured_root_and_explicit_reference(self):
+        source = self.root / 'original-project'
+        source.mkdir()
+        file = source / 'updated.txt'
+        file.write_text('synthetic')
+        self.task['worktree'] = {'source_cwd': str(source), 'path': str(self.work)}
+        self.task['conversation'] = [{'role': 'assistant', 'text': f'Updated `{source.name}`, [{file.name}]({file}).'}]
+        self.save()
+        for value, target in [(source.name,source), (str(file),file)]:
+            with self.subTest(value=value), patch('cos.artifacts.reveal_file', return_value={'revealed': True}) as reveal:
+                result = self.s.reveal_artifact(self.task['id'], relative=value)
+                reveal.assert_called_once_with(target)
+                self.assertEqual(result['location'], 'original project folder')
+        with self.assertRaises(Invalid):
+            self.s.reveal_artifact(self.task['id'], relative=str(source))  # Root was not declared absolutely.
+        with self.assertRaises(Invalid):
+            self.s.artifact(self.task['id'], str(file))  # Preview/download roots are unchanged.
+        self.task['result']['artifacts'] = ['updated.txt']
+        self.save()
+        with self.assertRaisesRegex(Invalid, 'missing'):
+            self.s.reveal_artifact(self.task['id'], relative='updated.txt')  # Never search the other checkout.
+        del self.task['worktree']
+        self.save()
+        with self.assertRaises(Invalid):
+            self.s.reveal_artifact(self.task['id'], relative=str(file))
+
+    def test_reveal_rejects_missing_unreferenced_and_outside_paths(self):
+        outside = self.root / 'outside.txt'
+        outside.write_text('private synthetic')
+        self.file('known.txt')
+        self.task['result']['artifacts'] = ['missing.txt', '../outside.txt', str(outside),
+                                          'docs/../known.txt', '//host/private', 'C:\\private.txt']
+        self.save()
+        for value in self.task['result']['artifacts'] + ['known.txt']:
+            with self.subTest(value=value), patch('cos.artifacts.reveal_file') as reveal, self.assertRaises(Invalid):
+                self.s.reveal_artifact(self.task['id'], relative=value)
+            reveal.assert_not_called()
+
+    def test_reveal_rejects_symlink_children_and_changed_original_root(self):
+        source = self.root / 'original'
+        source.mkdir()
+        outside = self.root / 'outside'
+        outside.mkdir()
+        (self.work/'alias').symlink_to(outside, target_is_directory=True)
+        self.task['worktree'] = {'source_cwd': str(source)}
+        self.task['result']['artifacts'] = ['alias', source.name]
+        self.save()
+        with self.assertRaises(Invalid):
+            self.s.reveal_artifact(self.task['id'], relative='alias')
+        source.rmdir()
+        source.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(Invalid):
+            self.s.reveal_artifact(self.task['id'], relative=source.name)
+
+    def test_ambiguous_folder_basename_needs_an_absolute_reference(self):
+        other = self.root / 'other' / self.work.name
+        other.mkdir(parents=True)
+        self.task['worktree'] = {'source_cwd': str(other)}
+        with self.assertRaisesRegex(Invalid, 'ambiguous'):
+            reveal_reference(self.task, self.work.name)
+        self.assertEqual(reveal_reference(self.task, str(other))[0], other)
+
+    def test_reveal_failure_returns_copyable_verified_path_without_download(self):
+        path = self.file('notes.txt')
+        self.task['result']['artifacts'] = ['notes.txt']
+        self.save()
+        with patch('cos.artifacts.sys.platform', 'linux'):
+            result = self.s.reveal_artifact(self.task['id'], relative='notes.txt')
+        self.assertFalse(result['revealed'])
+        self.assertEqual(result['path'], str(path))
+        self.assertIn('Copy', result['reason'])
+        self.assertNotIn('download', result['reason'].lower())
 
     def test_raster_previews_use_bytes_and_enforce_size(self):
         for payload, kind in [(PNG, 'image/png'), (b'\xff\xd8\xfffixture', 'image/jpeg'),

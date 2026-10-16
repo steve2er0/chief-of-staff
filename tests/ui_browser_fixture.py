@@ -84,7 +84,7 @@ $$
 Synthetic generated plot:
 ![Synthetic lunar plot](chart.png)
 
-Saved [chart.png](chart.png). A malformed streamed expression stays readable: $\frac{a}{.
+Saved [chart.png](chart.png). Folder `reports` contains supporting files; `not-generated.txt` is intentionally missing for QA. A malformed streamed expression stays readable: $\frac{a}{.
 '''
     base = dict(project_id=project['id'], plan_id='fixture-only', assignment_scope='pieces',
         state='ready_for_review', created=stamp, updated=stamp, started_at=stamp, finished_at=stamp,
@@ -103,6 +103,7 @@ Saved [chart.png](chart.png). A malformed streamed expression stays readable: $\
         output.mkdir(parents=True)
         (output / 'chart.png').write_bytes(chart_png())
         (Path(task['context']['cwd']) / 'chart.png').write_bytes(chart_png())
+        (Path(task['context']['cwd']) / 'reports').mkdir(exist_ok=True)
         task['output_links'] = [dict(name='chart.png', label='Synthetic chart', source_path='chart.png', sha256='fixture')]
         if status in ('running', 'queued'):
             task.update(result=None,output_links=[],finished_at=None,progress='Processing synthetic measurements',activity='commandExecution: in progress',activity_at=stamp)

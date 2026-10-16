@@ -17,19 +17,33 @@
     const candidates=[...text.matchAll(/\[[^\]\n]*\]\(<?([^\n)>]+)>?\)/g),...text.matchAll(/`([^`\n]+)`/g)].map(m=>m[1]);
     try{const value=JSON.parse(text);if(Array.isArray(value.artifacts))candidates.push(...value.artifacts);}catch{}
     if(task.result&&(task.result.agent_report===text||task.result.summary===text)&&Array.isArray(task.result.artifacts))candidates.push(...task.result.artifacts);
-    return [...new Set(candidates.map(path=>relative(task,path)).filter(Boolean))];
+    return [...new Set(candidates.map(path=>revealTarget(task,path)?.reference).filter(Boolean))];
+  }
+  function revealTarget(task,value){
+    if(typeof value!=='string')return null;
+    value=value.trim().replace(/:\d+(?::\d+)?$/,'').replaceAll('\\','/').replace(/\/+$/,'')||'/';
+    const cwd=String(task.context?.cwd||'').replaceAll('\\','/').replace(/\/$/,''),source=String(task.worktree?.source_cwd||task.worktree?.source||'').replaceAll('\\','/').replace(/\/$/,'');
+    const fold=v=>/^[A-Za-z]:\//.test(cwd)?v.toLowerCase():v;
+    const roots=[{path:cwd,scope:source&&fold(source)!==fold(cwd)?'Run checkout':'Project folder'},...(source&&fold(source)!==fold(cwd)?[{path:source,scope:'Original project folder'}]:[])].filter(root=>root.path);
+    if(value==='.'&&cwd)return {reference:'.',scope:roots[0].scope,previewRelative:null};
+    if(value.startsWith('//')||value.split('/').some(part=>part==='..'))return null;
+    const root=roots.find(root=>fold(value)===fold(root.path)||!value.includes('/')&&fold(value)===fold(root.path.split('/').at(-1))||fold(value).startsWith(fold(root.path)+'/'));
+    const local=relative(task,value);
+    if(root&&(!local||fold(value)===fold(root.path.split('/').at(-1))))return {reference:value,scope:root.scope,previewRelative:fold(root.path)===fold(cwd)?local:null};
+    return local?{reference:local,scope:roots[0]?.scope||'Run folder',previewRelative:local}:null;
   }
   function artifact(task,path){
+    const target=revealTarget(task,path);
     const link=(task.output_links||[]).find(link=>relative(task,link.source_path)===path);
-    if(link)return {label:path,download:'/api/output/'+encoded(task.id)+'/'+encoded(link.name),preview:'/api/output-preview/'+encoded(task.id)+'/'+encoded(link.name),name:link.name};
+    if(link)return {label:path,scope:target?.scope,preview:'/api/output-preview/'+encoded(task.id)+'/'+encoded(link.name),name:link.name};
     const url='/api/artifact/'+encoded(task.id)+'/'+encoded(path);
-    return {label:path,download:url,preview:url+'?preview=1',relative:path};
+    return {label:path,scope:target?.scope,preview:target?.previewRelative?url+'?preview=1':null,relative:path};
   }
   function reveal(task,file){
-    return `<button type="button" class="text-button artifact-reveal" data-reveal-artifact="${escape(task.id)}" ${file.name!==undefined?`data-artifact-name="${escape(file.name)}"`:`data-artifact-relative="${escape(file.relative)}"`} title="Select this file in the file manager on the computer running CoS">Show in folder</button>`;
+    return `<button type="button" class="text-button artifact-reveal" data-reveal-artifact="${escape(task.id)}" ${file.name!==undefined?`data-artifact-name="${escape(file.name)}"`:`data-artifact-relative="${escape(file.relative)}"`} title="Open the folder on the computer running CoS; select the file where supported">Show in folder</button>`;
   }
   function card(task,file,preview=true){
-    return `<figure class="agent-artifact">${preview&&image.test(file.path||file.label)?`<button type="button" class="artifact-preview" data-artifact-enlarge="${escape(file.preview)}" data-artifact-label="${escape(file.label)}" aria-label="Enlarge ${escape(file.label)}"><img src="${escape(file.preview)}" alt="${escape(file.label)}" loading="lazy" decoding="async"><span>Enlarge image</span></button>`:''}<figcaption><a href="${escape(file.download)}" download>${escape(file.label)}</a>${file.partial?'<small class="muted">Partial snapshot</small>':''}${reveal(task,file)}</figcaption></figure>`;
+    return `<figure class="agent-artifact">${preview&&file.preview&&image.test(file.path||file.label)?`<button type="button" class="artifact-preview" data-artifact-enlarge="${escape(file.preview)}" data-artifact-label="${escape(file.label)}" aria-label="Enlarge ${escape(file.label)}"><img src="${escape(file.preview)}" alt="${escape(file.label)}" loading="lazy" decoding="async"><span>Enlarge image</span></button>`:''}<figcaption><span class="artifact-filename">${escape(file.label)}</span>${file.scope?`<small class="muted">${escape(file.scope)}</small>`:''}${file.partial?'<small class="muted">Partial snapshot</small>':''}${reveal(task,file)}<div class="artifact-reveal-feedback" role="status" hidden></div></figcaption></figure>`;
   }
   function render(task,text,options={}){
     if(!task?.id)return '';
@@ -39,7 +53,7 @@
   function files(task){
     const files=(task.output_links||[]).filter(link=>link.source_path);
     if(!files.length)return '';
-    return `<details class="result-files" data-preserve-open="${escape(task.id)}:files" data-panel-detail="files"><summary data-result-focus="${escape(task.id)}:files">Generated files · ${files.length}</summary><div class="agent-artifacts">${files.map(link=>card(task,{label:link.label||link.source_path,path:link.source_path,partial:link.partial,download:'/api/output/'+encoded(task.id)+'/'+encoded(link.name),preview:'/api/output-preview/'+encoded(task.id)+'/'+encoded(link.name),name:link.name})).join('')}</div><p class="section-note">Show in folder opens the file manager on the computer running CoS. Downloads work in this browser.</p></details>`;
+    return `<details class="result-files" data-preserve-open="${escape(task.id)}:files" data-panel-detail="files"><summary data-result-focus="${escape(task.id)}:files">Generated files · ${files.length}</summary><div class="agent-artifacts">${files.map(link=>card(task,{label:link.label||link.source_path,path:link.source_path,scope:revealTarget(task,link.source_path)?.scope||'Saved output',partial:link.partial,preview:'/api/output-preview/'+encoded(task.id)+'/'+encoded(link.name),name:link.name})).join('')}</div><p class="section-note">Show in folder opens the file manager on the computer running CoS, which may be a different computer from this browser. Image thumbnails open a larger preview.</p></details>`;
   }
   let bound=false,dependencies={};
   function bind(options={}){
@@ -67,18 +81,21 @@
       const button=event.target.closest('[data-reveal-artifact]');
       if(!button||button.disabled)return;
       event.preventDefault();button.disabled=true;
+      const feedback=button.closest('figure')?.querySelector('.artifact-reveal-feedback');
+      const show=(message,path)=>{if(feedback){feedback.hidden=false;feedback.textContent=message;if(path)feedback.insertAdjacentHTML('beforeend',`<label>Verified path on the CoS host<input readonly aria-label="Verified app-host path" value="${escape(path)}"></label>`);}};
       try{
         const send=dependencies.api||(typeof api==='function'?api:null),notify=dependencies.toast||(typeof toast==='function'?toast:null);
         if(!send)throw new Error('Reconnect to CoS to show this file in its folder.');
         const payload={id:button.dataset.revealArtifact};
         if(button.hasAttribute('data-artifact-name'))payload.name=button.dataset.artifactName;else payload.relative=button.dataset.artifactRelative;
         const result=await send('reveal-artifact',payload,undefined,false);
-        if(notify)notify(result.revealed?`Requested selection of ${result.location||'file'} in the app computer’s file manager.`:result.reason,!result.revealed);
-      }catch(error){const notify=dependencies.toast||(typeof toast==='function'?toast:null);if(notify)notify(error.message,true);}
+        const message=result.revealed?`Requested ${result.kind==='directory'?'opening':'selection'} of ${result.location||'file'} in the app computer’s file manager.`:result.reason;
+        show(message,result.revealed?null:result.path);if(notify)notify(message,!result.revealed);
+      }catch(error){show(error.message);const notify=dependencies.toast||(typeof toast==='function'?toast:null);if(notify)notify(error.message,true);}
       finally{button.disabled=false;}
     });
   }
-  const apiObject={render,files,bind,references,relative};
+  const apiObject={render,files,bind,references,relative,revealTarget};
   if(typeof module==='object'&&module.exports)module.exports=apiObject;
   root.AgentArtifacts=apiObject;
   if(typeof document!=='undefined')bind();

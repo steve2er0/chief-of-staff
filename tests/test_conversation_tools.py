@@ -159,7 +159,7 @@ assert.ok(transcript.html.includes('/api/output-preview/old/captured-plot.png'))
 assert.ok(transcript.html.includes('notes.txt'));assert.equal(draft.value,'Keep my unfinished instructions.');assert.equal(frames,0);assert.equal(newMessages.hidden,false);
 assert.equal(sync(),false);assert.equal(writes,1);assert.equal(scroll.scrollTop,320);
 task.output_links.push({name:'captured-notes.txt',source_path:'notes.txt'});
-assert.equal(sync(),true);assert.equal(writes,2);assert.ok(transcript.html.includes('/api/output/now/captured-notes.txt'));assert.equal(c.document.activeElement,draft);
+assert.equal(sync(),true);assert.equal(writes,2);assert.ok(transcript.html.includes('data-artifact-name="captured-notes.txt"'));assert.ok(!transcript.html.includes(' download'));assert.equal(c.document.activeElement,draft);
 assert.equal(sync(),false);assert.equal(writes,2);assert.equal(scroll.scrollTop,390);
 panel.dataset.followLatest='true';task.conversation.at(-1).text+=' Additional detail.';
 assert.equal(sync(),true);assert.equal(frames,1);assert.equal(sync(),false);assert.equal(frames,1);
@@ -174,6 +174,6 @@ vm.createContext(c);for(const name of ['task-feedback','agents'])vm.runInContext
 c.task={id:'a',state:'ready_for_review',created:'2026-10-14T00:00:00Z',context:{cwd:'/fixture'},output_links:[{name:'report-copy',source_path:'notes.txt'}],
 conversation:[{role:'user',id:'draft',text:'Please read [private](private.png).',at:'2026-10-14T00:01:00Z'},
 {role:'agent',id:'reply',text:'Saved [report](notes.txt).',at:'2026-10-14T00:02:00Z'}]};c.state={tasks:[c.task]};
-const html=vm.runInContext('agentConversationHTML(task)',c);assert.ok(html.includes('/api/output/a/report-copy'));assert.ok(html.includes('data-reveal-artifact="a"'));
+const html=vm.runInContext('agentConversationHTML(task)',c);assert.ok(html.includes('data-artifact-name="report-copy"'));assert.ok(html.includes('data-reveal-artifact="a"'));assert.ok(html.includes('<span class="artifact-filename">notes.txt</span>'));assert.ok(!html.includes(' download'));
 assert.ok(!html.includes('/api/artifact/a/private.png'));assert.ok(!html.includes('<img'));
 ''')

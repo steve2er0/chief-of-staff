@@ -102,9 +102,14 @@ Messages render common inline and block TeX equations locally using native
 MathML. Incomplete streaming expressions, malformed math, and unsupported TeX
 commands remain readable source. No message text is sent to a rendering service.
 Explicitly linked PNG, JPEG, GIF, and WebP artifacts appear inline and enlarge
-when clicked. Other formats, oversized images, and unavailable previews retain
-file download links. **Show in folder** requests selection in Finder on macOS or
-Explorer on Windows, on the computer running CoS; downloads work in the browser.
+when clicked. Generated filenames are plain text, with a separate **Show in
+folder** button and no Download action. Files are selected in their containing
+folder in Finder or Explorer; directory references open that directory. These
+actions run on the computer hosting CoS, which can differ from the browser's
+computer. If its file manager is unavailable, a verified host path is provided
+for copying; missing files show an error without starting a download. Reveal
+targets stay inside the run folder or an explicitly named original checkout
+captured with that run, and the entry identifies which folder is used.
 
 The base's corner HUD shows connection and agent counts, measured host CPU/RAM,
 and the selected agent's last reported request context. Measurements describe the
